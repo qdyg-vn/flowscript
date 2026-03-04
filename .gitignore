@@ -1,0 +1,9 @@
+/target
+.idea/
+.qodo/
+*.iml
+cmake-build-*/
+.DS_Store
+**/*.rs.bk
+cargo-expand
+main.fscc
