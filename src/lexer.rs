@@ -1,6 +1,6 @@
 use std::process::exit;
-use crate::{reader, token::{Token, TokenType::{EOF, FLOAT, INT, STRING}}};
-use reader::LineReader;
+use crate::token::Token;
+use crate::reader::LineReader;
 
 pub struct Lexer<R: LineReader> {
     reader: R,
@@ -30,7 +30,6 @@ impl<R: LineReader> Lexer<R> {
     fn advance(&mut self, steps: usize) -> Option<char> {
         let character = self.peek();
         if character.is_some() { self.pos += steps }
-        print!("{:?}", character);
         character
     }
 
@@ -49,16 +48,16 @@ impl<R: LineReader> Lexer<R> {
                 None => { eprintln!("Missing closing quote!"); exit(3) }
             }
         }
-        Token::new(STRING, self.code[start..self.pos - 1].to_string())
+        Token::STRING(self.code[start..self.pos - 1].to_string())
     }
 
-    fn number_collector(&mut self, first_number: char) -> Token {
+    fn number_collector(&mut self, _first_number: char) -> Token {
         let start = self.pos - 1; // Because pos now in second number so we need -1
         let mut has_dot = false;
-        loop {
-            match self.peek() {
-                Some('0'..='9') => (),
-                Some('.') => {
+        while let Some(character) = self.peek() {
+            match character {
+                '0'..='9' => (),
+                '.' => {
                     if has_dot { eprintln!("Multiple Decimal Points!"); exit(2); }
                     has_dot = true;
                 }
@@ -66,27 +65,26 @@ impl<R: LineReader> Lexer<R> {
             }
             self.advance(1);
         }
-        let value = self.code[start..self.pos].to_string();
-        if has_dot { Token::new(FLOAT, value)}
-        else { Token::new(INT, value) }
+        let value = &self.code[start..self.pos];
+        if has_dot { Token::FLOAT(value.parse().unwrap()) }
+        else { Token::INT(value.parse().unwrap()) }
     }
 }
 
 impl<R: LineReader> Iterator for Lexer<R> {
     type Item = Token;
     fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            let c = self.advance(1);
-            match c {
-                Some(char @ ('"' | '\'')) => return Some(self.string_collector(char)),
-                Some(num @ '0'..='9') => return Some(self.number_collector(num)),
-                Some(' ' | '\t' | '\n') => continue,
-                None => return Some(Token::new(EOF, "None".to_string())),
+        while let Some(character) = self.advance(1) {
+            match character {
+                '"' | '\'' => return Some(self.string_collector(character)),
+                '0'..='9' => return Some(self.number_collector(character)),
+                ' ' | '\t' | '\n' => continue,
                 _ => {
                     eprintln!("Invalid Character!");
                     exit(1);
                 }
             }
         }
+        None
     }
 }

@@ -1,13 +1,13 @@
-struct ByteCode {
-    pub ty: BytecodeType,
-    pub children: Vec<ByteCode>,
-    pub operand: String,
+use crate::values::Values;
+
+#[derive(Debug)]
+pub enum Instruction {
+    CALL(u16),
+    LOAD(u16),
+    STORE(u16),
 }
 
-#[derive(Debug, PartialEq, Eq)]
-enum BytecodeType {
-    CALL = 1,
-    LOAD = 2,
-    IDENTIFIER = 3,
-    FUNCTION = 4,
+pub struct Chunk {
+    pub instructions: Vec<Instruction>,
+    pub constants: Vec<Values>,
 }

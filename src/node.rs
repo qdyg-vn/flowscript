@@ -1,13 +1,15 @@
-struct Node {
-    pub ty: NodeType,
-    pub children: Vec<Node>,
-    pub operand: String,
-}
-
-#[derive(Debug, PartialEq, Eq)]
-enum NodeType {
-    CALL = 1,
-    LOAD = 2,
-    IDENTIFIER = 3,
-    FUNCTION = 4,
+#[derive(Debug)]
+pub enum Node {
+    BLOCK(Vec<Node>),
+    CALL {
+        name: String,
+        args: Vec<Node>,
+    },
+    FUNCTION {
+        name: String,
+        params: Vec<String>,
+        body: Box<Node>,
+    },
+    IDENTIFIER(String),
+    LOAD(String),
 }
