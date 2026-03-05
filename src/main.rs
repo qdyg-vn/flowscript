@@ -1,12 +1,5 @@
-mod lexer;
-mod token;
-mod node;
-mod bytecode;
-mod reader;
-
-use reader::Reader;
-use crate::lexer::Lexer;
-use crate::token::{Token, TokenType::EOF};
+use flowscript::lexer::Lexer;
+use flowscript::reader::Reader;
 
 fn main() {
     let path = "main.fscc";
