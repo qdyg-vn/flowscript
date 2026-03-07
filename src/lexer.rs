@@ -1,21 +1,20 @@
 use std::process::exit;
 use crate::token::Token;
-use crate::reader::LineReader;
 
-pub struct Lexer<R: LineReader> {
+pub struct Lexer<R: Iterator<Item = String>> {
     reader: R,
     code: String,
     pos: usize,
 }
 
-impl<R: LineReader> Lexer<R> {
+impl<R: Iterator<Item = String>> Lexer<R> {
     pub fn new(reader: R) -> Self {
         Self {reader, code: String::new(), pos: 0}
     }
 
     fn ensure_buffer(&mut self) -> bool {
         while self.pos >= self.code.len() {
-            match self.reader.read_line() {
+            match self.reader.next() {
                 Some(line) => {
                     self.code = line;
                     self.pos = 0;
@@ -71,7 +70,7 @@ impl<R: LineReader> Lexer<R> {
     }
 }
 
-impl<R: LineReader> Iterator for Lexer<R> {
+impl<R: Iterator<Item = String>> Iterator for Lexer<R> {
     type Item = Token;
     fn next(&mut self) -> Option<Self::Item> {
         while let Some(character) = self.advance(1) {
