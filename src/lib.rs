@@ -4,4 +4,4 @@ pub mod token;
 pub mod parser;
 pub mod node;
 pub mod bytecode;
-pub mod values;
+pub mod value;

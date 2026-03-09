@@ -1,15 +1,16 @@
+use crate::value::Value;
+
 #[derive(Debug)]
 pub enum Node {
-    BLOCK(Vec<Node>),
-    CALL {
-        name: String,
-        args: Vec<Node>,
+    Literal(Value),
+    Symbol(String),
+    Apply {
+        operator: Box<Node>,
+        arguments: Vec<Node>,
     },
-    FUNCTION {
+    Bind {
         name: String,
-        params: Vec<String>,
-        body: Box<Node>,
+        value: Box<Node>,
     },
-    IDENTIFIER(String),
-    LOAD(String),
+    Pipeline(Vec<Node>),
 }

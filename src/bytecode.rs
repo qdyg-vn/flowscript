@@ -1,13 +1,13 @@
-use crate::values::Values;
+use crate::value::Value;
 
 #[derive(Debug)]
 pub enum Instruction {
-    CALL(u16),
-    LOAD(u16),
-    STORE(u16),
+    Call(u16),
+    Load(u16),
+    Store(u16),
 }
 
 pub struct Chunk {
     pub instructions: Vec<Instruction>,
-    pub constants: Vec<Values>,
+    pub constants: Vec<Value>,
 }

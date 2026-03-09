@@ -1,7 +1,8 @@
 #[derive(Debug, Clone, PartialEq)]
-pub enum Values {
+pub enum Value {
     Boolean(bool),
     Nil,
-    Number(f64),
+    Float(f64),
     String(String),
+    Integer(i64),
 }

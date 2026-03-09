@@ -47,7 +47,7 @@ impl<R: Iterator<Item = String>> Lexer<R> {
                 None => { eprintln!("Missing closing quote!"); exit(3) }
             }
         }
-        Token::STRING(self.code[start..self.pos - 1].to_string())
+        Token::String(self.code[start..self.pos - 1].to_string())
     }
 
     fn number_collector(&mut self, _first_number: char) -> Token {
@@ -65,8 +65,8 @@ impl<R: Iterator<Item = String>> Lexer<R> {
             self.advance(1);
         }
         let value = &self.code[start..self.pos];
-        if has_dot { Token::FLOAT(value.parse().unwrap()) }
-        else { Token::INT(value.parse().unwrap()) }
+        if has_dot { Token::Float(value.parse().unwrap()) }
+        else { Token::Int(value.parse().unwrap()) }
     }
 }
 
