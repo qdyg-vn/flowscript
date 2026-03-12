@@ -1,5 +1,6 @@
 use std::env;
 use flowscript::lexer::Lexer;
+use flowscript::parser::Parser;
 use flowscript::reader::{FileReader, Repl};
 
 fn main() {
@@ -12,5 +13,6 @@ fn main() {
             std::process::exit(64);
         }
     };
-    let mut lexer = Lexer::new(reader);
+    let lexer = Lexer::new(reader);
+    let parser = Parser::new(lexer);
 }

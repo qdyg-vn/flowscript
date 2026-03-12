@@ -1,5 +1,6 @@
 use crate::token::Token;
 use crate::node::Node;
+use crate::value::Value;
 
 pub struct Parser<L: Iterator<Item=Token>> {
     lex: L,
@@ -8,6 +9,8 @@ pub struct Parser<L: Iterator<Item=Token>> {
 }
 
 impl<L: Iterator<Item=Token>> Parser<L> {
+    pub fn new(lex: L) -> Self { Self{ lex, tokens: Vec::new(), pos: 0 } }
+
     fn ensure_buffer(&mut self) -> bool {
         while self.pos >= self.tokens.len() {
             match self.lex.next() {
@@ -33,13 +36,51 @@ impl<L: Iterator<Item=Token>> Parser<L> {
         } else { None }
     }
 
-    pub fn parse(&mut self) -> Vec<Node> {
-        let result = Vec::new();
-        while let Some(token) = self.lex.next() {
-            match token {
-                
+    fn to_node(&mut self, token: Token) -> Node {
+        match token {
+            Token::Int(number) => Node::Literal(Value::Integer(number)),
+            Token::Float(number) => Node::Literal(Value::Float(number)),
+            Token::Identifier(identifier) => self.parse_function(identifier),
+            _ => todo!("Unimplemented token: {:?}", token)
+        }
+    }
+
+    fn parse_function(&mut self, token: String) -> Node {
+        let operator = Box::new(Node::Symbol(token));
+        if self.advance(1) != Some(Token::LeftParen) {
+            todo!("Behind operator need a left paren!");
+        }
+        let mut arguments = Vec::new();
+        while let Some(argument) = self.advance(1) {
+            if argument == Token::RightParen { break }
+            arguments.push(self.to_node(argument));
+        }
+        self.advance(1); // Skip right paren
+        Node::Apply { operator, arguments }
+    }
+
+    fn parse_pipeline(&mut self, token: Token) -> Node {
+        let mut stations = Vec::new();
+        stations.push(self.to_node(token));
+        if self.peek().is_none() || self.peek().unwrap() != Token::Arrow {
+            match stations.pop() {
+                Some(station) => return station,
+                _ => todo!("There is no station before pipeline!")
             }
         }
-        result
+        while let Some(Token::Arrow) = self.peek() {
+            self.advance(1);
+            if let Some(token) = self.advance(1) {
+                stations.push(self.to_node(token));
+            } else { todo!("We should make error_handle.rs") }
+        }
+        Node::Pipeline(stations)
+    }
+}
+
+impl<L: Iterator<Item=Token>> Iterator for Parser<L> {
+    type Item = Node;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.advance(1).map(|token| self.parse_pipeline(token))
     }
 }
