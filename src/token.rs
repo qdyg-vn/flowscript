@@ -1,11 +1,12 @@
-#[derive(Debug, PartialEq, Clone)]
-pub enum Token {
+#[derive(Debug)]
+pub enum Token<'source_code> {
     Arrow,
     Boolean(bool),
     Div,
     Float(f64),
     Function,
-    Identifier(String),
+    Identifier(&'source_code str),
+    Macro(&'source_code str),
     Int(i64),
     LeftParen,
     Minus,

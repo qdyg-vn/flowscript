@@ -31,7 +31,7 @@ impl<'source_code> Lexer<'source_code> {
             }
         }
         let end = self.iter.peek().map(|(index, _)| *index).unwrap_or(self.source_code.len());
-        Ok(Token::String(&self.source_code[start..end]))
+        Ok(Token::String(self.source_code[start..end].to_owned()))
     }
 
     fn number_collector(&mut self, start: usize) -> Result<Token<'source_code>, Error> {
@@ -59,6 +59,22 @@ impl<'source_code> Lexer<'source_code> {
         }
     }
 
+    fn identifier_collector(&mut self, start: usize) -> Result<Token<'source_code>, Error> {
+        loop {
+            if let Some((_, 'a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '+' | '-' | '*' | '/' | '>' | '<' | '=' | '?' | '!')) = self.iter.peek() {
+                self.iter.next();
+                continue;
+            };
+            break
+        }
+        let end = self.iter.peek().map(|(index, _)| *index).unwrap_or(self.source_code.len());
+        let value = &self.source_code[start..end];
+        if value.ends_with('!') {
+            return Ok(Token::Macro(value))
+        }
+        Ok(Token::Identifier(value))
+    }
+
     fn error_collector(&self, kind: ErrorType) -> Error {
         Error {
             line: self.line,
@@ -75,6 +91,9 @@ impl<'source_code> Iterator for Lexer<'source_code> {
                 '"' | '\'' => return Some(self.string_collector(index, character)),
                 '0'..='9' => return Some(self.number_collector(index)),
                 ' ' | '\t' | '\n' => continue,
+                'a'..='z' | 'A'..='Z' | '_' | '+' | '-' | '*' | '/' | '>' | '<' | '=' | '?' | '!' => return Some(self.identifier_collector(index)),
+                '(' => return Some(Ok(Token::LeftParen)),
+                ')' => return Some(Ok(Token::RightParen)),
                 _ => {
                     return Some(Err(
                         self.error_collector(ErrorType::InvalidCharacter(character))
