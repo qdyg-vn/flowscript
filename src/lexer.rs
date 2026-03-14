@@ -1,77 +1,42 @@
 use crate::error_handler::{Error, ErrorType};
 use crate::token::Token;
+use std::{iter::Peekable, str::CharIndices};
 
-pub struct Lexer<R: Iterator<Item = String>> {
-    reader: R,
-    code: String,
-    pos: usize,
+pub struct Lexer<'source_code> {
+    source_code: &'source_code str,
+    iter: Peekable<CharIndices<'source_code>>,
     line: usize,
 }
 
-impl<R: Iterator<Item = String>> Lexer<R> {
-    pub fn new(reader: R) -> Self {
+impl<'source_code> Lexer<'source_code> {
+    pub fn new(source_code: &'source_code str) -> Self {
         Self {
-            reader,
-            code: String::new(),
-            pos: 0,
+            source_code,
+            iter: source_code.char_indices().peekable(),
             line: 0,
         }
     }
 
-    fn ensure_buffer(&mut self) -> bool {
-        while self.pos >= self.code.len() {
-            match self.reader.next() {
-                Some(line) => {
-                    self.code = line;
-                    self.pos = 0;
-                    self.line += 1;
-                    if !self.code.is_empty() {
-                        return true;
-                    }
-                }
-                None => return false,
-            }
-        }
-        true
-    }
-
-    fn advance(&mut self, steps: usize) -> Option<char> {
-        let character = self.peek();
-        if character.is_some() {
-            self.pos += steps
-        }
-        character
-    }
-
-    fn peek(&mut self) -> Option<char> {
-        if self.ensure_buffer() {
-            self.code.as_bytes().get(self.pos).map(|c| *c as char)
-        } else {
-            None
-        }
-    }
-
-    fn string_collector(&mut self, quotation_mark: char) -> Result<Token, Error> {
-        let start = self.pos;
+    fn string_collector(&mut self, start: usize, quotation_mark: char) -> Result<Token<'source_code>, Error> {
         loop {
-            match self.advance(1) {
-                Some(character) if character == quotation_mark => break,
+            match self.iter.next() {
+                Some((_, character)) if character == quotation_mark => break,
                 Some(_) => continue,
                 None => {
-                    let code = self.code[start..self.pos].to_owned();
+                    let code = self.source_code[start..self.source_code.len()].to_owned();
                     return Err(self.error_collector(
                         ErrorType::MissingClosingQuote(code),
                     ));
                 }
             }
         }
-        Ok(Token::String(self.code[start..self.pos - 1].to_owned()))
+        let end = self.iter.peek().map(|(index, _)| *index).unwrap_or(self.source_code.len());
+        Ok(Token::String(&self.source_code[start..end]))
     }
 
-    fn number_collector(&mut self, _first_number: char) -> Result<Token, Error> {
-        let start = self.pos - 1; // Because pos now in second number so we need -1
+    fn number_collector(&mut self, start: usize) -> Result<Token<'source_code>, Error> {
         let mut has_dot = 0;
-        while let Some(character) = self.peek() {
+        while let Some(character) = self.iter.peek().map(|(_, character)| character) {
             match character {
                 '0'..='9' => (),
                 '.' => {
@@ -79,15 +44,18 @@ impl<R: Iterator<Item = String>> Lexer<R> {
                 }
                 _ => break,
             }
-            self.advance(1);
+            self.iter.next();
         }
-        let value = &self.code[start..self.pos];
+        let end = self
+            .iter
+            .peek()
+            .map(|(index, _)| *index)
+            .unwrap_or(self.source_code.len());
+        let value = &self.source_code[start..end];
         match has_dot {
             0 => Ok(Token::Int(value.parse().unwrap())),
             1 => Ok(Token::Float(value.parse().unwrap())),
-            _ => Err(self.error_collector(
-                ErrorType::DecimalPoints(value.to_owned()),
-            )),
+            _ => Err(self.error_collector(ErrorType::DecimalPoints(value.to_owned()))),
         }
     }
 
@@ -99,18 +67,18 @@ impl<R: Iterator<Item = String>> Lexer<R> {
     }
 }
 
-impl<R: Iterator<Item = String>> Iterator for Lexer<R> {
-    type Item = Result<Token, Error>;
+impl<'source_code> Iterator for Lexer<'source_code> {
+    type Item = Result<Token<'source_code>, Error>;
     fn next(&mut self) -> Option<Self::Item> {
-        while let Some(character) = self.advance(1) {
+        while let Some((index, character)) = self.iter.next() {
             match character {
-                '"' | '\'' => return Some(self.string_collector(character)),
-                '0'..='9' => return Some(self.number_collector(character)),
+                '"' | '\'' => return Some(self.string_collector(index, character)),
+                '0'..='9' => return Some(self.number_collector(index)),
                 ' ' | '\t' | '\n' => continue,
                 _ => {
-                    return Some(Err(self.error_collector(
-                        ErrorType::InvalidCharacter(character),
-                    )));
+                    return Some(Err(
+                        self.error_collector(ErrorType::InvalidCharacter(character))
+                    ));
                 }
             }
         }
