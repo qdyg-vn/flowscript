@@ -1,18 +1,37 @@
 use std::env;
+use flowscript::error_handler::ErrorHandler;
 use flowscript::lexer::Lexer;
 use flowscript::parser::Parser;
 use flowscript::reader::{FileReader, Repl};
 
 fn main() {
-    let args: Vec<String> = env::args().collect();
-    let reader: Box<dyn Iterator<Item = String>> = match args.len() {
-        1 => Box::new(Repl),
-        2 => Box::new(FileReader::new(&args[1])),
+    let mut args: Vec<String> = env::args().collect();
+    let mut error_handler = ErrorHandler::default();
+    match args.len() {
+        1 => repl(),
+        2 => read_file(args.pop().unwrap()),
         _ => {
             println!("Usage: fscc [script]");
             std::process::exit(64);
         }
-    };
-    let lexer = Lexer::new(reader);
+    }
+}
+
+fn repl() {
+    while let Some(Ok(source_code)) = Repl.next() {
+        run(source_code)
+    }
+}
+
+fn read_file(path: String) {
+    match FileReader::new(path).next() {
+        Some(Ok(source_code)) => run(source_code),
+        Some(Err(error)) => todo!(),
+        _ => unreachable!()
+    }
+}
+
+fn run(source_code: String) {
+    let mut lexer = Lexer::new(&source_code);
     let parser = Parser::new(lexer);
 }
