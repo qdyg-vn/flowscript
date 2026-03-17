@@ -56,7 +56,11 @@ impl<'source_code> Lexer<'source_code> {
         }
     }
 
-    fn identifier_collector(&mut self, start: usize) -> Result<Token, Error> {
+    fn identifier_collector(&mut self, start: usize, character: char) -> Result<Token, Error> {
+        if character == '-' && matches!(self.iter.peek(), Some((_, '>'))) {
+            self.iter.next();
+            return Ok(Token::new(start, start + 2, TokenType::Arrow)) // Because arrow is 2 bytes
+        }
         loop {
             if let Some((_, 'a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '+' | '-' | '*' | '/' | '>' | '<' | '=' | '?' | '!')) = self.iter.peek() {
                 self.iter.next();
@@ -88,7 +92,7 @@ impl<'source_code> Iterator for Lexer<'source_code> {
                 '"' | '\'' => return Some(self.string_collector(index, character)),
                 '0'..='9' => return Some(self.number_collector(index)),
                 ' ' | '\t' | '\n' => continue,
-                'a'..='z' | 'A'..='Z' | '_' | '+' | '-' | '*' | '/' | '>' | '<' | '=' | '?' | '!' => return Some(self.identifier_collector(index)),
+                'a'..='z' | 'A'..='Z' | '_' | '+' | '-' | '*' | '/' | '>' | '<' | '=' | '?' | '!' => return Some(self.identifier_collector(index, character)),
                 '(' => return Some(Ok(Token::new(index, index + 1, TokenType::LeftParen))),
                 ')' => return Some(Ok(Token::new(index, index + 1, TokenType::RightParen))),
                 _ => {
