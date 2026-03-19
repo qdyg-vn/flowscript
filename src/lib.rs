@@ -5,5 +5,6 @@ pub mod token;
 pub mod parser;
 pub mod node;
 pub mod bytecode;
+pub mod optimizer;
 pub mod instructions;
 pub mod value;
