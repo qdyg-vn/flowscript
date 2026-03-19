@@ -1,4 +1,4 @@
-use crate::error_handler::{Error, ErrorType};
+use crate::error_handler::Error;
 use crate::node::Node;
 use crate::token::{Token, TokenType};
 use crate::value::Value;
@@ -86,12 +86,12 @@ where
         Node::Apply {operator, arguments}
     }
 
-    fn parse_pipeline(&mut self, token: Token) -> Result<Node, Error> {
+    fn parse_pipeline(&mut self, token: Token) -> Node {
         let mut stations = Vec::new();
         stations.push(self.to_node(token));
         if self.peek().is_none() || self.peek().unwrap().kind != TokenType::Arrow {
             match stations.pop() {
-                Some(station) => return Ok(station),
+                Some(station) => return station,
                 _ => todo!("There is no station before pipeline!"),
             }
         }
@@ -103,7 +103,7 @@ where
                 todo!("We should make error_handle.rs")
             }
         }
-        Ok(Node::Pipeline(stations))
+        Node::Pipeline(stations)
     }
 
     fn error_pusher() {}
@@ -113,7 +113,7 @@ impl<L> Iterator for Parser<L>
 where
     L: Iterator<Item = Result<Token, Error>>,
 {
-    type Item = Result<Node, Error>;
+    type Item = Node;
     fn next(&mut self) -> Option<Self::Item> {
         self.advance(1).map(|token| self.parse_pipeline(token))
     }
