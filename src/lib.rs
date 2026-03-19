@@ -8,3 +8,4 @@ pub mod bytecode;
 pub mod optimizer;
 pub mod instructions;
 pub mod value;
+pub mod symbol_table;
