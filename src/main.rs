@@ -34,4 +34,10 @@ fn read_file(path: String) {
 fn run(source_code: String) {
     let mut lexer = Lexer::new(&source_code);
     let parser = Parser::new(lexer);
+    let lexer = Lexer::new(&source_code);
+    let mut parser = Parser::new(lexer);
+    let mut optimizer = Optimizer::new(parser);
+    let ast = optimizer.optimize();
+    let symbol_table = SymbolTable::new();
+    let mut emitter = Emitter::new(symbol_table);
 }
