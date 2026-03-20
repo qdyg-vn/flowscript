@@ -17,15 +17,15 @@ impl Emitter {
     }
 
     pub fn emit(&mut self, ast: Vec<Node>) -> Vec<Chunk> {
-        let mut chunks: Vec<Chunk> = Vec::new();
+        let mut map: Vec<Chunk> = Vec::new();
         for instructions in ast {
             if let Node::Pipeline(stations) = instructions {
                 let mut chunk = Chunk { instructions: Vec::new(), constants: Vec::new() };
                 self.create_chunk(stations, &mut chunk);
-                chunks.push(chunk)
+                map.push(chunk)
             }
         }
-        chunks
+        map
     }
 
     fn create_chunk(&mut self, stations: Vec<Node>, chunk: &mut Chunk) {
