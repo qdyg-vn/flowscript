@@ -36,6 +36,7 @@ impl Emitter {
                     chunk.instructions.push(Instruction::Load(chunk.constants.len() as u16 - 1))
                 },
                 Node::Apply {operator, arguments} => {
+                    self.create_chunk(arguments, chunk);
                     if let Node::Symbol(name) = *operator {
                         let result = self.symbol_table.resolve(&name);
                         match result {
