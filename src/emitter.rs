@@ -1,6 +1,6 @@
-use crate::instructions::{Instruction, Chunk};
-use crate::node::Node;
 use crate::error_handler::Error;
+use crate::instructions::{Chunk, Instruction};
+use crate::node::Node;
 use crate::symbol_table::{SymbolTable, SymbolType};
 
 pub struct Emitter {
@@ -36,17 +36,17 @@ impl Emitter {
                     chunk.instructions.push(Instruction::Load(chunk.constants.len() as u16 - 1))
                 },
                 Node::Apply {operator, arguments} => {
+                    let arity = arguments.len() as u16;
                     self.create_chunk(arguments, chunk);
                     if let Node::Symbol(name) = *operator {
                         let result = self.symbol_table.resolve(&name);
                         match result {
-                            Ok(SymbolType::Builtin(index)) => chunk.instructions.push(Instruction::BuiltinCall(index)),
-                            Ok(SymbolType::Local(scope, index)) => chunk.instructions.push(Instruction::Call(scope, index)),
-                            Ok(SymbolType::Global(index)) => chunk.instructions.push(Instruction::GlobalCall(index)),
+                            Ok(SymbolType::Builtin(index)) => chunk.instructions.push(Instruction::BuiltinCall(index, arity)),
+                            Ok(SymbolType::Local(scope, index)) => chunk.instructions.push(Instruction::Call(scope, index, arity)),
+                            Ok(SymbolType::Global(index)) => chunk.instructions.push(Instruction::GlobalCall(index, arity)),
                             Err(error) => self.errors.push(error)
                         }
                     }
-                    self.create_chunk(arguments, chunk);
 
                 },
                 _ => todo!()
