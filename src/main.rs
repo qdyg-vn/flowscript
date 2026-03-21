@@ -3,6 +3,10 @@ use flowscript::error_handler::ErrorHandler;
 use flowscript::lexer::Lexer;
 use flowscript::parser::Parser;
 use flowscript::reader::{FileReader, Repl};
+use flowscript::optimizer::Optimizer;
+use flowscript::symbol_table::SymbolTable;
+use flowscript::emitter::Emitter;
+use flowscript::virmac::VirMac;
 
 fn main() {
     let mut args: Vec<String> = env::args().collect();
@@ -40,4 +44,7 @@ fn run(source_code: String) {
     let ast = optimizer.optimize();
     let symbol_table = SymbolTable::new();
     let mut emitter = Emitter::new(symbol_table);
+    let map = emitter.emit(ast);
+    let mut virmac = VirMac::new();
+    virmac.execute(map);
 }
