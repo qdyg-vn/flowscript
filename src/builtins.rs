@@ -1,6 +1,7 @@
 mod math;
 mod io;
 
+use crate::builtins::io::print;
 use crate::value::Value;
 use math::add;
 
@@ -18,6 +19,7 @@ pub struct Builtin {
 
 pub const BUILTIN_TABLE: &[Builtin] = &[
     Builtin { name: "+", function: BuiltinFunction::Math(add)},
+    Builtin { name: "print", function: BuiltinFunction::IO(print)},
 ];
 
 pub fn get_builtin(index: u16) -> Builtin {
