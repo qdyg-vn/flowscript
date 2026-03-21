@@ -1,7 +1,6 @@
-use std::collections::HashMap;
+use crate::builtins::BUILTIN_TABLE;
 use crate::error_handler::Error;
-
-const BUILTINS: &[&str] = &["+", "-", "*", "/"];
+use std::collections::HashMap;
 
 #[derive(Clone, Debug)]
 pub enum SymbolType {
@@ -23,8 +22,8 @@ pub struct SymbolTable {
 impl SymbolTable {
     pub fn new() -> Self {
         let mut builtins = HashMap::new();
-        for (index, &name) in BUILTINS.iter().enumerate() {
-            builtins.insert(name.to_string(), index as u16);
+        for (index, &function) in BUILTIN_TABLE.iter().enumerate() {
+            builtins.insert(function.name.to_string(), index as u16);
         }
         Self {
             builtins,
