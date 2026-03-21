@@ -2,6 +2,7 @@ mod math;
 mod io;
 
 use crate::value::Value;
+use math::add;
 
 #[derive(Copy, Clone, Debug)]
 pub enum BuiltinFunction {
@@ -16,6 +17,7 @@ pub struct Builtin {
 }
 
 pub const BUILTIN_TABLE: &[Builtin] = &[
+    Builtin { name: "+", function: BuiltinFunction::Math(add)},
 ];
 
 pub fn get_builtin(index: u16) -> Builtin {
