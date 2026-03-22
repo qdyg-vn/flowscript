@@ -47,8 +47,8 @@ impl Emitter {
                             Err(error) => self.errors.push(error)
                         }
                     }
-
                 },
+                Node::RelativeReference => chunk.instructions.push(Instruction::RelativeReference),
                 _ => todo!()
             }
         }

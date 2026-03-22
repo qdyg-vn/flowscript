@@ -2,15 +2,13 @@ use crate::builtins::{get_builtin, BuiltinFunction};
 use crate::instructions::{Chunk, Instruction};
 use crate::value::Value;
 
+#[derive(Default)]
 pub struct VirMac {
-    postion: usize
+    postion: usize,
+    stations_output: Vec<Value>,
 }
 
 impl VirMac {
-    pub fn new() -> Self {
-        Self { postion: 0 }
-    }
-
     pub fn execute(&mut self, map: Vec<Chunk>) -> Vec<Value> {
         let mut stack = vec![Value::Nil; 1024];
         for chunk in map {
@@ -25,7 +23,12 @@ impl VirMac {
                         let start = self.postion - arity as usize;
                         let end = self.postion - 1;
                         self.execute_builtin_function(index, &mut stack, start, end);
-                    }
+                    },
+                    Instruction::RelativeReference => {
+                        if stack.len() <= self.postion { stack.resize(stack.len() * 2, Value::Nil) }
+                        stack[self.postion] = self.stations_output[self.stations_output.len() - 1].clone();
+                        self.postion += 1
+                    },
                     _ => todo!()
                 }
             }
@@ -40,6 +43,7 @@ impl VirMac {
                 BuiltinFunction::Math(function) => {
                     match function(arguments) {
                         Ok(value) => {
+                            self.stations_output.push(value.clone());
                             stack[start] = value;
                             self.postion = start
                         },

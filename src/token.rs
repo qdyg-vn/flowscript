@@ -1,13 +1,13 @@
 #[derive(Debug, Clone, PartialEq)]
-pub struct  Token {
+pub struct Token {
     pub start: usize,
     pub end: usize,
-    pub kind: TokenType
+    pub kind: TokenType,
 }
 
 impl Token {
     pub fn new(start: usize, end: usize, kind: TokenType) -> Token {
-        Self {start, end, kind}
+        Self { start, end, kind }
     }
 }
 
@@ -25,6 +25,7 @@ pub enum TokenType {
     Minus,
     Mul,
     Plus,
+    RelativeReference,
     RightParen,
     Semicolon,
     String(String),

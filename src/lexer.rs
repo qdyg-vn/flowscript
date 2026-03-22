@@ -72,6 +72,8 @@ impl<'source_code> Lexer<'source_code> {
         let value = self.source_code[start..end].to_owned();
         if value.ends_with('!') {
             return Ok(Token::new(start, end, TokenType::Macro(value)))
+        } else if value == "_" {
+            return Ok(Token::new(start, end, TokenType::RelativeReference))
         }
         Ok(Token::new(start, end, TokenType::Identifier(value)))
     }

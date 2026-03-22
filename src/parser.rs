@@ -67,6 +67,7 @@ where
             TokenType::Float(number) => Node::Literal(Value::Float(number)),
             TokenType::Identifier(identifier) => self.parse_function(identifier),
             TokenType::String(string) => Node::Literal(Value::String(string)),
+            TokenType::RelativeReference => Node::RelativeReference,
             _ => todo!("Unimplemented token: {:?}", token),
         }
     }
