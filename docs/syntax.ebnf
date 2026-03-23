@@ -1,0 +1,27 @@
+stations = function, { pipeline, function };
+
+pipeline = '-', '>';
+
+function = ( macro | identifier ), '(', [ argument, { ',', argument } ], ')';
+
+macro = identifier, '!';
+
+identifier = ( letter | '_' | '+' | '-' | '*' | '/' | '>' | '<' | '=' | '?' | '!' ), { letter | '_' | '+' | '-' | '*' | '/' | '>' | '<' | '=' | '?' | '!' | digit }, ( letter | '_' | '+' | '-' | '*' | '/' | '>' | '<' | '=' | '?' | digit );
+
+argument = float | integer | relative_reference | string | function | identifier | macro;
+
+relative_reference = '_';
+
+string = '"', { all_characters - '"' }, '"';
+
+integer = [ '-' ], digit, { digit };
+
+float = integer, '.', digit, { digit };
+
+letter = lower | upper;
+
+lower = 'a' | 'b' | 'c' | 'd' | '...' | 'w' | 'x' | 'y' | 'z';
+
+upper = 'A' | 'B' | 'C' | 'D' | '...' | 'W' | 'X' | 'Y' | 'Z';
+
+digit = '0' | '1' | '...' | '9';
