@@ -13,5 +13,5 @@ pub enum Node {
         value: Box<Node>,
     },
     Pipeline(Vec<Node>),
-    RelativeReference,
+    RelativeReference(u16, u16),
 }

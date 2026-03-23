@@ -61,13 +61,13 @@ where
         }
     }
 
-    fn to_node(&mut self, token: Token) -> Node {
+    fn dispatch_node(&mut self, token: Token) -> Node {
         match token.kind {
             TokenType::Int(number) => Node::Literal(Value::Integer(number)),
             TokenType::Float(number) => Node::Literal(Value::Float(number)),
             TokenType::Identifier(identifier) => self.parse_function(identifier),
             TokenType::String(string) => Node::Literal(Value::String(string)),
-            TokenType::RelativeReference => Node::RelativeReference,
+            TokenType::RelativeReference(x, y) => Node::RelativeReference(x, y),
             _ => todo!("Unimplemented token: {:?}", token),
         }
     }
@@ -82,14 +82,14 @@ where
             if argument.kind == TokenType::RightParen {
                 break;
             }
-            arguments.push(self.to_node(argument));
+            arguments.push(self.dispatch_node(argument));
         }
         Node::Apply {operator, arguments}
     }
 
     fn parse_pipeline(&mut self, token: Token) -> Node {
         let mut stations = Vec::new();
-        stations.push(self.to_node(token));
+        stations.push(self.dispatch_node(token));
         if self.peek().is_none() || self.peek().unwrap().kind != TokenType::Arrow {
             match stations.pop() {
                 Some(station) => return station,
@@ -99,7 +99,7 @@ where
         while let Some(token) = self.peek() && token.kind == TokenType::Arrow {
             self.advance(1);
             if let Some(token) = self.advance(1) {
-                stations.push(self.to_node(token));
+                stations.push(self.dispatch_node(token));
             } else {
                 todo!("We should make error_handle.rs")
             }
