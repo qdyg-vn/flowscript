@@ -18,37 +18,51 @@ impl<'source_code> Lexer<'source_code> {
     }
 
     fn string_collector(&mut self, start: usize, quotation_mark: char) -> Result<Token, Error> {
+        let mut end = self.source_code.len();
         loop {
             match self.iter.next() {
-                Some((_, character)) if character == quotation_mark => break,
+                Some((index, character)) if character == quotation_mark => {
+                    end = index;
+                    break
+                },
                 Some(_) => continue,
                 None => {
-                    let code = self.source_code[start..self.source_code.len()].to_owned();
+                    let code = self.source_code[start..end].to_owned();
                     return Err(self.error_collector(
                         ErrorType::MissingClosingQuote(code),
                     ));
                 }
             }
         }
-        let end = self.iter.peek().map(|(index, _)| *index).unwrap_or(self.source_code.len());
-        Ok(Token::new(start, end, TokenType::String(self.source_code[start..end].to_owned())
+        Ok(Token::new(start + 1, end, TokenType::String(self.source_code[start..end].to_owned())
         ))
     }
 
     fn number_collector(&mut self, start: usize) -> Result<Token, Error> {
         let mut has_dot = 0;
+        let mut has_underscore = 0;
         while let Some(character) = self.iter.peek().map(|(_, character)| character) {
             match character {
                 '0'..='9' => (),
-                '.' => {
-                    has_dot += 1;
-                }
+                '.' => has_dot += 1,
+                '_' => has_underscore += 1,
                 _ => break,
             }
             self.iter.next();
         }
         let end = self.iter.peek().map(|(index, _)| *index).unwrap_or(self.source_code.len());
         let value = &self.source_code[start..end];
+        if has_underscore > 0 && has_dot > 0 {
+            todo!("Relative references cannot have x or y as floats")
+        }
+        if has_underscore != 0 {
+            if has_underscore > 1 {
+                todo!("A relative reference can only have one _")}
+            let mut parts = value.splitn(2, '_');
+            let x = parts.next().unwrap().parse().unwrap();
+            let y = parts.next().filter(|y| !y.is_empty()).unwrap_or("0").parse().unwrap();
+            return Ok(Token::new(start, end, TokenType::RelativeReference(x, y)))
+        }
         match has_dot {
             0 => Ok(Token::new(start, end, TokenType::Int(value.parse().unwrap()))),
             1 => Ok(Token::new(start, end, TokenType::Float(value.parse().unwrap()))),
@@ -59,21 +73,27 @@ impl<'source_code> Lexer<'source_code> {
     fn identifier_collector(&mut self, start: usize, character: char) -> Result<Token, Error> {
         if character == '-' && matches!(self.iter.peek(), Some((_, '>'))) {
             self.iter.next();
-            return Ok(Token::new(start, start + 2, TokenType::Arrow)) // Because arrow is 2 bytes
+            return Ok(Token::new(start, start + 2, TokenType::Arrow))
         }
+        let mut is_relative_reference = character == '_';
         loop {
-            if let Some((_, 'a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '+' | '-' | '*' | '/' | '>' | '<' | '=' | '?' | '!')) = self.iter.peek() {
-                self.iter.next();
-                continue;
-            };
-            break
+            match self.iter.peek() {
+                Some((_, 'a'..='z' | 'A'..='Z' | '_' | '+' | '-' | '*' | '/' | '>' | '<' | '=' | '?' | '!')) => {
+                    is_relative_reference = false;
+                    self.iter.next();
+                },
+                Some((_, '0'..='9')) => { self.iter.next(); },
+                _ => break
+            }
         }
         let end = self.iter.peek().map(|(index, _)| *index).unwrap_or(self.source_code.len());
+        if is_relative_reference {
+            let y = (&self.source_code[start + 1..end]).parse().unwrap_or(0);
+            return Ok(Token::new(start, end, TokenType::RelativeReference(1, y)))
+        }
         let value = self.source_code[start..end].to_owned();
         if value.ends_with('!') {
             return Ok(Token::new(start, end, TokenType::Macro(value)))
-        } else if value == "_" {
-            return Ok(Token::new(start, end, TokenType::RelativeReference))
         }
         Ok(Token::new(start, end, TokenType::Identifier(value)))
     }

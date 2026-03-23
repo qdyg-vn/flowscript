@@ -25,7 +25,7 @@ pub enum TokenType {
     Minus,
     Mul,
     Plus,
-    RelativeReference,
+    RelativeReference(u16, u16),
     RightParen,
     Semicolon,
     String(String),
