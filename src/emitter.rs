@@ -48,7 +48,7 @@ impl Emitter {
                         }
                     }
                 },
-                Node::RelativeReference => chunk.instructions.push(Instruction::RelativeReference),
+                Node::RelativeReference(x, y) => chunk.instructions.push(Instruction::RelativeReference(x, y)),
                 _ => todo!()
             }
         }

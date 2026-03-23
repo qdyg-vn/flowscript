@@ -7,7 +7,7 @@ pub enum Instruction {
     Store(u16),
     BuiltinCall(u16, u16),
     GlobalCall(u16, u16),
-    RelativeReference,
+    RelativeReference(u16, u16),
 }
 
 #[derive(Debug)]
