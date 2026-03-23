@@ -93,7 +93,7 @@ impl<'source_code> Iterator for Lexer<'source_code> {
             match character {
                 '"' | '\'' => return Some(self.string_collector(index, character)),
                 '0'..='9' => return Some(self.number_collector(index)),
-                ' ' | '\t' | '\n' => continue,
+                ' ' | '\t' | '\n' | ',' => continue,
                 'a'..='z' | 'A'..='Z' | '_' | '+' | '-' | '*' | '/' | '>' | '<' | '=' | '?' | '!' => return Some(self.identifier_collector(index, character)),
                 '(' => return Some(Ok(Token::new(index, index + 1, TokenType::LeftParen))),
                 ')' => return Some(Ok(Token::new(index, index + 1, TokenType::RightParen))),
