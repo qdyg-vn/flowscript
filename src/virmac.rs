@@ -4,7 +4,7 @@ use crate::value::Value;
 
 #[derive(Default)]
 pub struct VirMac {
-    postion: usize,
+    position: usize,
     stations_output: Vec<Value>,
 }
 
@@ -13,27 +13,40 @@ impl VirMac {
         let mut stack = vec![Value::Nil; 1024];
         for chunk in map {
             for instruction in chunk.instructions {
-                match instruction {
-                    Instruction::Load(index) => {
-                        if stack.len() <= self.postion { stack.resize(stack.len() * 2, Value::Nil) }
-                        stack[self.postion] = chunk.constants[index as usize].clone();
-                        self.postion += 1
-                    },
-                    Instruction::BuiltinCall(index, arity) => {
-                        let start = self.postion - arity as usize;
-                        let end = self.postion - 1;
-                        self.execute_builtin_function(index, &mut stack, start, end);
-                    },
-                    Instruction::RelativeReference => {
-                        if stack.len() <= self.postion { stack.resize(stack.len() * 2, Value::Nil) }
-                        stack[self.postion] = self.stations_output[self.stations_output.len() - 1].clone();
-                        self.postion += 1
-                    },
-                    _ => todo!()
-                }
+                self.dispatch_instruction(instruction, &chunk.constants, &mut stack)
             }
         }
         stack
+    }
+
+    fn dispatch_instruction(&mut self, instruction: Instruction, constants: &Vec<Value>, stack: &mut Vec<Value>) {
+        if stack.len() <= self.position { stack.resize(stack.len() * 2, Value::Nil) }
+        match instruction {
+            Instruction::Load(index) => {
+                if stack.len() <= self.position { stack.resize(stack.len() * 2, Value::Nil) }
+                stack[self.position] = constants[index as usize].clone();
+                self.position += 1
+            },
+            Instruction::BuiltinCall(index, arity) => {
+                let start = self.position - arity as usize;
+                let end = self.position - 1;
+                self.execute_builtin_function(index, stack, start, end);
+            },
+            Instruction::RelativeReference(x, y) => {
+                if self.stations_output.len() < x as usize {
+                    todo!("There is no station at position {}", x)
+                }
+                if stack.len() <= self.position { stack.resize(stack.len() * 2, Value::Nil) }
+                let output = self.stations_output[self.stations_output.len() - x as usize].clone();
+                if y != 0 {
+                    todo!("Currently under development")
+                } else {
+                    stack[self.position] = output;
+                }
+                self.position += 1
+            },
+            _ => todo!()
+        }
     }
 
     fn execute_builtin_function(&mut self, index: u16, stack: &mut Vec<Value>, start: usize, end: usize) {
@@ -45,7 +58,7 @@ impl VirMac {
                         Ok(value) => {
                             self.stations_output.push(value.clone());
                             stack[start] = value;
-                            self.postion = start
+                            self.position = start
                         },
                         Err(error) => todo!()
                     };
