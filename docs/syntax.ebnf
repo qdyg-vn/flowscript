@@ -10,7 +10,7 @@ identifier = ( letter | '_' | '+' | '-' | '*' | '/' | '>' | '<' | '=' | '?' | '!
 
 argument = float | integer | relative_reference | string | function | identifier | macro;
 
-relative_reference = '_';
+relative_reference = { digit }, '_', { digit };
 
 string = '"', { all_characters - '"' }, '"';
 
