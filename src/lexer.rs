@@ -28,7 +28,7 @@ impl<'source_code> Lexer<'source_code> {
                 self.line += 1;
                 self.col = 1
             } else if (result & 0xC0) != 0x80 { self.col += 1 }
-            self.position += steps;
+            self.position += steps + 1;
             return Some(result)
         }
         None
@@ -131,14 +131,19 @@ impl<'source_code> Lexer<'source_code> {
 impl<'source_code> Iterator for Lexer<'source_code> {
     type Item = Result<Token, Error>;
     fn next(&mut self) -> Option<Self::Item> {
-        while let Some(bytes) = self.advance(0) {
+        loop {
+            let start = self.position;
+            let bytes = match self.advance(0) {
+                Some(bytes) => bytes,
+                None => break
+            };
             match bytes {
-                b'"' | b'\'' => return Some(self.string_collector(self.position, bytes)),
-                b'0'..=b'9' => return Some(self.number_collector(self.position)),
+                b'"' | b'\'' => return Some(self.string_collector(start, bytes)),
+                b'0'..=b'9' => return Some(self.number_collector(start)),
                 b' ' | b'\t' | b'\n' | b',' => continue,
-                b'a'..=b'z' | b'A'..=b'Z' | b'_' | b'+' | b'-' | b'*' | b'/' | b'>' | b'<' | b'=' | b'?' | b'!' => return Some(self.identifier_collector(self.position, bytes)),
-                b'(' => return Some(Ok(Token::new(self.position, self.position + 1, TokenType::LeftParen))),
-                b')' => return Some(Ok(Token::new(self.position, self.position + 1, TokenType::RightParen))),
+                b'a'..=b'z' | b'A'..=b'Z' | b'_' | b'+' | b'-' | b'*' | b'/' | b'>' | b'<' | b'=' | b'?' | b'!' => return Some(self.identifier_collector(start, bytes)),
+                b'(' => return Some(Ok(Token::new(start, start + 1, TokenType::LeftParen))),
+                b')' => return Some(Ok(Token::new(start, start + 1, TokenType::RightParen))),
                 _ => {
                     return Some(Err(
                         self.error_collector(ErrorType::InvalidCharacter(char::from(bytes)))
