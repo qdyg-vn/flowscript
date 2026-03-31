@@ -99,7 +99,12 @@ impl<'source_code> Lexer<'source_code> {
         let mut is_relative_reference = character == b'_';
         loop {
             match self.peek(0) {
-                Some(b'a'..=b'z' | b'A'..=b'Z' | b'_' | b'+' | b'-' | b'*' | b'/' | b'>' | b'<' | b'=' | b'?' | b'!') => {
+                Some(b'a'..=b'z' | b'A'..=b'Z' | b'_' | b'+' | b'*' | b'/' | b'>' | b'<' | b'=' | b'?' | b'!') => {
+                    is_relative_reference = false;
+                    self.advance(0);
+                },
+                Some(b'-') => {
+                    if self.peek(1) == Some(b'>') { break }
                     is_relative_reference = false;
                     self.advance(0);
                 },
