@@ -1,57 +1,78 @@
 use crate::error_handler::{Error, ErrorType};
 use crate::token::{Token, TokenType};
-use std::{iter::Peekable, str::CharIndices};
 
 pub struct Lexer<'source_code> {
-    source_code: &'source_code str,
-    iter: Peekable<CharIndices<'source_code>>,
+    source_code: &'source_code [u8],
+    position: usize,
     line: usize,
+    col: usize,
 }
 
 impl<'source_code> Lexer<'source_code> {
-    pub fn new(source_code: &'source_code str) -> Self {
+    pub fn new(source_code: &'source_code [u8]) -> Self {
         Self {
             source_code,
-            iter: source_code.char_indices().peekable(),
+            position: 0,
             line: 0,
+            col: 0,
         }
     }
 
-    fn string_collector(&mut self, start: usize, quotation_mark: char) -> Result<Token, Error> {
+    fn peek(&self, steps: usize) -> Option<u8> {
+        self.source_code.get(self.position + steps).cloned()
+    }
+
+    fn advance(&mut self, steps: usize) -> Option<u8> {
+        if let Some(result) = self.peek(steps) {
+            if result == b'\n' {
+                self.line += 1;
+                self.col = 1
+            } else if (result & 0xC0) != 0x80 { self.col += 1 }
+            self.position += steps;
+            return Some(result)
+        }
+        None
+    }
+
+    fn string_collector(&mut self, start: usize, quotation_mark: u8) -> Result<Token, Error> {
         let mut end = self.source_code.len();
         loop {
-            match self.iter.next() {
-                Some((index, character)) if character == quotation_mark => {
-                    end = index;
+            match self.advance(0) {
+                Some(character) if character == quotation_mark => {
+                    end = self.position;
                     break
                 },
                 Some(_) => continue,
                 None => {
-                    let code = self.source_code[start..end].to_owned();
+                    let bytes = &self.source_code[start..end];
+                    let code = std::str::from_utf8(bytes).unwrap().to_owned();
                     return Err(self.error_collector(
                         ErrorType::MissingClosingQuote(code),
                     ));
                 }
             }
         }
-        Ok(Token::new(start + 1, end, TokenType::String(self.source_code[start..end].to_owned())
+        let bytes = &self.source_code[start..end];
+        let string = std::str::from_utf8(bytes).unwrap();
+        Ok(Token::new(start + 1, end, TokenType::String(string.to_owned())
         ))
     }
 
     fn number_collector(&mut self, start: usize) -> Result<Token, Error> {
         let mut has_dot = 0;
         let mut has_underscore = 0;
-        while let Some(character) = self.iter.peek().map(|(_, character)| character) {
+        while let Some(character) = self.peek(0) {
             match character {
-                '0'..='9' => (),
-                '.' => has_dot += 1,
-                '_' => has_underscore += 1,
+                b'0'..=b'9' => (),
+                b'.' => has_dot += 1,
+                b'_' => has_underscore += 1,
                 _ => break,
             }
-            self.iter.next();
+            self.advance(0);
         }
-        let end = self.iter.peek().map(|(index, _)| *index).unwrap_or(self.source_code.len());
-        let value = &self.source_code[start..end];
+        let end = self.position;
+        let bytes = &self.source_code[start..end];
+        let value = std::str::from_utf8(bytes).unwrap();
         if has_underscore > 0 && has_dot > 0 {
             todo!("Relative references cannot have x or y as floats")
         }
@@ -70,32 +91,33 @@ impl<'source_code> Lexer<'source_code> {
         }
     }
 
-    fn identifier_collector(&mut self, start: usize, character: char) -> Result<Token, Error> {
-        if character == '-' && matches!(self.iter.peek(), Some((_, '>'))) {
-            self.iter.next();
+    fn identifier_collector(&mut self, start: usize, character: u8) -> Result<Token, Error> {
+        if character == b'-' && matches!(self.peek(0), Some(b'>')) {
+            self.advance(0);
             return Ok(Token::new(start, start + 2, TokenType::Arrow))
         }
-        let mut is_relative_reference = character == '_';
+        let mut is_relative_reference = character == b'_';
         loop {
-            match self.iter.peek() {
-                Some((_, 'a'..='z' | 'A'..='Z' | '_' | '+' | '-' | '*' | '/' | '>' | '<' | '=' | '?' | '!')) => {
+            match self.peek(0) {
+                Some(b'a'..=b'z' | b'A'..=b'Z' | b'_' | b'+' | b'-' | b'*' | b'/' | b'>' | b'<' | b'=' | b'?' | b'!') => {
                     is_relative_reference = false;
-                    self.iter.next();
+                    self.advance(0);
                 },
-                Some((_, '0'..='9')) => { self.iter.next(); },
+                Some(b'0'..=b'9') => { self.advance(0); },
                 _ => break
             }
         }
-        let end = self.iter.peek().map(|(index, _)| *index).unwrap_or(self.source_code.len());
+        let end = self.position;
+        let bytes = &self.source_code[start..end];
+        let value = std::str::from_utf8(bytes).unwrap();
         if is_relative_reference {
-            let y = (&self.source_code[start + 1..end]).parse().unwrap_or(0);
+            let y = value.parse().unwrap_or(0);
             return Ok(Token::new(start, end, TokenType::RelativeReference(1, y)))
         }
-        let value = self.source_code[start..end].to_owned();
         if value.ends_with('!') {
-            return Ok(Token::new(start, end, TokenType::Macro(value)))
+            return Ok(Token::new(start, end, TokenType::Macro(value.to_owned())))
         }
-        Ok(Token::new(start, end, TokenType::Identifier(value)))
+        Ok(Token::new(start, end, TokenType::Identifier(value.to_owned())))
     }
 
     fn error_collector(&self, kind: ErrorType) -> Error {
@@ -109,17 +131,17 @@ impl<'source_code> Lexer<'source_code> {
 impl<'source_code> Iterator for Lexer<'source_code> {
     type Item = Result<Token, Error>;
     fn next(&mut self) -> Option<Self::Item> {
-        while let Some((index, character)) = self.iter.next() {
-            match character {
-                '"' | '\'' => return Some(self.string_collector(index, character)),
-                '0'..='9' => return Some(self.number_collector(index)),
-                ' ' | '\t' | '\n' | ',' => continue,
-                'a'..='z' | 'A'..='Z' | '_' | '+' | '-' | '*' | '/' | '>' | '<' | '=' | '?' | '!' => return Some(self.identifier_collector(index, character)),
-                '(' => return Some(Ok(Token::new(index, index + 1, TokenType::LeftParen))),
-                ')' => return Some(Ok(Token::new(index, index + 1, TokenType::RightParen))),
+        while let Some(bytes) = self.advance(0) {
+            match bytes {
+                b'"' | b'\'' => return Some(self.string_collector(self.position, bytes)),
+                b'0'..=b'9' => return Some(self.number_collector(self.position)),
+                b' ' | b'\t' | b'\n' | b',' => continue,
+                b'a'..=b'z' | b'A'..=b'Z' | b'_' | b'+' | b'-' | b'*' | b'/' | b'>' | b'<' | b'=' | b'?' | b'!' => return Some(self.identifier_collector(self.position, bytes)),
+                b'(' => return Some(Ok(Token::new(self.position, self.position + 1, TokenType::LeftParen))),
+                b')' => return Some(Ok(Token::new(self.position, self.position + 1, TokenType::RightParen))),
                 _ => {
                     return Some(Err(
-                        self.error_collector(ErrorType::InvalidCharacter(character))
+                        self.error_collector(ErrorType::InvalidCharacter(char::from(bytes)))
                     ));
                 }
             }
