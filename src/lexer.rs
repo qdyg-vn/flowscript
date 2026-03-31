@@ -119,6 +119,9 @@ impl<'source_code> Lexer<'source_code> {
             let y = value.parse().unwrap_or(0);
             return Ok(Token::new(start, end, TokenType::RelativeReference(1, y)))
         }
+        if self.peek(0) != Some(b'(') {
+            return Ok(Token::new(start, end, TokenType::Variable(value.to_owned())))
+        }
         if value.ends_with('!') {
             return Ok(Token::new(start, end, TokenType::Macro(value.to_owned())))
         }
