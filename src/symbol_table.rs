@@ -9,14 +9,9 @@ pub enum SymbolType {
     Builtin(u16)
 }
 
-pub struct Symbol {
-    pub name: u16,
-    pub symbol_type: SymbolType
-}
-
 pub struct SymbolTable {
     pub builtins: HashMap<String, u16>,
-    pub scopes: Vec<HashMap<String, Symbol>>
+    pub scopes: Vec<HashMap<String, SymbolType>>
 }
 
 impl SymbolTable {
@@ -37,7 +32,7 @@ impl SymbolTable {
         }
         for scope in self.scopes.iter().rev() {
             if let Some(symbol) = scope.get(name) {
-                return Ok(symbol.symbol_type.clone())
+                return Ok(symbol.clone())
             }
         }
         todo!("Error at here! Because we can't find it")
