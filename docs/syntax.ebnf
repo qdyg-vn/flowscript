@@ -8,7 +8,9 @@ macro = identifier, '!';
 
 identifier = ( letter | '_' | '+' | '-' | '*' | '/' | '>' | '<' | '=' | '?' | '!' ), { letter | '_' | '+' | '-' | '*' | '/' | '>' | '<' | '=' | '?' | '!' | digit }, ( letter | '_' | '+' | '-' | '*' | '/' | '>' | '<' | '=' | '?' | digit );
 
-argument = float | integer | relative_reference | string | function | identifier | macro;
+argument = float | integer | relative_reference | variable | string | function | identifier | macro;
+
+variable = argument;
 
 relative_reference = { digit }, '_', { digit };
 
