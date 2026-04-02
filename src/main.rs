@@ -35,9 +35,7 @@ fn read_file(path: String) {
     }
 }
 
-fn run(source_code: String) {
-    let mut lexer = Lexer::new(&source_code);
-    let parser = Parser::new(lexer);
+fn run(source_code: Vec<u8>) {
     let lexer = Lexer::new(&source_code);
     let mut parser = Parser::new(lexer);
     let mut optimizer = Optimizer::new(parser);
@@ -45,6 +43,6 @@ fn run(source_code: String) {
     let symbol_table = SymbolTable::new();
     let mut emitter = Emitter::new(symbol_table);
     let map = emitter.emit(ast);
-    let mut virmac = VirMac::new();
+    let mut virmac = VirMac::default();
     virmac.execute(map);
 }
