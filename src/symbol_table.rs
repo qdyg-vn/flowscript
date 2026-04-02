@@ -4,8 +4,7 @@ use std::collections::HashMap;
 
 #[derive(Clone, Debug)]
 pub enum SymbolType {
-    Global(u16),
-    Local(u16, u16),
+    Scope(u16, u16),
     Builtin(u16)
 }
 

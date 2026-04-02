@@ -68,6 +68,7 @@ where
             TokenType::Identifier(identifier) => self.parse_function(identifier),
             TokenType::String(string) => Node::Literal(Value::String(string)),
             TokenType::RelativeReference(x, y) => Node::RelativeReference(x, y),
+            TokenType::Variable(name) => Node::Variable(name),
             _ => todo!("Unimplemented token: {:?}", token),
         }
     }

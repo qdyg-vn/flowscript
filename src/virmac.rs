@@ -6,6 +6,7 @@ use crate::value::Value;
 pub struct VirMac {
     position: usize,
     stations_output: Vec<Value>,
+    variables: Vec<(String, Value)>
 }
 
 impl VirMac {
@@ -45,6 +46,7 @@ impl VirMac {
                 }
                 self.position += 1
             },
+            Instruction::Store(name) => self.variables.push((name, stack[self.position].clone())),
             _ => todo!()
         }
     }

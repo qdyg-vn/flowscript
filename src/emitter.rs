@@ -42,13 +42,13 @@ impl Emitter {
                         let result = self.symbol_table.resolve(&name);
                         match result {
                             Ok(SymbolType::Builtin(index)) => chunk.instructions.push(Instruction::BuiltinCall(index, arity)),
-                            Ok(SymbolType::Local(scope, index)) => chunk.instructions.push(Instruction::Call(scope, index, arity)),
-                            Ok(SymbolType::Global(index)) => chunk.instructions.push(Instruction::GlobalCall(index, arity)),
+                            Ok(SymbolType::Scope(scope, index)) => chunk.instructions.push(Instruction::Call(scope, index, arity)),
                             Err(error) => self.errors.push(error)
                         }
                     }
                 },
                 Node::RelativeReference(x, y) => chunk.instructions.push(Instruction::RelativeReference(x, y)),
+                Node::Variable(name) => chunk.instructions.push(Instruction::Store(name)),
                 _ => todo!()
             }
         }

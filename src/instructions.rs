@@ -4,9 +4,8 @@ use crate::value::Value;
 pub enum Instruction {
     Call(u16, u16, u16),
     Load(u16),
-    Store(u16),
+    Store(String),
     BuiltinCall(u16, u16),
-    GlobalCall(u16, u16),
     RelativeReference(u16, u16),
 }
 

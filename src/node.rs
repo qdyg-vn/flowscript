@@ -8,10 +8,7 @@ pub enum Node {
         operator: Box<Node>,
         arguments: Vec<Node>,
     },
-    Bind {
-        name: String,
-        value: Box<Node>,
-    },
     Pipeline(Vec<Node>),
     RelativeReference(u16, u16),
+    Variable(String),
 }
