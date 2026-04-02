@@ -4,7 +4,7 @@ use crate::value::Value;
 pub enum Instruction {
     Call(u16, u16, u16),
     Load(u16),
-    Store(String),
+    Store(u16, u16),
     BuiltinCall(u16, u16),
     RelativeReference(u16, u16),
 }
@@ -13,4 +13,5 @@ pub enum Instruction {
 pub struct Chunk {
     pub instructions: Vec<Instruction>,
     pub constants: Vec<Value>,
+    pub arity: u16,
 }

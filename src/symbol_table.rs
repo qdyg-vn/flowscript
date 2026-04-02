@@ -1,8 +1,8 @@
 use crate::builtins::BUILTIN_TABLE;
 use crate::error_handler::Error;
-use std::collections::HashMap;
+use std::collections::{HashMap, hash_map::Entry};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub enum SymbolType {
     Scope(u16, u16),
     Builtin(u16)
@@ -22,6 +22,23 @@ impl SymbolTable {
         Self {
             builtins,
             scopes: Vec::new()
+        }
+    }
+
+    pub fn new_scope(&mut self) {
+        self.scopes.push(HashMap::new());
+    }
+
+    pub fn add_variable(&mut self, variable: String, scope: u16) -> Result<SymbolType, SymbolType> {
+        let last_scope = self.scopes.last_mut().unwrap();
+        let index = last_scope.len() as u16;
+        match last_scope.entry(variable) {
+            Entry::Vacant(entry) => {
+                let new_symbol = SymbolType::Scope(scope, index);
+                entry.insert(new_symbol);
+                Ok(new_symbol)
+            }
+            Entry::Occupied(entry) => Err(*entry.get())
         }
     }
 

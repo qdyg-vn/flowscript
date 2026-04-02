@@ -6,13 +6,14 @@ use crate::value::Value;
 pub struct VirMac {
     position: usize,
     stations_output: Vec<Value>,
-    variables: Vec<(String, Value)>
+    variables: Vec<Value>
 }
 
 impl VirMac {
     pub fn execute(&mut self, map: Vec<Chunk>) -> Vec<Value> {
         let mut stack = vec![Value::Nil; 1024];
         for chunk in map {
+            self.variables.resize(chunk.arity as usize, Value::Nil);
             for instruction in chunk.instructions {
                 self.dispatch_instruction(instruction, &chunk.constants, &mut stack)
             }
@@ -46,7 +47,7 @@ impl VirMac {
                 }
                 self.position += 1
             },
-            Instruction::Store(name) => self.variables.push((name, stack[self.position].clone())),
+            Instruction::Store(scope, index) => self.variables[index as usize] = stack[self.position].clone(),
             _ => todo!()
         }
     }

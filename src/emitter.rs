@@ -18,9 +18,10 @@ impl Emitter {
 
     pub fn emit(&mut self, ast: Vec<Node>) -> Vec<Chunk> {
         let mut map: Vec<Chunk> = Vec::new();
+        self.symbol_table.new_scope();
         for instructions in ast {
             if let Node::Pipeline(stations) = instructions {
-                let mut chunk = Chunk { instructions: Vec::new(), constants: Vec::new() };
+                let mut chunk = Chunk { instructions: Vec::new(), constants: Vec::new(), arity: 0 };
                 self.create_chunk(stations, &mut chunk);
                 map.push(chunk)
             }
@@ -48,7 +49,16 @@ impl Emitter {
                     }
                 },
                 Node::RelativeReference(x, y) => chunk.instructions.push(Instruction::RelativeReference(x, y)),
-                Node::Variable(name) => chunk.instructions.push(Instruction::Store(name)),
+                Node::Variable(name) => {
+                    match self.symbol_table.add_variable(name, 0) {
+                        Ok(SymbolType::Scope(scope, index)) => {
+                            chunk.instructions.push(Instruction::Store(scope, index));
+                            chunk.arity += 1
+                        },
+                        Err(SymbolType::Scope(scope, index)) => chunk.instructions.push(Instruction::Store(scope, index)),
+                        _ => unreachable!()
+                    }
+                },
                 _ => todo!()
             }
         }
