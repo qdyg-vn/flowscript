@@ -30,7 +30,7 @@ impl VirMac {
             },
             Instruction::BuiltinCall(index, arity) => {
                 let start = self.position - arity as usize;
-                let end = self.position - 1;
+                let end = self.position;
                 self.execute_builtin_function(index, stack, start, end);
             },
             Instruction::RelativeReference(x, y) => {
@@ -52,7 +52,7 @@ impl VirMac {
     }
 
     fn execute_builtin_function(&mut self, index: u16, stack: &mut Vec<Value>, start: usize, end: usize) {
-        if let Some(arguments) = stack.get(start..=end) {
+        if let Some(arguments) = stack.get(start..end) {
             let builtin = get_builtin(index);
             match builtin.function {
                 BuiltinFunction::Math(function) => {
