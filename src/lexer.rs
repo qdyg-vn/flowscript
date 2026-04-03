@@ -34,12 +34,13 @@ impl<'source_code> Lexer<'source_code> {
         None
     }
 
-    fn string_collector(&mut self, start: usize, quotation_mark: u8) -> Result<Token, Error> {
+    fn string_collector(&mut self, quotation_index: usize, quotation_mark: u8) -> Result<Token, Error> {
+        let start = quotation_index + 1;
         let mut end = self.source_code.len();
         loop {
             match self.advance(0) {
                 Some(character) if character == quotation_mark => {
-                    end = self.position;
+                    end = self.position - 1;
                     break
                 },
                 Some(_) => continue,
