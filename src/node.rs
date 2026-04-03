@@ -11,4 +11,5 @@ pub enum Node {
     Pipeline(Vec<Node>),
     RelativeReference(u16, u16),
     Variable(String),
+    Assignment(String)
 }

@@ -100,7 +100,10 @@ where
         while let Some(token) = self.peek() && token.kind == TokenType::Arrow {
             self.advance(1);
             if let Some(token) = self.advance(1) {
-                stations.push(self.dispatch_node(token));
+                stations.push(match self.dispatch_node(token) {
+                    Node::Variable(name) => Node::Assignment(name),
+                    other => other
+                });
             } else {
                 todo!("We should make error_handle.rs")
             }
