@@ -27,6 +27,7 @@ impl VirMac {
             Instruction::Load(index) => {
                 if stack.len() <= self.position { stack.resize(stack.len() * 2, Value::Nil) }
                 stack[self.position] = constants[index as usize].clone();
+                self.stations_output.push(constants[index as usize].clone());
                 self.position += 1
             },
             Instruction::BuiltinCall(index, arity) => {
