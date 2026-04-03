@@ -49,13 +49,20 @@ impl Emitter {
                     }
                 },
                 Node::RelativeReference(x, y) => chunk.instructions.push(Instruction::RelativeReference(x, y)),
-                Node::Variable(name) => {
+                Node::Assignment(name) => {
                     match self.symbol_table.add_variable(name, 0) {
                         Ok(SymbolType::Scope(scope, index)) => {
                             chunk.instructions.push(Instruction::Store(scope, index));
                             chunk.arity += 1
                         },
                         Err(SymbolType::Scope(scope, index)) => chunk.instructions.push(Instruction::Store(scope, index)),
+                        _ => unreachable!()
+                    }
+                },
+                Node::Variable(name) => {
+                    match self.symbol_table.resolve(&name) {
+                        Ok(SymbolType::Scope(scope, index)) => chunk.instructions.push(Instruction::LoadVariable(scope, index)),
+                        Err(error) => todo!(),
                         _ => unreachable!()
                     }
                 },

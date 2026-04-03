@@ -48,7 +48,11 @@ impl VirMac {
                 }
                 self.position += 1
             },
-            Instruction::Store(scope, index) => self.variables[index as usize] = stack[self.position].clone(),
+            Instruction::Store(scope, index) => self.variables[index as usize] = stack[self.position - 1].clone(),
+            Instruction::LoadVariable(scope, index) => {
+                stack[self.position] = self.variables[index as usize].clone();
+                self.position += 1
+            },
             _ => todo!()
         }
     }
@@ -62,7 +66,7 @@ impl VirMac {
                         Ok(value) => {
                             self.stations_output.push(value.clone());
                             stack[start] = value;
-                            self.position = start
+                            self.position = start + 1
                         },
                         Err(error) => todo!()
                     };
