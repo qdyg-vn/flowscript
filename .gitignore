@@ -7,3 +7,4 @@ cmake-build-*/
 **/*.rs.bk
 cargo-expand
 main.fscc
+.todo
