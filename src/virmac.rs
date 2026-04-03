@@ -66,12 +66,18 @@ impl VirMac {
                         Ok(value) => {
                             self.stations_output.push(value.clone());
                             stack[start] = value;
-                            self.position = start + 1
+                            self.position = start + 1;
                         },
                         Err(error) => todo!()
                     };
                 },
-                BuiltinFunction::IO(function) => function(arguments)
+                BuiltinFunction::IO(function) => function(arguments),
+                BuiltinFunction::Casting(function) => {
+                    let value = function(arguments);
+                    self.stations_output.push(value.clone());
+                    stack[start] = value;
+                    self.position = start + 1
+                },
             }
         } else {
             todo!("Stack out of bounds: start {} end {}", start, end)
