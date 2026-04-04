@@ -10,6 +10,7 @@ pub fn to_string(arguments: &[Value]) -> Value {
         Value::Float(float) => float.to_string(),
         Value::String(string) => string.clone(),
         Value::Integer(integer) => integer.to_string(),
+        _ => todo!(),
     };
     Value::String(result)
 }

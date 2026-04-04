@@ -53,6 +53,9 @@ impl VirMac {
                 stack[self.position] = self.variables[index as usize].clone();
                 self.position += 1
             },
+            Instruction::DefineFunction(scope, index) => {
+                self.variables[index as usize] = constants[index as usize].clone()
+            }
             _ => todo!()
         }
     }

@@ -92,7 +92,7 @@ where
     fn parse_define_function(&mut self) -> Node {
         let operator = match self.advance(1) {
             Some(token) => match token.kind {
-                TokenType::Variable(name) => Box::new(Node::Symbol(name)),
+                TokenType::Variable(name) => name,
                 _ => todo!("Function need a name!")
             },
             None => todo!("There is one redundant function definition")
@@ -105,7 +105,10 @@ where
             if argument.kind == TokenType::RightParen {
                 break;
             }
-            arguments.push(self.dispatch_node(argument));
+            arguments.push(match argument.kind {
+                TokenType::Variable(name) => Node::Assignment(name), // Because in a lexer when it encounters a function argument, it converts it into a variable
+                _ => todo!()
+            })
         };
         if let Some(token) = self.advance(1) && token.kind != TokenType::LeftBrace {
             todo!("Behind arguments need a left brace!");

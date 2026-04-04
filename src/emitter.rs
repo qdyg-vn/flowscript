@@ -2,6 +2,7 @@ use crate::error_handler::Error;
 use crate::instructions::{Chunk, Instruction};
 use crate::node::Node;
 use crate::symbol_table::{SymbolTable, SymbolType};
+use crate::value::Value;
 
 pub struct Emitter {
     errors: Vec<Error>,
@@ -65,6 +66,22 @@ impl Emitter {
                         Err(error) => todo!(),
                         _ => unreachable!()
                     }
+                },
+                Node::DefineFunction {operator, arguments, body} => {
+                    match self.symbol_table.add_variable(operator, self.symbol_table.scopes.len() as u16 - 1) {
+                        Ok(SymbolType::Scope(scope, index)) => {
+                            chunk.instructions.push(Instruction::DefineFunction(scope, index));
+                            chunk.arity += 1
+                        },
+                        Err(SymbolType::Scope(scope, index)) => chunk.instructions.push(Instruction::DefineFunction(scope, index)),
+                        _ => unreachable!()
+                    }
+                    self.symbol_table.new_scope();
+                    let mut child_chunk = Chunk { instructions: Vec::new(), constants: Vec::new(), arity: 0 };
+                    self.create_chunk(arguments, &mut child_chunk);
+                    self.create_chunk(body, &mut child_chunk);
+                    self.symbol_table.scopes.pop();
+                    chunk.constants.push(Value::Function(Box::from(child_chunk)))
                 },
                 _ => todo!()
             }

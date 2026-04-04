@@ -13,7 +13,7 @@ pub enum Node {
     Variable(String),
     Assignment(String),
     DefineFunction {
-        operator: Box<Node>,
+        operator: String,
         arguments: Vec<Node>,
         body: Vec<Node>,
     }

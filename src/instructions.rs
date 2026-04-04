@@ -1,6 +1,6 @@
 use crate::value::Value;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Instruction {
     Call(u16, u16, u16),
     Load(u16),
@@ -8,9 +8,10 @@ pub enum Instruction {
     LoadVariable(u16, u16),
     BuiltinCall(u16, u16),
     RelativeReference(u16, u16),
+    DefineFunction(u16, u16),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Chunk {
     pub instructions: Vec<Instruction>,
     pub constants: Vec<Value>,
