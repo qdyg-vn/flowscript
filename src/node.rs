@@ -11,5 +11,10 @@ pub enum Node {
     Pipeline(Vec<Node>),
     RelativeReference(u16, u16),
     Variable(String),
-    Assignment(String)
+    Assignment(String),
+    DefineFunction {
+        operator: Box<Node>,
+        arguments: Vec<Node>,
+        body: Vec<Node>,
+    }
 }

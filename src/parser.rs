@@ -69,6 +69,7 @@ where
             TokenType::String(string) => Node::Literal(Value::String(string)),
             TokenType::RelativeReference(x, y) => Node::RelativeReference(x, y),
             TokenType::Variable(name) => Node::Variable(name),
+            TokenType::DefineFunction => self.parse_define_function(),
             _ => todo!("Unimplemented token: {:?}", token),
         }
     }
@@ -86,6 +87,37 @@ where
             arguments.push(self.dispatch_node(argument));
         }
         Node::Apply {operator, arguments}
+    }
+
+    fn parse_define_function(&mut self) -> Node {
+        let operator = match self.advance(1) {
+            Some(token) => match token.kind {
+                TokenType::Variable(name) => Box::new(Node::Symbol(name)),
+                _ => todo!("Function need a name!")
+            },
+            None => todo!("There is one redundant function definition")
+        };
+        if let Some(token) = self.advance(1) && token.kind != TokenType::LeftParen {
+            todo!("Behind operator need a left paren!");
+        }
+        let mut arguments = Vec::new();
+        while let Some(argument) = self.advance(1) {
+            if argument.kind == TokenType::RightParen {
+                break;
+            }
+            arguments.push(self.dispatch_node(argument));
+        };
+        if let Some(token) = self.advance(1) && token.kind != TokenType::LeftBrace {
+            todo!("Behind arguments need a left brace!");
+        }
+        let mut body = Vec::new();
+        while let Some(argument) = self.advance(1) {
+            if argument.kind == TokenType::RightBrace {
+                break;
+            }
+            body.push(self.dispatch_node(argument));
+        };
+        Node::DefineFunction {operator, arguments, body}
     }
 
     fn parse_pipeline(&mut self, token: Token) -> Node {
