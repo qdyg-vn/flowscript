@@ -120,6 +120,9 @@ impl<'source_code> Lexer<'source_code> {
             let y = value.parse().unwrap_or(0);
             return Ok(Token::new(start, end, TokenType::RelativeReference(1, y)))
         }
+        if value == "fun" {
+            return Ok(Token::new(start, end, TokenType::DefineFunction))
+        }
         if self.peek(0) != Some(b'(') {
             return Ok(Token::new(start, end, TokenType::Variable(value.to_owned())))
         }
@@ -153,6 +156,8 @@ impl<'source_code> Iterator for Lexer<'source_code> {
                 b'a'..=b'z' | b'A'..=b'Z' | b'_' | b'+' | b'-' | b'*' | b'/' | b'>' | b'<' | b'=' | b'?' | b'!' => return Some(self.identifier_collector(start, bytes)),
                 b'(' => return Some(Ok(Token::new(start, start + 1, TokenType::LeftParen))),
                 b')' => return Some(Ok(Token::new(start, start + 1, TokenType::RightParen))),
+                b'{' => return Some(Ok(Token::new(start, start + 1, TokenType::LeftBrace))),
+                b'}' => return Some(Ok(Token::new(start, start + 1, TokenType::RightBrace))),
                 _ => {
                     return Some(Err(
                         self.error_collector(ErrorType::InvalidCharacter(char::from(bytes)))

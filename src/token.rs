@@ -29,5 +29,8 @@ pub enum TokenType {
     RightParen,
     Semicolon,
     String(String),
-    Variable(String)
+    Variable(String),
+    DefineFunction,
+    LeftBrace,
+    RightBrace,
 }
