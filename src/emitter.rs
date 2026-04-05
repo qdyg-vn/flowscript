@@ -84,6 +84,22 @@ impl Emitter {
                     chunk.constants.push(Value::Function(Box::from(child_chunk)))
                 },
                 Node::Pipeline(stations) => self.create_chunk(stations, chunk),
+                Node::Condition {condition, if_body, else_body} => {
+                    self.create_chunk(condition, chunk);
+                    let mut if_chunk = Chunk { instructions: Vec::new(), constants: Vec::new(), arity: 0 };
+                    self.symbol_table.new_scope();
+                    self.create_chunk(if_body, &mut if_chunk);
+                    self.symbol_table.scopes.pop();
+                    chunk.constants.push(Value::Function(Box::from(if_chunk)));
+                    let if_index = chunk.constants.len() as u16 - 1;
+                    let mut else_chunk = Chunk { instructions: Vec::new(), constants: Vec::new(), arity: 0 };
+                    self.symbol_table.new_scope();
+                    self.create_chunk(else_body, &mut else_chunk);
+                    self.symbol_table.scopes.pop();
+                    chunk.constants.push(Value::Function(Box::from(else_chunk)));
+                    let else_index = chunk.constants.len() as u16 - 1;
+                    chunk.instructions.push(Instruction::Condition(if_index, else_index))
+                }
                 _ => todo!(),
             }
         }

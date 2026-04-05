@@ -120,8 +120,11 @@ impl<'source_code> Lexer<'source_code> {
             let y = value.parse().unwrap_or(0);
             return Ok(Token::new(start, end, TokenType::RelativeReference(1, y)))
         }
-        if value == "fun" {
-            return Ok(Token::new(start, end, TokenType::DefineFunction))
+        match value {
+            "fun" => return Ok(Token::new(start, end, TokenType::DefineFunction)),
+            "if" => return Ok(Token::new(start, end, TokenType::If)),
+            "else" => return Ok(Token::new(start, end, TokenType::Else)),
+            _ => ()
         }
         if self.peek(0) != Some(b'(') {
             return Ok(Token::new(start, end, TokenType::Variable(value.to_owned())))

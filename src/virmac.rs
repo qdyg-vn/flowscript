@@ -66,6 +66,27 @@ impl VirMac {
                 for instruction in chunk.instructions {
                     self.dispatch_instruction(instruction, &chunk.constants, stack)
                 }
+            },
+            Instruction::Condition(if_index, else_index) => {
+                if let Value::Boolean(boolean) = stack[self.position - 1] {
+                    let chunk = match boolean {
+                        true => {
+                            match constants[if_index as usize].clone() {
+                                Value::Function(chunk_box) => *chunk_box,
+                                _ => todo!()
+                            }
+                        },
+                        false => {
+                            match constants[else_index as usize].clone() {
+                                Value::Function(chunk_box) => *chunk_box,
+                                _ => todo!()
+                            }
+                        }
+                    };
+                    for instruction in chunk.instructions {
+                        self.dispatch_instruction(instruction, &chunk.constants, stack)
+                    }
+                }
             }
         }
     }

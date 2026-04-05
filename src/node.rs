@@ -16,5 +16,10 @@ pub enum Node {
         operator: String,
         arguments: Vec<Node>,
         body: Vec<Node>,
-    }
+    },
+    Condition {
+        condition: Vec<Node>,
+        if_body: Vec<Node>,
+        else_body: Vec<Node>,
+    },
 }

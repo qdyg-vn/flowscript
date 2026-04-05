@@ -70,6 +70,7 @@ where
             TokenType::RelativeReference(x, y) => Node::RelativeReference(x, y),
             TokenType::Variable(name) => Node::Variable(name),
             TokenType::DefineFunction => self.parse_define_function(),
+            TokenType::If => self.parse_condition(),
             _ => todo!("Unimplemented token: {:?}", token),
         }
     }
@@ -121,6 +122,43 @@ where
             body.push(self.parse_pipeline(argument));
         };
         Node::DefineFunction {operator, arguments, body}
+    }
+
+    fn parse_condition(&mut self) -> Node {
+        if let Some(token) = self.advance(1) && token.kind != TokenType::LeftParen {
+            todo!("Behind condition need a left paren!");
+        }
+        let mut condition = Vec::new();
+        while let Some(argument) = self.advance(1) {
+            if argument.kind == TokenType::RightParen {
+                break;
+            }
+            condition.push(self.dispatch_node(argument))
+        };
+        if let Some(token) = self.advance(1) && token.kind != TokenType::LeftBrace {
+            todo!("Behind arguments need a left brace!");
+        }
+        let mut if_body = Vec::new();
+        while let Some(argument) = self.advance(1) {
+            if argument.kind == TokenType::RightBrace {
+                break;
+            }
+            if_body.push(self.parse_pipeline(argument));
+        };
+        let mut else_body = Vec::new();
+        if let Some(token) = self.advance(1) && token.kind != TokenType::Else {
+            return Node::Condition { condition, if_body, else_body }
+        }
+        if let Some(token) = self.advance(1) && token.kind != TokenType::LeftBrace {
+            todo!("Behind arguments need a left brace!");
+        }
+        while let Some(argument) = self.advance(1) {
+            if argument.kind == TokenType::RightBrace {
+                break;
+            }
+            else_body.push(self.parse_pipeline(argument));
+        };
+        Node::Condition { condition, if_body, else_body }
     }
 
     fn parse_pipeline(&mut self, token: Token) -> Node {

@@ -33,4 +33,6 @@ pub enum TokenType {
     DefineFunction,
     LeftBrace,
     RightBrace,
+    If,
+    Else,
 }
