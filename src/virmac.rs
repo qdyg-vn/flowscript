@@ -85,7 +85,7 @@ impl VirMac {
                     };
                 },
                 BuiltinFunction::IO(function) => function(arguments),
-                BuiltinFunction::Casting(function) => {
+                BuiltinFunction::Casting(function) | BuiltinFunction::Compare(function) => {
                     let value = function(arguments);
                     self.stations_output.push(value.clone());
                     stack[start] = value;
