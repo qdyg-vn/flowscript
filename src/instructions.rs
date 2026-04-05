@@ -9,7 +9,8 @@ pub enum Instruction {
     BuiltinCall(u16, u16),
     RelativeReference(u16, u16),
     DefineFunction(u16, u16),
-    Condition(u16, u16),
+    Jump(u16),
+    JumpIfFalse(u16),
 }
 
 #[derive(Debug, Clone, PartialEq)]
