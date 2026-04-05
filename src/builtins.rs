@@ -7,7 +7,7 @@ use crate::value::Value;
 use casting::to_string;
 use io::print;
 use math::add;
-use compare::equal;
+use compare::{ equal, less, greater, not_equal };
 
 #[derive(Copy, Clone, Debug)]
 pub enum BuiltinFunction {
@@ -27,7 +27,10 @@ pub const BUILTIN_TABLE: &[Builtin] = &[
     Builtin { name: "+", function: BuiltinFunction::Math(add) },
     Builtin { name: "print", function: BuiltinFunction::IO(print) },
     Builtin { name: "string", function: BuiltinFunction::Casting(to_string) },
-    Builtin { name: "==", function: BuiltinFunction::Compare(equal) }
+    Builtin { name: "==", function: BuiltinFunction::Compare(equal) },
+    Builtin { name: "<", function: BuiltinFunction::Compare(less) },
+    Builtin { name: ">", function: BuiltinFunction::Compare(greater) },
+    Builtin { name: "!=", function: BuiltinFunction::Compare(not_equal) },
 ];
 
 pub fn get_builtin(index: u16) -> Builtin {
