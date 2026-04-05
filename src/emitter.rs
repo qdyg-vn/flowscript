@@ -83,7 +83,8 @@ impl Emitter {
                     self.symbol_table.scopes.pop();
                     chunk.constants.push(Value::Function(Box::from(child_chunk)))
                 },
-                _ => todo!()
+                Node::Pipeline(stations) => self.create_chunk(stations, chunk),
+                _ => todo!(),
             }
         }
     }

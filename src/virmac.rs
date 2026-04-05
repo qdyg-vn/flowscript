@@ -55,8 +55,18 @@ impl VirMac {
             },
             Instruction::DefineFunction(scope, index) => {
                 self.variables[index as usize] = constants[index as usize].clone()
+            },
+            Instruction::Call(scope, index, arity) => {
+                let start = self.position - arity as usize;
+                let end = self.position;
+                let chunk = match constants[index as usize].clone() {
+                    Value::Function(chunk_box) => *chunk_box,
+                    _ => todo!()
+                };
+                for instruction in chunk.instructions {
+                    self.dispatch_instruction(instruction, &chunk.constants, stack)
+                }
             }
-            _ => todo!()
         }
     }
 

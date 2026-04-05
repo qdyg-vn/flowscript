@@ -118,7 +118,7 @@ where
             if argument.kind == TokenType::RightBrace {
                 break;
             }
-            body.push(self.dispatch_node(argument));
+            body.push(self.parse_pipeline(argument));
         };
         Node::DefineFunction {operator, arguments, body}
     }
