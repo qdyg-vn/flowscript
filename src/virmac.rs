@@ -2,36 +2,45 @@ use crate::builtins::{get_builtin, BuiltinFunction};
 use crate::instructions::{Chunk, Instruction};
 use crate::value::Value;
 
-#[derive(Default)]
 pub struct VirMac {
     stack_position: usize,
-    instruction_position: usize,
     stations_output: Vec<Value>,
-    variables: Vec<Value>
+    variables: Vec<Value>,
+    constants_pool: Vec<Value>,
 }
 
 impl VirMac {
+    pub fn new(constants_pool: Vec<Value>) -> Self {
+        Self {
+            stack_position: 0,
+            stations_output: Vec::new(),
+            variables: Vec::new(),
+            constants_pool
+        }
+    }
+
     pub fn execute(&mut self, map: Vec<Chunk>) -> Vec<Value> {
         let mut stack = vec![Value::Nil; 1024];
         for chunk in map {
             self.variables.resize(chunk.arity as usize, Value::Nil);
             let chunk_size = (&chunk.instructions).len();
-            while self.instruction_position < chunk_size {
-                self.dispatch_instruction(chunk.instructions[self.instruction_position], &chunk.constants, &mut stack);
-                self.instruction_position += 1;
+            let mut instruction_position = 0;
+            while instruction_position < chunk_size {
+                self.dispatch_instruction(chunk.instructions[instruction_position], &mut instruction_position, &mut stack, 0);
+                instruction_position += 1;
             }
         }
         stack
     }
 
-    fn dispatch_instruction(&mut self, instruction: Instruction, constants: &Vec<Value>, stack: &mut Vec<Value>) {
+    fn dispatch_instruction(&mut self, instruction: Instruction, instruction_position: &mut usize, stack: &mut Vec<Value>, base_pointer: usize) {
         if stack.len() <= self.stack_position { stack.resize(stack.len() * 2, Value::Nil) }
         match instruction {
             Instruction::Load(index) => {
                 if stack.len() <= self.stack_position { stack.resize(stack.len() * 2, Value::Nil) }
-                stack[self.stack_position] = constants[index as usize].clone();
-                self.stations_output.push(constants[index as usize].clone());
-                self.stack_position += 1
+                stack[self.stack_position] = self.constants_pool[index as usize].clone();
+                self.stations_output.push(self.constants_pool[index as usize].clone());
+                self.stack_position += 1;
             },
             Instruction::BuiltinCall(index, arity) => {
                 let start = self.stack_position - arity as usize;
@@ -51,27 +60,31 @@ impl VirMac {
                 }
                 self.stack_position += 1
             },
-            Instruction::Store(scope, index) => self.variables[index as usize] = stack[self.stack_position - 1].clone(),
+            Instruction::Store(scope, index) => { self.variables[base_pointer + index as usize] = stack[self.stack_position - 1].clone(); println!("64 {:?}", self.variables) },
             Instruction::LoadVariable(scope, index) => {
-                stack[self.stack_position] = self.variables[index as usize].clone();
+                stack[self.stack_position] = self.variables[base_pointer + index as usize].clone();
                 self.stack_position += 1
             },
-            Instruction::DefineFunction(scope, index) => {
-                self.variables[index as usize] = constants[index as usize].clone()
+            Instruction::DefineFunction(scope, index, body_index) => {
+                self.variables[base_pointer + index as usize] = self.constants_pool[body_index as usize].clone();
             },
             Instruction::Call(scope, index, arity) => {
                 let start = self.stack_position - arity as usize;
                 let end = self.stack_position;
-                let chunk = match constants[index as usize].clone() {
+                let chunk = match self.variables[base_pointer + index as usize].clone() {
                     Value::Function(chunk_box) => *chunk_box,
                     _ => todo!()
                 };
+                let mut child_instruction_position = 0;
+                let base_pointer = self.variables.len();
                 for instruction in chunk.instructions {
-                    self.dispatch_instruction(instruction, &chunk.constants, stack)
+                    self.variables.resize(base_pointer + chunk.arity as usize, Value::Nil);
+                    self.dispatch_instruction(instruction, &mut child_instruction_position, stack, base_pointer);
+                    child_instruction_position += 1
                 }
             },
-            Instruction::JumpIfFalse(position) => if stack[self.stack_position - 1] == Value::Boolean(false) { self.instruction_position = position as usize },
-            Instruction::Jump(position) => self.instruction_position = position as usize - 1,
+            Instruction::JumpIfFalse(position) => if stack[self.stack_position - 1] == Value::Boolean(false) { *instruction_position = position as usize },
+            Instruction::Jump(position) => *instruction_position = position as usize - 1,
         }
     }
 

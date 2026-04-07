@@ -5,6 +5,7 @@ use flowscript::parser::Parser;
 use flowscript::reader::{FileReader, Repl};
 use flowscript::optimizer::Optimizer;
 use flowscript::symbol_table::SymbolTable;
+use flowscript::constants_pool::ConstantsPool;
 use flowscript::emitter::Emitter;
 use flowscript::virmac::VirMac;
 
@@ -41,8 +42,9 @@ fn run(source_code: Vec<u8>) {
     let mut optimizer = Optimizer::new(parser);
     let ast = optimizer.optimize();
     let symbol_table = SymbolTable::new();
-    let mut emitter = Emitter::new(symbol_table);
-    let map = emitter.emit(ast);
-    let mut virmac = VirMac::default();
+    let constants_pool = ConstantsPool::default();
+    let mut emitter = Emitter::new(symbol_table, constants_pool);
+    let (constants_pool, map) = emitter.emit(ast);
+    let mut virmac = VirMac::new(constants_pool.constants);
     virmac.execute(map);
 }

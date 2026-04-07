@@ -11,3 +11,4 @@ pub mod token;
 pub mod value;
 pub mod virmac;
 pub mod builtins;
+pub mod constants_pool;

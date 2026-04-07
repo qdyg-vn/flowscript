@@ -3,39 +3,42 @@ use crate::instructions::{Chunk, Instruction};
 use crate::node::Node;
 use crate::symbol_table::{SymbolTable, SymbolType};
 use crate::value::Value;
+use crate::constants_pool::ConstantsPool;
 
 pub struct Emitter {
     errors: Vec<Error>,
-    symbol_table: SymbolTable
+    symbol_table: SymbolTable,
+    constants_pool: ConstantsPool,
 }
 
 impl Emitter {
-    pub fn new(symbol_table: SymbolTable) -> Self {
+    pub fn new(symbol_table: SymbolTable, constants_pool: ConstantsPool) -> Self {
         Self {
             errors: Vec::new(),
-            symbol_table
+            symbol_table,
+            constants_pool,
         }
     }
 
-    pub fn emit(&mut self, ast: Vec<Node>) -> Vec<Chunk> {
+    pub fn emit(mut self, ast: Vec<Node>) -> (ConstantsPool, Vec<Chunk>) {
         let mut map: Vec<Chunk> = Vec::new();
         self.symbol_table.new_scope();
         for instructions in ast {
             if let Node::Pipeline(stations) = instructions {
-                let mut chunk = Chunk { instructions: Vec::new(), constants: Vec::new(), arity: 0 };
+                let mut chunk = Chunk { instructions: Vec::new(), arity: 0 };
                 self.create_chunk(stations, &mut chunk);
                 map.push(chunk)
             }
         }
-        map
+        (self.constants_pool, map)
     }
 
     fn create_chunk(&mut self, stations: Vec<Node>, chunk: &mut Chunk) {
         for station in stations {
             match station {
                 Node::Literal(value) => {
-                    chunk.constants.push(value);
-                    chunk.instructions.push(Instruction::Load(chunk.constants.len() as u16 - 1))
+                    let index = self.constants_pool.add_constant(value);
+                    chunk.instructions.push(Instruction::Load(index as u16))
                 },
                 Node::Apply {operator, arguments} => {
                     let arity = arguments.len() as u16;
@@ -68,20 +71,23 @@ impl Emitter {
                     }
                 },
                 Node::DefineFunction {operator, arguments, body} => {
-                    match self.symbol_table.add_variable(operator, self.symbol_table.scopes.len() as u16 - 1) {
+                    let (scope, index) = match self.symbol_table.add_variable(operator, self.symbol_table.scopes.len() as u16 - 1) {
                         Ok(SymbolType::Scope(scope, index)) => {
-                            chunk.instructions.push(Instruction::DefineFunction(scope, index));
-                            chunk.arity += 1
+                            chunk.arity += 1;
+                            (scope, index)
                         },
-                        Err(SymbolType::Scope(scope, index)) => chunk.instructions.push(Instruction::DefineFunction(scope, index)),
+                        Err(SymbolType::Scope(scope, index)) => {
+                            (scope, index)
+                        },
                         _ => unreachable!()
-                    }
+                    };
                     self.symbol_table.new_scope();
-                    let mut child_chunk = Chunk { instructions: Vec::new(), constants: Vec::new(), arity: 0 };
+                    let mut child_chunk = Chunk { instructions: Vec::new(), arity: 0 };
                     self.create_chunk(arguments, &mut child_chunk);
                     self.create_chunk(body, &mut child_chunk);
                     self.symbol_table.scopes.pop();
-                    chunk.constants.push(Value::Function(Box::from(child_chunk)))
+                    let body_index = self.constants_pool.add_constant(Value::Function(Box::from(child_chunk)));
+                    chunk.instructions.push(Instruction::DefineFunction(scope, index, body_index as u16));
                 },
                 Node::Pipeline(stations) => self.create_chunk(stations, chunk),
                 Node::Condition {condition, if_body, else_body} => self.emit_condition(condition, if_body, else_body, chunk),
