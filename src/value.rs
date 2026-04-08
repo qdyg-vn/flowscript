@@ -1,5 +1,7 @@
+use std::cell::RefCell;
 use std::fmt;
 use std::hash::{Hash, Hasher};
+use std::rc::Rc;
 use crate::instructions::Chunk;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -10,6 +12,7 @@ pub enum Value {
     String(String),
     Integer(i64),
     Function(Box<Chunk>),
+    Closure(Closure),
 }
 
 impl fmt::Display for Value {
@@ -38,4 +41,16 @@ impl Hash for Value {
             _ => unreachable!(),
         }
     }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum Upvalue {
+    Open(usize),
+    Closed(Value)
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct Closure {
+    pub function: Rc<Value>,
+    pub upvalue: Vec<Rc<RefCell<Upvalue>>>,
 }

@@ -9,7 +9,7 @@ pub struct ConstantsPool {
 
 impl ConstantsPool {
     pub fn add_constant(&mut self, constant: Value) -> usize {
-        if matches!(constant, Value::Function(_)) {
+        if matches!(constant, Value::Function(_) | Value::Closure(_)) {
             let index = self.constants.len();
             self.constants.push(constant);
             return index
