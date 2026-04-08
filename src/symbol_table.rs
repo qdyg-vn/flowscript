@@ -5,9 +5,10 @@ use std::collections::{HashMap, hash_map::Entry};
 #[derive(Clone, Copy, Debug)]
 pub enum SymbolType {
     Scope(u16, u16),
-    Builtin(u16)
+    Builtin(u16),
 }
 
+#[derive(Debug)]
 pub struct SymbolTable {
     pub builtins: HashMap<String, u16>,
     pub scopes: Vec<HashMap<String, SymbolType>>
@@ -29,7 +30,8 @@ impl SymbolTable {
         self.scopes.push(HashMap::new());
     }
 
-    pub fn add_variable(&mut self, variable: String, scope: u16) -> Result<SymbolType, SymbolType> {
+    pub fn add_variable(&mut self, variable: String) -> Result<SymbolType, SymbolType> {
+        let scope = self.scopes.len() as u16 - 1;
         let last_scope = self.scopes.last_mut().unwrap();
         let index = last_scope.len() as u16;
         match last_scope.entry(variable) {

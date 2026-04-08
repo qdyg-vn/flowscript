@@ -47,14 +47,14 @@ impl Emitter {
                         let result = self.symbol_table.resolve(&name);
                         match result {
                             Ok(SymbolType::Builtin(index)) => chunk.instructions.push(Instruction::BuiltinCall(index, arity)),
-                            Ok(SymbolType::Scope(scope, index)) => chunk.instructions.push(Instruction::Call(scope, index, arity)),
+                            Ok(SymbolType::Scope(scope, index)) => chunk.instructions.push(Instruction::Call(scope, index)),
                             Err(error) => self.errors.push(error)
                         }
                     }
                 },
                 Node::RelativeReference(x, y) => chunk.instructions.push(Instruction::RelativeReference(x, y)),
                 Node::Assignment(name) => {
-                    match self.symbol_table.add_variable(name, 0) {
+                    match self.symbol_table.add_variable(name) {
                         Ok(SymbolType::Scope(scope, index)) => {
                             chunk.instructions.push(Instruction::Store(scope, index));
                             chunk.arity += 1
@@ -71,13 +71,13 @@ impl Emitter {
                     }
                 },
                 Node::DefineFunction {operator, arguments, body} => {
-                    let (scope, index) = match self.symbol_table.add_variable(operator, self.symbol_table.scopes.len() as u16 - 1) {
+                    let index = match self.symbol_table.add_variable(operator) {
                         Ok(SymbolType::Scope(scope, index)) => {
                             chunk.arity += 1;
-                            (scope, index)
+                            index
                         },
                         Err(SymbolType::Scope(scope, index)) => {
-                            (scope, index)
+                            index
                         },
                         _ => unreachable!()
                     };
@@ -87,7 +87,7 @@ impl Emitter {
                     self.create_chunk(body, &mut child_chunk);
                     self.symbol_table.scopes.pop();
                     let body_index = self.constants_pool.add_constant(Value::Function(Box::from(child_chunk)));
-                    chunk.instructions.push(Instruction::DefineFunction(scope, index, body_index as u16));
+                    chunk.instructions.push(Instruction::DefineFunction(index, body_index as u16));
                 },
                 Node::Pipeline(stations) => self.create_chunk(stations, chunk),
                 Node::Condition {condition, if_body, else_body} => self.emit_condition(condition, if_body, else_body, chunk),
