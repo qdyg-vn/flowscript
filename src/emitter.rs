@@ -91,6 +91,10 @@ impl Emitter {
                 },
                 Node::Pipeline(stations) => self.create_chunk(stations, chunk),
                 Node::Condition {condition, if_body, else_body} => self.emit_condition(condition, if_body, else_body, chunk),
+                Node::Return(value) => {
+                    self.create_chunk(vec![*value], chunk);
+                    chunk.instructions.push(Instruction::Return)
+                },
                 _ => todo!(),
             }
         }

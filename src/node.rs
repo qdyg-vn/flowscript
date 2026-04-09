@@ -22,4 +22,5 @@ pub enum Node {
         if_body: Vec<Node>,
         else_body: Vec<Node>,
     },
+    Return(Box<Node>),
 }

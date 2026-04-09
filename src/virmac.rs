@@ -74,12 +74,15 @@ impl VirMac {
                 let child_chunk_size = (&child_chunk.instructions).len();
                 self.base_pointers.push(child_base_pointer);
                 while child_instruction_position < child_chunk_size {
-                    self.dispatch_instruction(child_chunk.instructions[child_instruction_position], &mut child_instruction_position, stack, &mut child_stack_position, child_base_pointer);
+                    let child_instruction = child_chunk.instructions[child_instruction_position];
+                    self.dispatch_instruction(child_instruction, &mut child_instruction_position, stack, &mut child_stack_position, child_base_pointer);
+                    if matches!(child_instruction, Instruction::Return) { break }
                     child_instruction_position += 1
                 }
             },
             Instruction::JumpIfFalse(position) => if stack[*stack_position - 1] == Value::Boolean(false) { *instruction_position = position as usize - 1 },
             Instruction::Jump(position) => *instruction_position = position as usize - 1,
+            Instruction::Return => { stack[base_pointer + 1] = stack[*stack_position - 1].clone() },
         }
     }
 

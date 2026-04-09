@@ -71,6 +71,10 @@ where
             TokenType::Variable(name) => Node::Variable(name),
             TokenType::DefineFunction => self.parse_define_function(),
             TokenType::If => self.parse_condition(),
+            TokenType::Return => Node::Return(match self.advance(1) {
+                Some(token) => Box::from(self.dispatch_node(token)),
+                None => Box::from(Node::Literal(Value::Nil))
+            }),
             _ => todo!("Unimplemented token: {:?}", token),
         }
     }

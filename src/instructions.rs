@@ -9,6 +9,7 @@ pub enum Instruction {
     DefineFunction(u16, u16),
     Jump(u16),
     JumpIfFalse(u16),
+    Return,
 }
 
 #[derive(Debug, Clone, PartialEq)]
