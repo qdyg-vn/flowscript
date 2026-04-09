@@ -69,7 +69,7 @@ impl VirMac {
                     _ => todo!()
                 };
                 let mut child_instruction_position = 0;
-                let child_base_pointer = *stack_position - 1;
+                let child_base_pointer = *stack_position;
                 let mut child_stack_position = child_base_pointer + child_chunk.arity as usize;
                 let child_chunk_size = (&child_chunk.instructions).len();
                 self.base_pointers.push(child_base_pointer);
@@ -82,7 +82,7 @@ impl VirMac {
             },
             Instruction::JumpIfFalse(position) => if stack[*stack_position - 1] == Value::Boolean(false) { *instruction_position = position as usize - 1 },
             Instruction::Jump(position) => *instruction_position = position as usize - 1,
-            Instruction::Return => { stack[base_pointer + 1] = stack[*stack_position - 1].clone() },
+            Instruction::Return => stack[base_pointer] = stack[*stack_position - 1].clone(),
         }
     }
 
