@@ -2,6 +2,7 @@ use crate::error_handler::Error;
 use crate::node::Node;
 use crate::token::{Token, TokenType};
 use crate::value::Value;
+use std::rc::Rc;
 
 pub struct Parser<L>
 where
@@ -66,7 +67,7 @@ where
             TokenType::Int(number) => Node::Literal(Value::Integer(number)),
             TokenType::Float(number) => Node::Literal(Value::Float(number)),
             TokenType::Identifier(identifier) => self.parse_function(identifier),
-            TokenType::String(string) => Node::Literal(Value::String(string)),
+            TokenType::String(string) => Node::Literal(Value::String(Rc::from(string))),
             TokenType::RelativeReference(x, y) => Node::RelativeReference(x, y),
             TokenType::Variable(name) => Node::Variable(name),
             TokenType::DefineFunction => self.parse_define_function(),

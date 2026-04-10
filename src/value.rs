@@ -1,17 +1,17 @@
+use crate::instructions::Chunk;
 use std::cell::RefCell;
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
-use crate::instructions::Chunk;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
     Boolean(bool),
     Nil,
     Float(f64),
-    String(String),
     Integer(i64),
-    Function(Box<Chunk>),
+    String(Rc<String>),
+    Function(Rc<Chunk>),
     Closure(Closure),
 }
 
@@ -23,7 +23,7 @@ impl fmt::Display for Value {
             Value::Float(float) => write!(f, "{}", float),
             Value::String(string) => write!(f, "{}", string),
             Value::Integer(integer) => write!(f, "{}", integer),
-            _ => todo!()
+            something => write!(f, "{:?}", something)
         }
     }
 }

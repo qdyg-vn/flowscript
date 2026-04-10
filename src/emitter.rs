@@ -1,9 +1,10 @@
+use crate::constants_pool::ConstantsPool;
 use crate::error_handler::Error;
 use crate::instructions::{Chunk, Instruction};
 use crate::node::Node;
 use crate::symbol_table::{SymbolTable, SymbolType};
 use crate::value::Value;
-use crate::constants_pool::ConstantsPool;
+use std::rc::Rc;
 
 pub struct Emitter {
     errors: Vec<Error>,
@@ -86,7 +87,7 @@ impl Emitter {
                     self.create_chunk(arguments, &mut child_chunk);
                     self.create_chunk(body, &mut child_chunk);
                     self.symbol_table.scopes.pop();
-                    let body_index = self.constants_pool.add_constant(Value::Function(Box::from(child_chunk)));
+                    let body_index = self.constants_pool.add_constant(Value::Function(Rc::from(child_chunk)));
                     chunk.instructions.push(Instruction::DefineFunction(index, body_index as u16));
                 },
                 Node::Pipeline(stations) => self.create_chunk(stations, chunk),

@@ -57,15 +57,15 @@ impl VirMac {
                 }
                 *stack_position += 1
             },
-            Instruction::Store(scope, index) => stack[base_pointer + index as usize] = stack[*stack_position - 1].clone(),
+            Instruction::Store(scope, index) => stack.swap(base_pointer + index as usize, *stack_position - 1),
             Instruction::LoadVariable(scope, index) => {
                 stack[*stack_position] = stack[base_pointer + index as usize].clone();
                 *stack_position += 1;
             },
             Instruction::DefineFunction(index, body_index) => stack[base_pointer + index as usize] = self.constants_pool[body_index as usize].clone(),
             Instruction::Call(scope, index) => {
-                let child_chunk = match stack[self.base_pointers[scope as usize] + index as usize].clone() {
-                    Value::Function(chunk_box) => *chunk_box,
+                let child_chunk = match &stack[self.base_pointers[scope as usize] + index as usize] {
+                    Value::Function(chunk_box) => chunk_box.clone(),
                     _ => todo!()
                 };
                 let mut child_instruction_position = 0;
@@ -90,7 +90,7 @@ impl VirMac {
                 *stack_position -= 1
             },
             Instruction::Jump(position) => *instruction_position = position as usize - 1,
-            Instruction::Return => stack[base_pointer] = stack[*stack_position - 1].clone(),
+            Instruction::Return => stack.swap(base_pointer, *stack_position - 1),
         }
     }
 
