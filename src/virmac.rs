@@ -57,9 +57,9 @@ impl VirMac {
                 }
                 *stack_position += 1
             },
-            Instruction::Store(scope, index) => stack[self.base_pointers[scope as usize] + index as usize] = stack[*stack_position - 1].clone(),
+            Instruction::Store(scope, index) => stack[base_pointer + index as usize] = stack[*stack_position - 1].clone(),
             Instruction::LoadVariable(scope, index) => {
-                stack[*stack_position] = stack[self.base_pointers[scope as usize] + index as usize].clone();
+                stack[*stack_position] = stack[base_pointer + index as usize].clone();
                 *stack_position += 1;
             },
             Instruction::DefineFunction(index, body_index) => stack[base_pointer + index as usize] = self.constants_pool[body_index as usize].clone(),
@@ -69,18 +69,26 @@ impl VirMac {
                     _ => todo!()
                 };
                 let mut child_instruction_position = 0;
-                let child_base_pointer = *stack_position;
-                let mut child_stack_position = child_base_pointer + child_chunk.arity as usize;
+                let mut child_stack_position = *stack_position;
+                let child_base_pointer = child_stack_position - child_chunk.arity as usize;
                 let child_chunk_size = (&child_chunk.instructions).len();
                 self.base_pointers.push(child_base_pointer);
                 while child_instruction_position < child_chunk_size {
                     let child_instruction = child_chunk.instructions[child_instruction_position];
                     self.dispatch_instruction(child_instruction, &mut child_instruction_position, stack, &mut child_stack_position, child_base_pointer);
-                    if matches!(child_instruction, Instruction::Return) { break }
-                    child_instruction_position += 1
-                }
+                    if matches!(child_instruction, Instruction::Return) {
+                        self.stations_output.push(stack[child_base_pointer].clone());
+                        break
+                    }
+                    child_instruction_position += 1;
+                };
             },
-            Instruction::JumpIfFalse(position) => if stack[*stack_position - 1] == Value::Boolean(false) { *instruction_position = position as usize - 1 },
+            Instruction::JumpIfFalse(position) => {
+                if stack[*stack_position - 1] == Value::Boolean(false) {
+                    *instruction_position = position as usize - 1
+                };
+                *stack_position -= 1
+            },
             Instruction::Jump(position) => *instruction_position = position as usize - 1,
             Instruction::Return => stack[base_pointer] = stack[*stack_position - 1].clone(),
         }
