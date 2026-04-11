@@ -66,6 +66,8 @@ where
         match token.kind {
             TokenType::Int(number) => Node::Literal(Value::Integer(number)),
             TokenType::Float(number) => Node::Literal(Value::Float(number)),
+            TokenType::Boolean(boolean) => Node::Literal(Value::Boolean(boolean)),
+            TokenType::Nil => Node::Literal(Value::Nil),
             TokenType::Identifier(identifier) => self.parse_function(identifier),
             TokenType::String(string) => Node::Literal(Value::String(Rc::from(string))),
             TokenType::RelativeReference(x, y) => Node::RelativeReference(x, y),

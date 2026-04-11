@@ -125,6 +125,9 @@ impl<'source_code> Lexer<'source_code> {
             "if" => return Ok(Token::new(start, end, TokenType::If)),
             "else" => return Ok(Token::new(start, end, TokenType::Else)),
             "return" => return Ok(Token::new(start, end, TokenType::Return)),
+            "true" => return Ok(Token::new(start, end, TokenType::Boolean(true))),
+            "false" => return Ok(Token::new(start, end, TokenType::Boolean(false))),
+            "nil" => return Ok(Token::new(start, end, TokenType::Nil)),
             _ => ()
         }
         if self.peek(0) != Some(b'(') {

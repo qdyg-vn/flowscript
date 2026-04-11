@@ -18,6 +18,7 @@ pub enum TokenType {
     Div,
     Float(f64),
     Function,
+    Nil,
     Identifier(String),
     Macro(String),
     Int(i64),
