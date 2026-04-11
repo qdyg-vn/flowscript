@@ -142,15 +142,13 @@ impl<'source_code> Lexer<'source_code> {
     fn skip_comment(&mut self) {
         if self.advance(0) == Some(b'#') {
             while let Some(token) = self.advance(0) {
-                if token == b'#' && self.advance(0) == Some(b'#') {
-                    self.advance(2);
+                if token == b'#' && self.peek(0) == Some(b'#') {
+                    self.advance(0);
                     break;
                 }
             }
         } else {
-            while let Some(token) = self.advance(1) {
-                if token == b'\n' { break; }
-            }
+            while let Some(token) = self.advance(0) && token != b'\n' {}
         }
     }
 
