@@ -6,6 +6,8 @@ function = ( macro | identifier ), '(', [ argument, { ',', argument } ], ')';
 
 macro = identifier, '!';
 
+identifier = ( letter | '_' | '+' | '-' | '*' | '/' | '>' | '<' | '=' | '?' | '!' ), { letter | '_' | '+' | '-' | '*' | '/' | '>' | '<' | '=' | '?' | '!' | digit }, ( letter | '_' | '+' | '-' | '*' | '/' | '>' | '<' | '=' | '?' | digit );
+
 define_function = 'fun', variable, '(', [ variable, { ',', variable } ], ')', '{', stations, '}';
 
 condition = 'if', '(', function, ')', '{', stations, '}';

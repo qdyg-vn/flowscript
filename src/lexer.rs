@@ -139,6 +139,21 @@ impl<'source_code> Lexer<'source_code> {
         Ok(Token::new(start, end, TokenType::Identifier(value.to_owned())))
     }
 
+    fn skip_comment(&mut self) {
+        if self.advance(0) == Some(b'#') {
+            while let Some(token) = self.advance(0) {
+                if token == b'#' && self.advance(0) == Some(b'#') {
+                    self.advance(2);
+                    break;
+                }
+            }
+        } else {
+            while let Some(token) = self.advance(1) {
+                if token == b'\n' { break; }
+            }
+        }
+    }
+
     fn error_collector(&self, kind: ErrorType) -> Error {
         Error {
             line: self.line,
@@ -165,6 +180,7 @@ impl<'source_code> Iterator for Lexer<'source_code> {
                 b')' => return Some(Ok(Token::new(start, start + 1, TokenType::RightParen))),
                 b'{' => return Some(Ok(Token::new(start, start + 1, TokenType::LeftBrace))),
                 b'}' => return Some(Ok(Token::new(start, start + 1, TokenType::RightBrace))),
+                b'#' => { self.skip_comment(); continue },
                 _ => {
                     return Some(Err(
                         self.error_collector(ErrorType::InvalidCharacter(char::from(bytes)))
