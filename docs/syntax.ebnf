@@ -6,11 +6,13 @@ function = ( macro | identifier ), '(', [ argument, { ',', argument } ], ')';
 
 macro = identifier, '!';
 
-identifier = ( letter | '_' | '+' | '-' | '*' | '/' | '>' | '<' | '=' | '?' | '!' ), { letter | '_' | '+' | '-' | '*' | '/' | '>' | '<' | '=' | '?' | '!' | digit }, ( letter | '_' | '+' | '-' | '*' | '/' | '>' | '<' | '=' | '?' | digit );
+define_function = 'fun', variable, '(', [ variable, { ',', variable } ], ')', '{', stations, '}';
 
-argument = float | integer | relative_reference | variable | string | function | identifier | macro;
+condition = 'if', '(', function, ')', '{', stations, '}';
 
-variable = argument;
+argument = boolean | nil | float | integer | relative_reference | variable | string | function | identifier | macro;
+
+variable = identifier;
 
 relative_reference = { digit }, '_', { digit };
 
@@ -21,6 +23,12 @@ integer = [ '-' ], digit, { digit };
 float = integer, '.', digit, { digit };
 
 letter = lower | upper;
+
+boolean = 'true' | 'false';
+
+nil = 'nil';
+
+special = '_' | '+' | '-' | '*' | '/' | '>' | '<' | '=' | '?' | '!';
 
 lower = 'a' | 'b' | 'c' | 'd' | '...' | 'w' | 'x' | 'y' | 'z';
 
