@@ -45,13 +45,13 @@ impl SymbolTable {
     }
 
     pub fn resolve(&self, name: &str) -> Result<SymbolType, Error> {
-        if let Some(&index) = self.builtins.get(name) {
-            return Ok(SymbolType::Builtin(index))
-        }
         for scope in self.scopes.iter().rev() {
             if let Some(symbol) = scope.get(name) {
                 return Ok(symbol.clone())
             }
+        }
+        if let Some(&index) = self.builtins.get(name) {
+            return Ok(SymbolType::Builtin(index))
         }
         todo!("Error at here! Because we can't find it")
     }
