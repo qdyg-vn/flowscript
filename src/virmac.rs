@@ -19,11 +19,11 @@ impl VirMac {
 
     pub fn execute(&mut self, map: Vec<Chunk>) -> Vec<Value> {
         let mut stack = vec![Value::Nil; 1024];
+        self.base_pointers.push(0);
         for chunk in map {
             let chunk_size = (&chunk.instructions).len();
             let mut stack_position = chunk.arity as usize;
             let mut instruction_position = 0;
-            self.base_pointers.push(0);
             while instruction_position < chunk_size {
                 self.dispatch_instruction(chunk.instructions[instruction_position], &mut instruction_position, &mut stack, &mut stack_position, 0);
                 instruction_position += 1;
@@ -40,29 +40,23 @@ impl VirMac {
                 self.stations_output.push(self.constants_pool[index as usize].clone());
                 *stack_position += 1;
             },
+            Instruction::LoadVariable(scope, index) => {
+                stack[*stack_position] = stack[base_pointer + index as usize].clone();
+                *stack_position += 1;
+            },
+            Instruction::Jump(position) => *instruction_position = position as usize - 1,
+            Instruction::JumpIfFalse(position) => {
+                if stack[*stack_position - 1] == Value::Boolean(false) {
+                    *instruction_position = position as usize - 1
+                };
+                *stack_position -= 1
+            },
+            Instruction::Store(scope, index) => stack.swap(base_pointer + index as usize, *stack_position - 1),
             Instruction::BuiltinCall(index, arity) => {
                 let start = *stack_position - arity as usize;
                 let end = *stack_position;
                 self.execute_builtin_function(index, stack, stack_position, start, end);
             },
-            Instruction::RelativeReference(x, y) => {
-                if self.stations_output.len() < x as usize {
-                    todo!("There is no station at position {}", x)
-                }
-                let output = self.stations_output[self.stations_output.len() - x as usize].clone();
-                if y != 0 {
-                    todo!("Currently under development")
-                } else {
-                    stack[*stack_position] = output;
-                }
-                *stack_position += 1
-            },
-            Instruction::Store(scope, index) => stack.swap(base_pointer + index as usize, *stack_position - 1),
-            Instruction::LoadVariable(scope, index) => {
-                stack[*stack_position] = stack[base_pointer + index as usize].clone();
-                *stack_position += 1;
-            },
-            Instruction::DefineFunction(index, body_index) => stack[base_pointer + index as usize] = self.constants_pool[body_index as usize].clone(),
             Instruction::Call(scope, index) => {
                 let child_chunk = match &stack[self.base_pointers[scope as usize] + index as usize] {
                     Value::Function(chunk_box) => chunk_box.clone(),
@@ -83,14 +77,20 @@ impl VirMac {
                     child_instruction_position += 1;
                 };
             },
-            Instruction::JumpIfFalse(position) => {
-                if stack[*stack_position - 1] == Value::Boolean(false) {
-                    *instruction_position = position as usize - 1
-                };
-                *stack_position -= 1
+            Instruction::RelativeReference(x, y) => {
+                if self.stations_output.len() < x as usize {
+                    todo!("There is no station at position {}", x)
+                }
+                let output = self.stations_output[self.stations_output.len() - x as usize].clone();
+                if y != 0 {
+                    todo!("Currently under development")
+                } else {
+                    stack[*stack_position] = output;
+                }
+                *stack_position += 1
             },
-            Instruction::Jump(position) => *instruction_position = position as usize - 1,
             Instruction::Return => stack.swap(base_pointer, *stack_position - 1),
+            Instruction::DefineFunction(index, body_index) => stack[base_pointer + index as usize] = self.constants_pool[body_index as usize].clone(),
         }
     }
 

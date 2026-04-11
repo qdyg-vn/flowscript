@@ -109,10 +109,7 @@ where
             todo!("Behind operator need a left paren!");
         }
         let mut arguments = Vec::new();
-        while let Some(argument) = self.advance(1) {
-            if argument.kind == TokenType::RightParen {
-                break;
-            }
+        while let Some(argument) = self.advance(1) && argument.kind != TokenType::RightParen {
             arguments.push(match argument.kind {
                 TokenType::Variable(name) => Node::Assignment(name), // Because in a lexer when it encounters a function argument, it converts it into a variable
                 _ => todo!()
@@ -122,11 +119,9 @@ where
             todo!("Behind arguments need a left brace!");
         }
         let mut body = Vec::new();
-        while let Some(argument) = self.advance(1) {
-            if argument.kind == TokenType::RightBrace {
-                break;
-            }
+        if let Some(argument) = self.advance(1) && argument.kind != TokenType::RightBrace {
             body.push(self.parse_pipeline(argument));
+            self.advance(1);
         };
         Node::DefineFunction {operator, arguments, body}
     }
@@ -136,21 +131,17 @@ where
             todo!("Behind condition need a left paren!");
         }
         let mut condition = Vec::new();
-        while let Some(argument) = self.advance(1) {
-            if argument.kind == TokenType::RightParen {
-                break;
-            }
-            condition.push(self.dispatch_node(argument))
+        if let Some(argument) = self.advance(1) && argument.kind != TokenType::RightParen {
+            condition.push(self.dispatch_node(argument));
+            self.advance(1);
         };
         if let Some(token) = self.advance(1) && token.kind != TokenType::LeftBrace {
             todo!("Behind arguments need a left brace!");
         }
         let mut if_body = Vec::new();
-        while let Some(argument) = self.advance(1) {
-            if argument.kind == TokenType::RightBrace {
-                break;
-            }
+        if let Some(argument) = self.advance(1) && argument.kind != TokenType::RightBrace {
             if_body.push(self.parse_pipeline(argument));
+            self.advance(1);
         };
         let mut else_body = Vec::new();
         if let Some(token) = self.advance(1) && token.kind != TokenType::Else {
@@ -159,11 +150,9 @@ where
         if let Some(token) = self.advance(1) && token.kind != TokenType::LeftBrace {
             todo!("Behind arguments need a left brace!");
         }
-        while let Some(argument) = self.advance(1) {
-            if argument.kind == TokenType::RightBrace {
-                break;
-            }
+        if let Some(argument) = self.advance(1) && argument.kind != TokenType::RightBrace {
             else_body.push(self.parse_pipeline(argument));
+            self.advance(1);
         };
         Node::Condition { condition, if_body, else_body }
     }
