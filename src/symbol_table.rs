@@ -22,7 +22,7 @@ impl SymbolTable {
         }
         Self {
             builtins,
-            scopes: Vec::new()
+            scopes: vec![HashMap::new()]
         }
     }
 

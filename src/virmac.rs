@@ -12,17 +12,17 @@ impl VirMac {
     pub fn new(constants_pool: Vec<Value>) -> Self {
         Self {
             stations_output: Vec::new(),
-            base_pointers: Vec::new(),
+            base_pointers: vec![0],
             constants_pool
         }
     }
 
-    pub fn execute(&mut self, map: Vec<Chunk>) -> Vec<Value> {
+    pub fn execute(&mut self, map: Vec<Chunk>, total_arity: usize) -> Vec<Value> {
         let mut stack = vec![Value::Nil; 1024];
-        self.base_pointers.push(0);
         for chunk in map {
+            self.stations_output.clear();
             let chunk_size = (&chunk.instructions).len();
-            let mut stack_position = chunk.arity as usize;
+            let mut stack_position = total_arity;
             let mut instruction_position = 0;
             while instruction_position < chunk_size {
                 self.dispatch_instruction(chunk.instructions[instruction_position], &mut instruction_position, &mut stack, &mut stack_position, 0);

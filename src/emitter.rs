@@ -21,17 +21,18 @@ impl Emitter {
         }
     }
 
-    pub fn emit(mut self, ast: Vec<Node>) -> (ConstantsPool, Vec<Chunk>) {
+    pub fn emit(mut self, ast: Vec<Node>) -> (ConstantsPool, Vec<Chunk>, usize) {
+        let mut total_arity = 0;
         let mut map: Vec<Chunk> = Vec::new();
-        self.symbol_table.new_scope();
         for instructions in ast {
             if let Node::Pipeline(stations) = instructions {
                 let mut chunk = Chunk { instructions: Vec::new(), arity: 0 };
                 self.create_chunk(stations, &mut chunk);
+                total_arity += chunk.arity;
                 map.push(chunk)
             }
         }
-        (self.constants_pool, map)
+        (self.constants_pool, map, total_arity as usize)
     }
 
     fn create_chunk(&mut self, stations: Vec<Node>, chunk: &mut Chunk) {
