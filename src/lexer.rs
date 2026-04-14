@@ -1,4 +1,4 @@
-use crate::error_handler::{Error, ErrorType};
+use crate::error_handler::{Error, LexicalError, LexicalErrorType};
 use crate::token::{Token, TokenType};
 
 pub struct Lexer<'source_code> {
@@ -48,7 +48,7 @@ impl<'source_code> Lexer<'source_code> {
                     let bytes = &self.source_code[start..end];
                     let code = std::str::from_utf8(bytes).unwrap().to_owned();
                     return Err(self.error_collector(
-                        ErrorType::MissingClosingQuote(code),
+                        LexicalErrorType::MissingClosingQuote(code),
                     ));
                 }
             }
@@ -75,11 +75,12 @@ impl<'source_code> Lexer<'source_code> {
         let bytes = &self.source_code[start..end];
         let value = std::str::from_utf8(bytes).unwrap();
         if has_underscore > 0 && has_dot > 0 {
-            todo!("Relative references cannot have x or y as floats")
+            return Err(self.error_collector(LexicalErrorType::FloatRelativeReferences(value.to_string())))
         }
         if has_underscore != 0 {
             if has_underscore > 1 {
-                todo!("A relative reference can only have one _")}
+                return Err(self.error_collector(LexicalErrorType::MultipleUnderscores(value.to_string())))
+            }
             let mut parts = value.splitn(2, '_');
             let x = parts.next().unwrap().parse().unwrap();
             let y = parts.next().filter(|y| !y.is_empty()).unwrap_or("0").parse().unwrap();
@@ -88,7 +89,7 @@ impl<'source_code> Lexer<'source_code> {
         match has_dot {
             0 => Ok(Token::new(start, end, TokenType::Int(value.parse().unwrap()))),
             1 => Ok(Token::new(start, end, TokenType::Float(value.parse().unwrap()))),
-            _ => Err(self.error_collector(ErrorType::DecimalPoints(value.to_owned()))),
+            _ => Err(self.error_collector(LexicalErrorType::DecimalPoints(value.to_owned()))),
         }
     }
 
@@ -152,11 +153,8 @@ impl<'source_code> Lexer<'source_code> {
         }
     }
 
-    fn error_collector(&self, kind: ErrorType) -> Error {
-        Error {
-            line: self.line,
-            kind,
-        }
+    fn error_collector(&self, kind: LexicalErrorType) -> Error {
+        Error::LexicalError(LexicalError { line: self.line, kind })
     }
 }
 
@@ -181,7 +179,7 @@ impl<'source_code> Iterator for Lexer<'source_code> {
                 b'#' => { self.skip_comment(); continue },
                 _ => {
                     return Some(Err(
-                        self.error_collector(ErrorType::InvalidCharacter(char::from(bytes)))
+                        self.error_collector(LexicalErrorType::InvalidCharacter(char::from(bytes)))
                     ));
                 }
             }

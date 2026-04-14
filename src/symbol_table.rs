@@ -1,5 +1,5 @@
 use crate::builtins::BUILTIN_TABLE;
-use crate::error_handler::Error;
+use crate::error_handler::{SemanticError, SemanticErrorType};
 use std::collections::{HashMap, hash_map::Entry};
 
 #[derive(Clone, Copy, Debug)]
@@ -44,7 +44,7 @@ impl SymbolTable {
         }
     }
 
-    pub fn resolve(&self, name: &str) -> Result<SymbolType, Error> {
+    pub fn resolve(&self, name: &str) -> Result<SymbolType, SemanticError> {
         for scope in self.scopes.iter().rev() {
             if let Some(symbol) = scope.get(name) {
                 return Ok(symbol.clone())
@@ -53,6 +53,6 @@ impl SymbolTable {
         if let Some(&index) = self.builtins.get(name) {
             return Ok(SymbolType::Builtin(index))
         }
-        todo!("Error at here! Because we can't find it")
+        Err(SemanticError {kind: SemanticErrorType::UndefinedIdentifier(name.into())})
     }
 }

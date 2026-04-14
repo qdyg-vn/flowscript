@@ -1,4 +1,4 @@
-use crate::error_handler::{Error, ErrorType};
+use crate::error_handler::{Error};
 use std::fs::read;
 use std::io::{self, Write, Read};
 

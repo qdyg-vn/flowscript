@@ -1,5 +1,5 @@
 use crate::constants_pool::ConstantsPool;
-use crate::error_handler::Error;
+use crate::error_handler::{Error, ErrorHandler};
 use crate::instructions::{Chunk, Instruction};
 use crate::node::Node;
 use crate::symbol_table::{SymbolTable, SymbolType};
@@ -7,21 +7,21 @@ use crate::value::Value;
 use std::rc::Rc;
 
 pub struct Emitter {
-    errors: Vec<Error>,
+    error_handler: ErrorHandler,
     symbol_table: SymbolTable,
     constants_pool: ConstantsPool,
 }
 
 impl Emitter {
-    pub fn new(symbol_table: SymbolTable, constants_pool: ConstantsPool) -> Self {
+    pub fn new(error_handler: ErrorHandler, symbol_table: SymbolTable, constants_pool: ConstantsPool) -> Self {
         Self {
-            errors: Vec::new(),
+            error_handler,
             symbol_table,
             constants_pool,
         }
     }
 
-    pub fn emit(mut self, ast: Vec<Node>) -> (ConstantsPool, Vec<Chunk>, usize) {
+    pub fn emit(mut self, ast: Vec<Node>) -> (ErrorHandler, ConstantsPool, Vec<Chunk>, usize) {
         let mut total_arity = 0;
         let mut map: Vec<Chunk> = Vec::new();
         for instructions in ast {
@@ -32,7 +32,7 @@ impl Emitter {
                 map.push(chunk)
             }
         }
-        (self.constants_pool, map, total_arity as usize)
+        (self.error_handler, self.constants_pool, map, total_arity as usize)
     }
 
     fn create_chunk(&mut self, stations: Vec<Node>, chunk: &mut Chunk) {
@@ -50,7 +50,7 @@ impl Emitter {
                         match result {
                             Ok(SymbolType::Builtin(index)) => chunk.instructions.push(Instruction::BuiltinCall(index, arity)),
                             Ok(SymbolType::Scope(scope, index)) => chunk.instructions.push(Instruction::Call(scope, index)),
-                            Err(error) => self.errors.push(error)
+                            Err(error) => self.error_handler.errors.push(Error::SemanticError(error))
                         }
                     }
                 },
@@ -68,7 +68,7 @@ impl Emitter {
                 Node::Variable(name) => {
                     match self.symbol_table.resolve(&name) {
                         Ok(SymbolType::Scope(scope, index)) => chunk.instructions.push(Instruction::LoadVariable(scope, index)),
-                        Err(error) => todo!(),
+                        Err(error) => self.error_handler.errors.push(Error::SemanticError(error)),
                         _ => unreachable!()
                     }
                 },
@@ -97,7 +97,7 @@ impl Emitter {
                     self.create_chunk(vec![*value], chunk);
                     chunk.instructions.push(Instruction::Return)
                 },
-                _ => todo!(),
+                _ => unreachable!(),
             }
         }
     }

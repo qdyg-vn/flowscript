@@ -1,4 +1,4 @@
-use crate::error_handler::Error;
+use crate::error_handler::{Error, SyntaxError, SyntaxErrorType};
 use crate::node::Node;
 use crate::token::{Token, TokenType};
 use crate::value::Value;
@@ -11,7 +11,6 @@ where
     lex: L,
     tokens: Vec<Token>,
     pos: usize,
-    errors: Vec<Error>,
 }
 
 impl<L> Parser<L>
@@ -23,172 +22,172 @@ where
             lex,
             tokens: Vec::new(),
             pos: 0,
-            errors: Vec::new(),
         }
     }
 
-    fn ensure_buffer(&mut self) -> bool {
+    fn ensure_buffer(&mut self) -> Result<bool, Error> {
         while self.pos >= self.tokens.len() {
             match self.lex.next() {
                 Some(tokens) => {
-                    match tokens {
-                        Ok(tokens) => self.tokens.push(tokens),
-                        Err(error) => self.errors.push(error),
-                    }
+                    self.tokens.push(tokens?);
                     if !self.tokens.is_empty() {
-                        return true;
+                        return Ok(true);
                     }
                 }
-                None => return false,
+                None => return Ok(false),
             }
         }
-        true
+        Ok(true)
     }
 
-    fn advance(&mut self, steps: usize) -> Option<Token> {
-        if !self.ensure_buffer() {
-            return None;
+    fn advance(&mut self, steps: usize) -> Option<Result<Token, Error>> {
+        match self.ensure_buffer() {
+            Err(error) => return Some(Err(error)),
+            Ok(false) => return None,
+            Ok(true) => ()
         }
-        let token = Some(self.tokens[self.pos].clone());
+        let token = Some(Ok(self.tokens[self.pos].clone()));
         self.pos += steps;
         token
     }
 
-    fn peek(&mut self) -> Option<Token> {
-        if self.ensure_buffer() {
-            Some(self.tokens[self.pos].clone())
-        } else {
-            None
+    fn peek(&mut self) -> Option<Result<Token, Error>> {
+        match self.ensure_buffer() {
+            Err(error) => Some(Err(error)),
+            Ok(false) => None,
+            Ok(true) => Some(Ok(self.tokens[self.pos].clone()))
         }
     }
 
-    fn dispatch_node(&mut self, token: Token) -> Node {
+    fn dispatch_node(&mut self, token: Token) -> Result<Node, Error> {
         match token.kind {
-            TokenType::Int(number) => Node::Literal(Value::Integer(number)),
-            TokenType::Float(number) => Node::Literal(Value::Float(number)),
-            TokenType::Boolean(boolean) => Node::Literal(Value::Boolean(boolean)),
-            TokenType::Nil => Node::Literal(Value::Nil),
+            TokenType::Int(number) => Ok(Node::Literal(Value::Integer(number))),
+            TokenType::Float(number) => Ok(Node::Literal(Value::Float(number))),
+            TokenType::Boolean(boolean) => Ok(Node::Literal(Value::Boolean(boolean))),
+            TokenType::Nil => Ok(Node::Literal(Value::Nil)),
             TokenType::Identifier(identifier) => self.parse_function(identifier),
-            TokenType::String(string) => Node::Literal(Value::String(Rc::from(string))),
-            TokenType::RelativeReference(x, y) => Node::RelativeReference(x, y),
-            TokenType::Variable(name) => Node::Variable(name),
+            TokenType::String(string) => Ok(Node::Literal(Value::String(Rc::from(string)))),
+            TokenType::RelativeReference(x, y) => Ok(Node::RelativeReference(x, y)),
+            TokenType::Variable(name) => Ok(Node::Variable(name)),
             TokenType::DefineFunction => self.parse_define_function(),
             TokenType::If => self.parse_condition(),
-            TokenType::Return => Node::Return(match self.advance(1) {
-                Some(token) => Box::from(self.dispatch_node(token)),
-                None => Box::from(Node::Literal(Value::Nil))
-            }),
-            _ => todo!("Unimplemented token: {:?}", token),
+            TokenType::Return => Ok(Node::Return(Box::from(match self.advance(1) {
+                Some(token) => self.dispatch_node(token?)?,
+                None => Node::Literal(Value::Nil)
+            }))),
+            _ => Err(self.error_pusher(SyntaxErrorType::UnimplementedToken(token)))
         }
     }
 
-    fn parse_function(&mut self, token: String) -> Node {
+    fn parse_function(&mut self, token: String) -> Result<Node, Error> {
         let operator = Box::new(Node::Symbol(token));
-        if let Some(token) = self.advance(1) && token.kind != TokenType::LeftParen {
-            todo!("Behind operator need a left paren!");
+        if let Some(token) = self.advance(1).transpose()? && token.kind != TokenType::LeftParen {
+            return Err(self.error_pusher(SyntaxErrorType::MissingLeftParen));
         }
         let mut arguments = Vec::new();
-        while let Some(argument) = self.advance(1) {
+        while let Some(argument) = self.advance(1).transpose()? {
             if argument.kind == TokenType::RightParen {
                 break;
             }
-            arguments.push(self.dispatch_node(argument));
+            arguments.push(self.dispatch_node(argument)?);
         }
-        Node::Apply {operator, arguments}
+        Ok(Node::Apply {operator, arguments})
     }
 
-    fn parse_define_function(&mut self) -> Node {
-        let operator = match self.advance(1) {
+    fn parse_define_function(&mut self) -> Result<Node, Error> {
+        let operator = match self.advance(1).transpose()? {
             Some(token) => match token.kind {
                 TokenType::Variable(name) => name,
-                _ => todo!("Function need a name!")
+                _ => return Err(self.error_pusher(SyntaxErrorType::MissingFunctionName))
             },
-            None => todo!("There is one redundant function definition")
+            None => return Err(self.error_pusher(SyntaxErrorType::RedundantFunctionDefinition))
         };
-        if let Some(token) = self.advance(1) && token.kind != TokenType::LeftParen {
-            todo!("Behind operator need a left paren!");
+        if let Some(token) = self.advance(1).transpose()? && token.kind != TokenType::LeftParen {
+            return Err(self.error_pusher(SyntaxErrorType::MissingLeftParen))
         }
         let mut arguments = Vec::new();
-        while let Some(argument) = self.advance(1) && argument.kind != TokenType::RightParen {
+        while let Some(argument) = self.advance(1).transpose()? && argument.kind != TokenType::RightParen {
             arguments.push(match argument.kind {
                 TokenType::Variable(name) => Node::Assignment(name), // Because in a lexer when it encounters a function argument, it converts it into a variable
                 _ => todo!()
             })
         };
-        if let Some(token) = self.advance(1) && token.kind != TokenType::LeftBrace {
-            todo!("Behind arguments need a left brace!");
+        if let Some(token) = self.advance(1).transpose()? && token.kind != TokenType::LeftBrace {
+            return Err(self.error_pusher(SyntaxErrorType::MissingLeftBrace))
         }
         let mut body = Vec::new();
-        if let Some(argument) = self.advance(1) && argument.kind != TokenType::RightBrace {
-            body.push(self.parse_pipeline(argument));
+        if let Some(argument) = self.advance(1).transpose()? && argument.kind != TokenType::RightBrace {
+            body.push(self.parse_pipeline(argument)?);
             self.advance(1);
         };
-        Node::DefineFunction {operator, arguments, body}
+        Ok(Node::DefineFunction {operator, arguments, body})
     }
 
-    fn parse_condition(&mut self) -> Node {
-        if let Some(token) = self.advance(1) && token.kind != TokenType::LeftParen {
-            todo!("Behind condition need a left paren!");
+    fn parse_condition(&mut self) -> Result<Node, Error> {
+        if let Some(token) = self.advance(1).transpose()? && token.kind != TokenType::LeftParen {
+            return Err(self.error_pusher(SyntaxErrorType::MissingLeftParen))
         }
         let mut condition = Vec::new();
-        if let Some(argument) = self.advance(1) && argument.kind != TokenType::RightParen {
-            condition.push(self.dispatch_node(argument));
+        if let Some(argument) = self.advance(1).transpose()? && argument.kind != TokenType::RightParen {
+            condition.push(self.dispatch_node(argument)?);
             self.advance(1);
         };
-        if let Some(token) = self.advance(1) && token.kind != TokenType::LeftBrace {
-            todo!("Behind arguments need a left brace!");
+        if let Some(token) = self.advance(1).transpose()? && token.kind != TokenType::LeftBrace {
+            self.error_pusher(SyntaxErrorType::MissingLeftBrace);
         }
         let mut if_body = Vec::new();
-        if let Some(argument) = self.advance(1) && argument.kind != TokenType::RightBrace {
-            if_body.push(self.parse_pipeline(argument));
+        if let Some(argument) = self.advance(1).transpose()? && argument.kind != TokenType::RightBrace {
+            if_body.push(self.parse_pipeline(argument)?);
             self.advance(1);
         };
         let mut else_body = Vec::new();
-        if let Some(token) = self.advance(1) && token.kind != TokenType::Else {
-            return Node::Condition { condition, if_body, else_body }
+        if let Some(token) = self.advance(1).transpose()? && token.kind != TokenType::Else {
+            return Ok(Node::Condition { condition, if_body, else_body })
         }
-        if let Some(token) = self.advance(1) && token.kind != TokenType::LeftBrace {
-            todo!("Behind arguments need a left brace!");
+        if let Some(token) = self.advance(1).transpose()? && token.kind != TokenType::LeftBrace {
+            return Err(self.error_pusher(SyntaxErrorType::MissingLeftBrace))
         }
-        if let Some(argument) = self.advance(1) && argument.kind != TokenType::RightBrace {
-            else_body.push(self.parse_pipeline(argument));
+        if let Some(argument) = self.advance(1).transpose()? && argument.kind != TokenType::RightBrace {
+            else_body.push(self.parse_pipeline(argument)?);
             self.advance(1);
         };
-        Node::Condition { condition, if_body, else_body }
+        Ok(Node::Condition { condition, if_body, else_body })
     }
 
-    fn parse_pipeline(&mut self, token: Token) -> Node {
+    fn parse_pipeline(&mut self, token: Token) -> Result<Node, Error> {
         let mut stations = Vec::new();
-        stations.push(self.dispatch_node(token));
-        if self.peek().is_none() || self.peek().unwrap().kind != TokenType::Arrow {
+        stations.push(self.dispatch_node(token)?);
+        if self.peek().is_none() || self.peek().transpose()?.unwrap().kind != TokenType::Arrow {
             match stations.pop() {
-                Some(station) => return station,
-                _ => todo!("There is no station before pipeline!"),
+                Some(station) => return Ok(station),
+                _ => return Err(self.error_pusher(SyntaxErrorType::NoStationBeforePipeline)),
             }
         }
-        while let Some(token) = self.peek() && token.kind == TokenType::Arrow {
+        while let Some(token) = self.peek().transpose()? && token.kind == TokenType::Arrow {
             self.advance(1);
-            if let Some(token) = self.advance(1) {
+            if let Some(token) = self.advance(1).transpose()? {
                 stations.push(match self.dispatch_node(token) {
-                    Node::Variable(name) => Node::Assignment(name),
-                    other => other
+                    Ok(Node::Variable(name)) => Node::Assignment(name),
+                    other => other?
                 });
             } else {
-                todo!("We should make error_handle.rs")
+                return Err(self.error_pusher(SyntaxErrorType::NoStationAfterPipeline))
             }
         }
-        Node::Pipeline(stations)
+        Ok(Node::Pipeline(stations))
     }
 
-    fn error_pusher() {}
+    fn error_pusher(&mut self, kind: SyntaxErrorType) -> Error {
+        Error::SyntaxError(SyntaxError { line: 999, kind })
+    }
 }
 
 impl<L> Iterator for Parser<L>
 where
     L: Iterator<Item = Result<Token, Error>>,
 {
-    type Item = Node;
+    type Item = Result<Node, Error>;
     fn next(&mut self) -> Option<Self::Item> {
-        self.advance(1).map(|token| self.parse_pipeline(token))
+        self.advance(1).map(|token| self.parse_pipeline(token?))
     }
 }

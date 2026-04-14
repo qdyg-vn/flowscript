@@ -1,19 +1,22 @@
 use crate::builtins::{get_builtin, BuiltinFunction};
 use crate::instructions::{Chunk, Instruction};
 use crate::value::Value;
+use crate::error_handler::{ErrorHandler, Error, RuntimeError, RuntimeErrorType};
 
 pub struct VirMac {
     stations_output: Vec<Value>,
     base_pointers: Vec<usize>,
     constants_pool: Vec<Value>,
+    error_handler: ErrorHandler
 }
 
 impl VirMac {
-    pub fn new(constants_pool: Vec<Value>) -> Self {
+    pub fn new(constants_pool: Vec<Value>, error_handler: ErrorHandler) -> Self {
         Self {
             stations_output: Vec::new(),
             base_pointers: vec![0],
-            constants_pool
+            constants_pool,
+            error_handler,
         }
     }
 
@@ -79,7 +82,7 @@ impl VirMac {
             },
             Instruction::RelativeReference(x, y) => {
                 if self.stations_output.len() < x as usize {
-                    todo!("There is no station at position {}", x)
+                    self.error_handler.fatal(Error::RuntimeError(RuntimeError {kind: RuntimeErrorType::MissingStation(x)}))
                 }
                 let output = self.stations_output[self.stations_output.len() - x as usize].clone();
                 if y != 0 {
@@ -117,7 +120,7 @@ impl VirMac {
                 },
             }
         } else {
-            todo!("Stack out of bounds: start {} end {}", start, end)
+            self.error_handler.fatal(Error::RuntimeError(RuntimeError {kind: RuntimeErrorType::OutOfBounds(start, end)}))
         }
     }
 }

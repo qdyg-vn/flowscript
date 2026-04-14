@@ -11,7 +11,6 @@ use flowscript::virmac::VirMac;
 
 fn main() {
     let mut args: Vec<String> = env::args().collect();
-    let mut error_handler = ErrorHandler::default();
     match args.len() {
         1 => repl(),
         2 => read_file(args.pop().unwrap()),
@@ -37,14 +36,15 @@ fn read_file(path: String) {
 }
 
 fn run(source_code: Vec<u8>) {
+    let mut error_handler = ErrorHandler::default();
     let lexer = Lexer::new(&source_code);
     let mut parser = Parser::new(lexer);
-    let mut optimizer = Optimizer::new(parser);
-    let ast = optimizer.optimize();
+    let mut optimizer = Optimizer::new(parser, error_handler);
+    let (ast, error_handler) = optimizer.optimize();
     let symbol_table = SymbolTable::new();
     let constants_pool = ConstantsPool::default();
-    let mut emitter = Emitter::new(symbol_table, constants_pool);
-    let (constants_pool, map) = emitter.emit(ast);
-    let mut virmac = VirMac::new(constants_pool.constants);
-    virmac.execute(map);
+    let mut emitter = Emitter::new(error_handler, symbol_table, constants_pool);
+    let (error_handler, constants_pool, map, total_arity) = emitter.emit(ast);
+    let mut virmac = VirMac::new(constants_pool.constants, error_handler);
+    virmac.execute(map, total_arity);
 }
