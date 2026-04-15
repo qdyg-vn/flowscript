@@ -41,6 +41,7 @@ impl fmt::Display for Error {
 
 pub struct LexicalError {
     pub line: usize,
+    pub column: usize,
     pub kind: LexicalErrorType,
 }
 
@@ -55,7 +56,7 @@ impl fmt::Display for LexicalError {
             LexicalErrorType::FloatRelativeReferences(_) => 5,
         };
         write!(formatter, "\x1b[31;1m[Error FSCC1{:0>3}]\x1b[0m {}\n", code, self.kind)?;
-        write!(formatter, "\x1b[38;2;143;255;46m  --> Line: {}\n\x1b[0m", self.line)
+        write!(formatter, "\x1b[38;2;143;255;46m  --> Line: {} Column: {}\n\x1b[0m", self.line, self.column)
     }
 }
 
@@ -91,6 +92,7 @@ impl fmt::Display for LexicalErrorType {
 
 pub struct SyntaxError {
     pub line: usize,
+    pub column: usize,
     pub kind: SyntaxErrorType,
 }
 
@@ -106,7 +108,7 @@ impl fmt::Display for SyntaxError {
             SyntaxErrorType::NoStationAfterPipeline => 7,
         };
         write!(formatter, "\x1b[31;1m[Error FSCC3{:0>3}]\x1b[0m {}\n", code, self.kind)?;
-        write!(formatter, "\x1b[38;2;143;255;46m  --> Line: {}\n\x1b[0m", self.line)
+        write!(formatter, "\x1b[38;2;143;255;46m  --> Line: {} Column: {}\n\x1b[0m", self.line, self.column)
     }
 }
 

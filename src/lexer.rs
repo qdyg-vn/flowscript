@@ -4,8 +4,7 @@ use crate::token::{Token, TokenType};
 pub struct Lexer<'source_code> {
     source_code: &'source_code [u8],
     position: usize,
-    line: usize,
-    col: usize,
+    lines: Vec<usize>
 }
 
 impl<'source_code> Lexer<'source_code> {
@@ -13,8 +12,7 @@ impl<'source_code> Lexer<'source_code> {
         Self {
             source_code,
             position: 0,
-            line: 0,
-            col: 0,
+            lines: vec![0]
         }
     }
 
@@ -24,14 +22,18 @@ impl<'source_code> Lexer<'source_code> {
 
     fn advance(&mut self, steps: usize) -> Option<u8> {
         if let Some(result) = self.peek(steps) {
-            if result == b'\n' {
-                self.line += 1;
-                self.col = 1
-            } else if (result & 0xC0) != 0x80 { self.col += 1 }
+            if result == b'\n' { self.lines.push(self.position + steps)}
             self.position += steps + 1;
             return Some(result)
         }
         None
+    }
+
+    pub fn find_line_col(&self, index: usize) -> (usize, usize) {
+        let line_index = self.lines.binary_search(&index).unwrap_or_else(|index| index - 1);
+        let line = line_index + 1;
+        let column = (index - self.lines[line_index]) + 1;
+        (line, column)
     }
 
     fn string_collector(&mut self, quotation_index: usize, quotation_mark: u8) -> Result<Token, Error> {
@@ -47,9 +49,7 @@ impl<'source_code> Lexer<'source_code> {
                 None => {
                     let bytes = &self.source_code[start..end];
                     let code = std::str::from_utf8(bytes).unwrap().to_owned();
-                    return Err(self.error_collector(
-                        LexicalErrorType::MissingClosingQuote(code),
-                    ));
+                    return Err(self.error_collector(start, LexicalErrorType::MissingClosingQuote(code)));
                 }
             }
         }
@@ -75,11 +75,11 @@ impl<'source_code> Lexer<'source_code> {
         let bytes = &self.source_code[start..end];
         let value = std::str::from_utf8(bytes).unwrap();
         if has_underscore > 0 && has_dot > 0 {
-            return Err(self.error_collector(LexicalErrorType::FloatRelativeReferences(value.to_string())))
+            return Err(self.error_collector(start, LexicalErrorType::FloatRelativeReferences(value.to_string())))
         }
         if has_underscore != 0 {
             if has_underscore > 1 {
-                return Err(self.error_collector(LexicalErrorType::MultipleUnderscores(value.to_string())))
+                return Err(self.error_collector(start, LexicalErrorType::MultipleUnderscores(value.to_string())))
             }
             let mut parts = value.splitn(2, '_');
             let x = parts.next().unwrap().parse().unwrap();
@@ -89,7 +89,7 @@ impl<'source_code> Lexer<'source_code> {
         match has_dot {
             0 => Ok(Token::new(start, end, TokenType::Int(value.parse().unwrap()))),
             1 => Ok(Token::new(start, end, TokenType::Float(value.parse().unwrap()))),
-            _ => Err(self.error_collector(LexicalErrorType::DecimalPoints(value.to_owned()))),
+            _ => Err(self.error_collector(start, LexicalErrorType::DecimalPoints(value.to_owned()))),
         }
     }
 
@@ -153,8 +153,9 @@ impl<'source_code> Lexer<'source_code> {
         }
     }
 
-    fn error_collector(&self, kind: LexicalErrorType) -> Error {
-        Error::LexicalError(LexicalError { line: self.line, kind })
+    fn error_collector(&self, start: usize, kind: LexicalErrorType) -> Error {
+        let (line, column) = self.find_line_col(start);
+        Error::LexicalError(LexicalError { line, column, kind })
     }
 }
 
@@ -179,7 +180,7 @@ impl<'source_code> Iterator for Lexer<'source_code> {
                 b'#' => { self.skip_comment(); continue },
                 _ => {
                     return Some(Err(
-                        self.error_collector(LexicalErrorType::InvalidCharacter(char::from(bytes)))
+                        self.error_collector(start, LexicalErrorType::InvalidCharacter(char::from(bytes)))
                     ));
                 }
             }

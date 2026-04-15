@@ -1,25 +1,20 @@
 use crate::error_handler::{Error, SyntaxError, SyntaxErrorType};
 use crate::node::Node;
+use crate::lexer::Lexer;
 use crate::token::{Token, TokenType};
 use crate::value::Value;
 use std::rc::Rc;
 
-pub struct Parser<L>
-where
-    L: Iterator<Item = Result<Token, Error>>,
-{
-    lex: L,
+pub struct Parser<'source_code> {
+    lexer: Lexer<'source_code>,
     tokens: Vec<Token>,
     pos: usize,
 }
 
-impl<L> Parser<L>
-where
-    L: Iterator<Item = Result<Token, Error>>,
-{
-    pub fn new(lex: L) -> Self {
+impl<'source_code> Parser<'source_code> {
+    pub fn new(lexer: Lexer<'source_code>) -> Self {
         Self {
-            lex,
+            lexer,
             tokens: Vec::new(),
             pos: 0,
         }
@@ -27,7 +22,7 @@ where
 
     fn ensure_buffer(&mut self) -> Result<bool, Error> {
         while self.pos >= self.tokens.len() {
-            match self.lex.next() {
+            match self.lexer.next() {
                 Some(tokens) => {
                     self.tokens.push(tokens?);
                     if !self.tokens.is_empty() {
@@ -65,24 +60,24 @@ where
             TokenType::Float(number) => Ok(Node::Literal(Value::Float(number))),
             TokenType::Boolean(boolean) => Ok(Node::Literal(Value::Boolean(boolean))),
             TokenType::Nil => Ok(Node::Literal(Value::Nil)),
-            TokenType::Identifier(identifier) => self.parse_function(identifier),
+            TokenType::Identifier(identifier) => self.parse_function(token.start, identifier),
             TokenType::String(string) => Ok(Node::Literal(Value::String(Rc::from(string)))),
             TokenType::RelativeReference(x, y) => Ok(Node::RelativeReference(x, y)),
             TokenType::Variable(name) => Ok(Node::Variable(name)),
-            TokenType::DefineFunction => self.parse_define_function(),
-            TokenType::If => self.parse_condition(),
+            TokenType::DefineFunction => self.parse_define_function(token.start),
+            TokenType::If => self.parse_condition(token.start),
             TokenType::Return => Ok(Node::Return(Box::from(match self.advance(1) {
                 Some(token) => self.dispatch_node(token?)?,
                 None => Node::Literal(Value::Nil)
             }))),
-            _ => Err(self.error_pusher(SyntaxErrorType::UnimplementedToken(token)))
+            _ => Err(self.error_pusher(token.start, SyntaxErrorType::UnimplementedToken(token)))
         }
     }
 
-    fn parse_function(&mut self, token: String) -> Result<Node, Error> {
+    fn parse_function(&mut self, start: usize, token: String) -> Result<Node, Error> {
         let operator = Box::new(Node::Symbol(token));
         if let Some(token) = self.advance(1).transpose()? && token.kind != TokenType::LeftParen {
-            return Err(self.error_pusher(SyntaxErrorType::MissingLeftParen));
+            return Err(self.error_pusher(start, SyntaxErrorType::MissingLeftParen));
         }
         let mut arguments = Vec::new();
         while let Some(argument) = self.advance(1).transpose()? {
@@ -94,16 +89,16 @@ where
         Ok(Node::Apply {operator, arguments})
     }
 
-    fn parse_define_function(&mut self) -> Result<Node, Error> {
+    fn parse_define_function(&mut self, start: usize) -> Result<Node, Error> {
         let operator = match self.advance(1).transpose()? {
             Some(token) => match token.kind {
                 TokenType::Variable(name) => name,
-                _ => return Err(self.error_pusher(SyntaxErrorType::MissingFunctionName))
+                _ => return Err(self.error_pusher(start, SyntaxErrorType::MissingFunctionName))
             },
-            None => return Err(self.error_pusher(SyntaxErrorType::RedundantFunctionDefinition))
+            None => return Err(self.error_pusher(start, SyntaxErrorType::RedundantFunctionDefinition))
         };
         if let Some(token) = self.advance(1).transpose()? && token.kind != TokenType::LeftParen {
-            return Err(self.error_pusher(SyntaxErrorType::MissingLeftParen))
+            return Err(self.error_pusher(start, SyntaxErrorType::MissingLeftParen))
         }
         let mut arguments = Vec::new();
         while let Some(argument) = self.advance(1).transpose()? && argument.kind != TokenType::RightParen {
@@ -113,7 +108,7 @@ where
             })
         };
         if let Some(token) = self.advance(1).transpose()? && token.kind != TokenType::LeftBrace {
-            return Err(self.error_pusher(SyntaxErrorType::MissingLeftBrace))
+            return Err(self.error_pusher(start, SyntaxErrorType::MissingLeftBrace))
         }
         let mut body = Vec::new();
         if let Some(argument) = self.advance(1).transpose()? && argument.kind != TokenType::RightBrace {
@@ -123,9 +118,9 @@ where
         Ok(Node::DefineFunction {operator, arguments, body})
     }
 
-    fn parse_condition(&mut self) -> Result<Node, Error> {
+    fn parse_condition(&mut self, start: usize) -> Result<Node, Error> {
         if let Some(token) = self.advance(1).transpose()? && token.kind != TokenType::LeftParen {
-            return Err(self.error_pusher(SyntaxErrorType::MissingLeftParen))
+            return Err(self.error_pusher(start, SyntaxErrorType::MissingLeftParen))
         }
         let mut condition = Vec::new();
         if let Some(argument) = self.advance(1).transpose()? && argument.kind != TokenType::RightParen {
@@ -133,7 +128,7 @@ where
             self.advance(1);
         };
         if let Some(token) = self.advance(1).transpose()? && token.kind != TokenType::LeftBrace {
-            self.error_pusher(SyntaxErrorType::MissingLeftBrace);
+            self.error_pusher(start, SyntaxErrorType::MissingLeftBrace);
         }
         let mut if_body = Vec::new();
         if let Some(argument) = self.advance(1).transpose()? && argument.kind != TokenType::RightBrace {
@@ -145,7 +140,7 @@ where
             return Ok(Node::Condition { condition, if_body, else_body })
         }
         if let Some(token) = self.advance(1).transpose()? && token.kind != TokenType::LeftBrace {
-            return Err(self.error_pusher(SyntaxErrorType::MissingLeftBrace))
+            return Err(self.error_pusher(start, SyntaxErrorType::MissingLeftBrace))
         }
         if let Some(argument) = self.advance(1).transpose()? && argument.kind != TokenType::RightBrace {
             else_body.push(self.parse_pipeline(argument)?);
@@ -155,12 +150,13 @@ where
     }
 
     fn parse_pipeline(&mut self, token: Token) -> Result<Node, Error> {
+        let start = token.start;
         let mut stations = Vec::new();
         stations.push(self.dispatch_node(token)?);
         if self.peek().is_none() || self.peek().transpose()?.unwrap().kind != TokenType::Arrow {
             match stations.pop() {
                 Some(station) => return Ok(station),
-                _ => return Err(self.error_pusher(SyntaxErrorType::NoStationBeforePipeline)),
+                _ => return Err(self.error_pusher(start, SyntaxErrorType::NoStationBeforePipeline)),
             }
         }
         while let Some(token) = self.peek().transpose()? && token.kind == TokenType::Arrow {
@@ -171,21 +167,19 @@ where
                     other => other?
                 });
             } else {
-                return Err(self.error_pusher(SyntaxErrorType::NoStationAfterPipeline))
+                return Err(self.error_pusher(start, SyntaxErrorType::NoStationAfterPipeline))
             }
         }
         Ok(Node::Pipeline(stations))
     }
 
-    fn error_pusher(&mut self, kind: SyntaxErrorType) -> Error {
-        Error::SyntaxError(SyntaxError { line: 999, kind })
+    fn error_pusher(&mut self, start: usize, kind: SyntaxErrorType) -> Error {
+        let (line, column) = self.lexer.find_line_col(start);
+        Error::SyntaxError(SyntaxError { line, column, kind })
     }
 }
 
-impl<L> Iterator for Parser<L>
-where
-    L: Iterator<Item = Result<Token, Error>>,
-{
+impl<'source_code> Iterator for Parser<'source_code> {
     type Item = Result<Node, Error>;
     fn next(&mut self) -> Option<Self::Item> {
         self.advance(1).map(|token| self.parse_pipeline(token?))
