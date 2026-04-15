@@ -22,7 +22,7 @@ impl<'source_code> Lexer<'source_code> {
 
     fn advance(&mut self, steps: usize) -> Option<u8> {
         if let Some(result) = self.peek(steps) {
-            if result == b'\n' { self.lines.push(self.position + steps)}
+            if result == b'\n' { self.lines.push(self.position + steps + 1)}
             self.position += steps + 1;
             return Some(result)
         }
@@ -165,10 +165,7 @@ impl<'source_code> Iterator for Lexer<'source_code> {
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             let start = self.position;
-            let byte = match self.advance(0) {
-                Some(byte) => byte,
-                None => break
-            };
+            let byte = self.advance(0)?;
             match byte {
                 b'"' | b'\'' => return Some(self.string_collector(start, byte)),
                 b'0'..=b'9' => return Some(self.number_collector(start)),
@@ -193,6 +190,5 @@ impl<'source_code> Iterator for Lexer<'source_code> {
                 }
             }
         }
-        None
     }
 }
