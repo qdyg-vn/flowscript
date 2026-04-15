@@ -31,8 +31,9 @@ impl<'source_code> Lexer<'source_code> {
 
     pub fn find_line_col(&self, index: usize) -> (usize, usize) {
         let line_index = self.lines.binary_search(&index).unwrap_or_else(|index| index - 1);
+        let line_start = self.lines[line_index];
         let line = line_index + 1;
-        let column = (index - self.lines[line_index]) + 1;
+        let column = self.source_code[line_start..index].iter().filter(|&&byte| (byte & 0xC0) != 0x80).count() + 1;
         (line, column)
     }
 
@@ -164,24 +165,31 @@ impl<'source_code> Iterator for Lexer<'source_code> {
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             let start = self.position;
-            let bytes = match self.advance(0) {
-                Some(bytes) => bytes,
+            let byte = match self.advance(0) {
+                Some(byte) => byte,
                 None => break
             };
-            match bytes {
-                b'"' | b'\'' => return Some(self.string_collector(start, bytes)),
+            match byte {
+                b'"' | b'\'' => return Some(self.string_collector(start, byte)),
                 b'0'..=b'9' => return Some(self.number_collector(start)),
                 b' ' | b'\t' | b'\n' | b',' => continue,
-                b'a'..=b'z' | b'A'..=b'Z' | b'_' | b'+' | b'-' | b'*' | b'/' | b'>' | b'<' | b'=' | b'?' | b'!' => return Some(self.identifier_collector(start, bytes)),
+                b'a'..=b'z' | b'A'..=b'Z' | b'_' | b'+' | b'-' | b'*' | b'/' | b'>' | b'<' | b'=' | b'?' | b'!' => return Some(self.identifier_collector(start, byte)),
                 b'(' => return Some(Ok(Token::new(start, start + 1, TokenType::LeftParen))),
                 b')' => return Some(Ok(Token::new(start, start + 1, TokenType::RightParen))),
                 b'{' => return Some(Ok(Token::new(start, start + 1, TokenType::LeftBrace))),
                 b'}' => return Some(Ok(Token::new(start, start + 1, TokenType::RightBrace))),
                 b'#' => { self.skip_comment(); continue },
                 _ => {
-                    return Some(Err(
-                        self.error_collector(start, LexicalErrorType::InvalidCharacter(char::from(bytes)))
-                    ));
+                    let bytes_needed = match byte {
+                        one_byte if one_byte & 0b1000_0000 == 0 => 1,
+                        two_bytes if two_bytes & 0b1110_0000 == 0b1100_0000 => 2,
+                        three_bytes if three_bytes & 0b1111_0000 == 0b1110_0000 => 3,
+                        four_bytes if four_bytes & 0b1111_1000 == 0b1111_0000 => 4,
+                        _ => unreachable!()
+                    };
+                    let mut bytes = vec![byte];
+                    for _ in 1..bytes_needed { bytes.push(self.advance(0)?) }
+                    return Some(Err(self.error_collector(start, LexicalErrorType::InvalidCharacter(String::from_utf8(bytes).unwrap()))))
                 }
             }
         }

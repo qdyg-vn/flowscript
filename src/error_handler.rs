@@ -61,7 +61,7 @@ impl fmt::Display for LexicalError {
 }
 
 pub enum LexicalErrorType {
-    InvalidCharacter(char),
+    InvalidCharacter(String),
     DecimalPoints(String),
     MissingClosingQuote(String),
     MultipleUnderscores(String),
