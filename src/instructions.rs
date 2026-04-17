@@ -10,6 +10,7 @@ pub enum Instruction {
     Jump(u16),
     JumpIfFalse(u16),
     Return,
+    Array(u16),
 }
 
 #[derive(Debug, Clone, PartialEq)]

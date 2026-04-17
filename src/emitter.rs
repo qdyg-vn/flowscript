@@ -97,6 +97,11 @@ impl Emitter {
                     self.create_chunk(vec![*value], chunk);
                     chunk.instructions.push(Instruction::Return)
                 },
+                Node::Array(elements) => {
+                    let count = elements.len() as u16;
+                    self.create_chunk(elements, chunk);
+                    chunk.instructions.push(Instruction::Array(count))
+                }
                 _ => unreachable!(),
             }
         }

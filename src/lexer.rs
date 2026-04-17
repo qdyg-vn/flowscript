@@ -175,6 +175,8 @@ impl<'source_code> Iterator for Lexer<'source_code> {
                 b')' => return Some(Ok(Token::new(start, start + 1, TokenType::RightParen))),
                 b'{' => return Some(Ok(Token::new(start, start + 1, TokenType::LeftBrace))),
                 b'}' => return Some(Ok(Token::new(start, start + 1, TokenType::RightBrace))),
+                b'[' => return Some(Ok(Token::new(start, start + 1, TokenType::LeftBracket))),
+                b']' => return Some(Ok(Token::new(start, start + 1, TokenType::RightBracket))),
                 b'#' => { self.skip_comment(); continue },
                 _ => {
                     let bytes_needed = match byte {

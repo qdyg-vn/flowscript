@@ -23,4 +23,5 @@ pub enum Node {
         else_body: Vec<Node>,
     },
     Return(Box<Node>),
+    Array(Vec<Node>),
 }

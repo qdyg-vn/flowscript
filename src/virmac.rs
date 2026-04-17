@@ -94,6 +94,12 @@ impl VirMac {
             },
             Instruction::Return => stack.swap(base_pointer, *stack_position - 1),
             Instruction::DefineFunction(index, body_index) => stack[base_pointer + index as usize] = self.constants_pool[body_index as usize].clone(),
+            Instruction::Array(count) => {
+                let start = *stack_position - count as usize;
+                stack[start] = Value::Array(Box::new(stack[start..*stack_position].to_vec()));
+                *stack_position = start + 1;
+                self.stations_output.push(stack[*stack_position - 1].clone());
+            },
         }
     }
 

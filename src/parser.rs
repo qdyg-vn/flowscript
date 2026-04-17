@@ -70,8 +70,17 @@ impl<'source_code> Parser<'source_code> {
                 Some(token) => self.dispatch_node(token?)?,
                 None => Node::Literal(Value::Nil)
             }))),
+            TokenType::LeftBracket => self.parse_array(),
             _ => Err(self.error_pusher(token.start, SyntaxErrorType::UnimplementedToken(token)))
         }
+    }
+
+    fn parse_array(&mut self) -> Result<Node, Error> {
+        let mut arguments = Vec::new();
+        while let Some(argument) = self.advance(1).transpose()? && argument.kind != TokenType::RightBracket {
+            arguments.push(self.dispatch_node(argument)?);
+        }
+        Ok(Node::Array(arguments))
     }
 
     fn parse_function(&mut self, start: usize, token: String) -> Result<Node, Error> {

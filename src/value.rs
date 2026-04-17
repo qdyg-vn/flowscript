@@ -13,6 +13,7 @@ pub enum Value {
     String(Rc<String>),
     Function(Rc<Chunk>),
     Closure(Closure),
+    Array(Box<Vec<Value>>)
 }
 
 impl fmt::Display for Value {
@@ -23,6 +24,16 @@ impl fmt::Display for Value {
             Value::Float(float) => write!(f, "{}", float),
             Value::String(string) => write!(f, "{}", string),
             Value::Integer(integer) => write!(f, "{}", integer),
+            Value::Array(elements) => {
+                write!(f, "[")?;
+                for (index, element) in elements.iter().enumerate() {
+                    if index > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}", element)?;
+                }
+                write!(f, "]")
+            },
             something => write!(f, "{:?}", something)
         }
     }

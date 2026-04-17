@@ -37,4 +37,6 @@ pub enum TokenType {
     If,
     Else,
     Return,
+    LeftBracket,
+    RightBracket,
 }
