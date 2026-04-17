@@ -12,11 +12,13 @@ define_function = 'fun', variable, '(', [ variable, { ',', variable } ], ')', '{
 
 condition = 'if', '(', function, ')', '{', stations, '}';
 
-argument = boolean | nil | float | integer | relative_reference | variable | string | function | identifier | macro;
+argument = boolean | nil | float | integer | relative_reference | variable | string | array | function | identifier | macro;
 
 variable = identifier;
 
 relative_reference = { digit }, '_', { digit };
+
+array = '[', [argument], {',', argument}, ']';
 
 string = '"', { all_characters - '"' }, '"';
 
