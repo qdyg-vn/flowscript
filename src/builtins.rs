@@ -2,12 +2,14 @@ mod casting;
 mod io;
 mod math;
 mod compare;
+mod introspection;
 
 use crate::value::Value;
 use casting::to_string;
 use io::print;
 use math::{add, minus};
-use compare::{ equal, less, greater, not_equal };
+use compare::{equal, less, greater, not_equal};
+use introspection::len;
 
 #[derive(Copy, Clone, Debug)]
 pub enum BuiltinFunction {
@@ -15,6 +17,7 @@ pub enum BuiltinFunction {
     IO(fn(&[Value])),
     Casting(fn(&[Value]) -> Value),
     Compare(fn(&[Value]) -> Value),
+    Introspection(fn(&[Value]) -> Value),
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -32,6 +35,7 @@ pub const BUILTIN_TABLE: &[Builtin] = &[
     Builtin { name: "<", function: BuiltinFunction::Compare(less) },
     Builtin { name: ">", function: BuiltinFunction::Compare(greater) },
     Builtin { name: "!=", function: BuiltinFunction::Compare(not_equal) },
+    Builtin { name: "len", function: BuiltinFunction::Introspection(len) },
 ];
 
 pub fn get_builtin(index: u16) -> Builtin {
