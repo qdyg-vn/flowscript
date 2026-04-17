@@ -9,7 +9,8 @@ use casting::to_string;
 use io::print;
 use math::{add, minus};
 use compare::{equal, less, greater, not_equal};
-use introspection::len;
+use introspection::length;
+use crate::error_handler::Error;
 
 #[derive(Copy, Clone, Debug)]
 pub enum BuiltinFunction {
@@ -17,7 +18,7 @@ pub enum BuiltinFunction {
     IO(fn(&[Value])),
     Casting(fn(&[Value]) -> Value),
     Compare(fn(&[Value]) -> Value),
-    Introspection(fn(&[Value]) -> Value),
+    Introspection(fn(&[Value]) -> Result<Value, Error>),
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -35,7 +36,7 @@ pub const BUILTIN_TABLE: &[Builtin] = &[
     Builtin { name: "<", function: BuiltinFunction::Compare(less) },
     Builtin { name: ">", function: BuiltinFunction::Compare(greater) },
     Builtin { name: "!=", function: BuiltinFunction::Compare(not_equal) },
-    Builtin { name: "len", function: BuiltinFunction::Introspection(len) },
+    Builtin { name: "length", function: BuiltinFunction::Introspection(length) },
 ];
 
 pub fn get_builtin(index: u16) -> Builtin {

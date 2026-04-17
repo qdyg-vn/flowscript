@@ -1,8 +1,10 @@
+use crate::error_handler::{Error, TypeError, TypeErrorType};
 use crate::value::Value;
 
-pub fn len(arguments: &[Value]) -> Value {
+pub fn length(arguments: &[Value]) -> Result<Value, Error> {
     match arguments {
-        [Value::Array(elements)] => { Value::Integer((*elements).len() as i64) },
-        _ => todo!()
+        [Value::Array(array)] => Ok(Value::Integer(array.len() as i64)),
+        [Value::String(string)] => Ok(Value::Integer(string.len() as i64)),
+        something => Err(Error::TypeError(TypeError {kind: TypeErrorType::NotSequence(something[0].clone())}))
     }
 }

@@ -1,5 +1,6 @@
 use std::{fmt, process::exit};
 use crate::token::Token;
+use crate::value::Value;
 
 #[derive(Default)]
 pub struct ErrorHandler {
@@ -25,6 +26,7 @@ pub enum Error {
     SyntaxError(SyntaxError),
     SemanticError(SemanticError),
     RuntimeError(RuntimeError),
+    TypeError(TypeError),
 }
 
 impl fmt::Display for Error {
@@ -34,6 +36,7 @@ impl fmt::Display for Error {
             Error::SyntaxError(error) => write!(formatter, "{}", error),
             Error::SemanticError(error) => write!(formatter, "{}", error),
             Error::RuntimeError(error) => write!(formatter, "{}", error),
+            Error::TypeError(error) => write!(formatter, "{}", error),
         }
     }
 }
@@ -185,6 +188,31 @@ impl fmt::Display for RuntimeErrorType {
         match self {
             RuntimeErrorType::MissingStation(x) => write!(formatter, "There is no station at position {}", x),
             RuntimeErrorType::OutOfBounds(start, end) => write!(formatter, "Stack out of bounds: start {} end {}", start, end),
+        }
+    }
+}
+
+pub struct TypeError {
+    pub kind: TypeErrorType
+}
+
+impl fmt::Display for TypeError {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        let code = match &self.kind {
+            TypeErrorType::NotSequence(_) => 1,
+        };
+        write!(formatter, "\x1b[31;1m[Error FSCC8{:0>3}]\x1b[0m {}\n", code, self.kind)
+    }
+}
+
+pub enum TypeErrorType {
+    NotSequence(Value),
+}
+
+impl fmt::Display for TypeErrorType {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            TypeErrorType::NotSequence(station) => write!(formatter, "{} is not a sequence", station),
         }
     }
 }

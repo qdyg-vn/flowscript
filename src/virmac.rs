@@ -118,12 +118,22 @@ impl VirMac {
                     };
                 },
                 BuiltinFunction::IO(function) => function(arguments),
-                BuiltinFunction::Casting(function) | BuiltinFunction::Compare(function) | BuiltinFunction::Introspection(function) => {
+                BuiltinFunction::Casting(function) | BuiltinFunction::Compare(function) => {
                     let value = function(arguments);
                     self.stations_output.push(value.clone());
                     stack[start] = value;
                     *stack_position = start + 1;
                 },
+                BuiltinFunction::Introspection(function) => {
+                    match function(arguments) {
+                        Ok(value) => {
+                            self.stations_output.push(value.clone());
+                            stack[start] = value;
+                            *stack_position = start + 1;
+                        },
+                        Err(error) => self.error_handler.fatal(error)
+                    };
+                }
             }
         } else {
             self.error_handler.fatal(Error::RuntimeError(RuntimeError {kind: RuntimeErrorType::OutOfBounds(start, end)}))
