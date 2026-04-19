@@ -147,7 +147,8 @@ impl<'source_code> Parser<'source_code> {
             self.advance(1);
         };
         branches.push((condition, body));
-        while let Some(token) = self.advance(1).transpose()? && token.kind == TokenType::Else {
+        while let Some(token) = self.peek().transpose()? && token.kind == TokenType::Else {
+            self.advance(1);
             if let Some(token) = self.peek().transpose()? && token.kind != TokenType::If {
                 if let Some(token) = self.advance(1).transpose()? && token.kind != TokenType::LeftBrace {
                     return Err(self.error_pusher(start, SyntaxErrorType::MissingLeftBrace))
