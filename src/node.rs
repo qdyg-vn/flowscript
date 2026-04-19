@@ -18,9 +18,8 @@ pub enum Node {
         body: Vec<Node>,
     },
     Condition {
-        condition: Vec<Node>,
-        if_body: Vec<Node>,
-        else_body: Vec<Node>,
+        branches: Vec<(Vec<Node>, Vec<Node>)>,
+        final_branch: Vec<Node>,
     },
     Return(Box<Node>),
     Array(Vec<Node>),

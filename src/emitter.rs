@@ -92,7 +92,7 @@ impl Emitter {
                     chunk.instructions.push(Instruction::DefineFunction(index, body_index as u16));
                 },
                 Node::Pipeline(stations) => self.create_chunk(stations, chunk),
-                Node::Condition {condition, if_body, else_body} => self.emit_condition(condition, if_body, else_body, chunk),
+                Node::Condition {branches, final_branch} => self.emit_condition(branches, final_branch, chunk),
                 Node::Return(value) => {
                     self.create_chunk(vec![*value], chunk);
                     chunk.instructions.push(Instruction::Return)
@@ -107,16 +107,22 @@ impl Emitter {
         }
     }
 
-    fn emit_condition(&mut self, condition: Vec<Node>, if_body: Vec<Node>, else_body: Vec<Node>, chunk: &mut Chunk) {
-        self.create_chunk(condition, chunk);
-        let if_position = chunk.instructions.len();
-        chunk.instructions.push(Instruction::JumpIfFalse(0));
-        self.create_chunk(if_body, chunk);
-        chunk.instructions.push(Instruction::Jump(0));
-        let else_position = chunk.instructions.len();
-        self.create_chunk(else_body, chunk);
+    fn emit_condition(&mut self, branches: Vec<(Vec<Node>, Vec<Node>)>, final_branch: Vec<Node>, chunk: &mut Chunk) {
+        let mut complete_positions = Vec::with_capacity(branches.len());
+        for (condition, body) in branches {
+            self.create_chunk(condition, chunk);
+            let branch_position = chunk.instructions.len();
+            chunk.instructions.push(Instruction::JumpIfFalse(0));
+            self.create_chunk(body, chunk);
+            complete_positions.push(chunk.instructions.len());
+            chunk.instructions.push(Instruction::Jump(0));
+            let next_branch = chunk.instructions.len();
+            if let Instruction::JumpIfFalse(target) = &mut chunk.instructions[branch_position] { *target = next_branch as u16 };
+        }
+        self.create_chunk(final_branch, chunk);
         let end_position = chunk.instructions.len();
-        if let Instruction::JumpIfFalse(target) = &mut chunk.instructions[if_position] { *target = else_position as u16 };
-        if let Instruction::Jump(target) = &mut chunk.instructions[else_position - 1] { *target = end_position as u16 };
+        for index in complete_positions {
+            if let Instruction::Jump(target) = &mut chunk.instructions[index] { *target = end_position as u16 };
+        }
     }
 }
