@@ -38,3 +38,21 @@ pub fn minus(arguments: &[Value]) -> Result<Value, String> {
         }
     })
 }
+
+pub fn multiply(arguments: &[Value]) -> Result<Value, String> {
+    if arguments.len() == 0 { return Err("multiply requires at least one operand".into()) }
+    let (first, rest) = arguments.split_first().unwrap();
+    if rest.is_empty() {
+        return Err("Multiply is a binary operator, not a unary operator".to_string())
+    };
+    rest.iter().try_fold(first.clone(), |accumulator, x| {
+        match (&accumulator, x) {
+            (Value::Integer(a), Value::Integer(b)) => Ok(Value::Integer(a * b)),
+            (Value::Float(a), Value::Float(b)) => Ok(Value::Float(a * b)),
+            (Value::String(a), Value::Integer(b)) => Ok(Value::String(Rc::from(a.repeat(*b as usize)))),
+            (Value::Float(a), Value::Integer(b)) => Ok(Value::Float(a * *b as f64)),
+            (Value::Integer(a), Value::Float(b)) => Ok(Value::Float(*a as f64 * b)),
+            _ => Err(format!("Cannot multiply {:?} and {:?}", accumulator, x))
+        }
+    })
+}
