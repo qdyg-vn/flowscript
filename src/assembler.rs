@@ -1,24 +1,51 @@
 use crate::instructions::{Bytecode, Instruction, Chunk};
 use crate::memory::Memory;
+use crate::constants_pool::ConstantsPool;
+use crate::value::HeavyValue;
 
 pub struct Assembler {
     memory: Memory,
+    constants_pool: ConstantsPool,
 }
 
 impl Assembler {
-    pub fn new(memory: Memory) -> Self {
-        Self {memory}
+    pub fn new(memory: Memory, constants_pool: ConstantsPool) -> Self {
+        Self {
+            memory,
+            constants_pool,
+        }
     }
 
     pub fn assemble_map(&mut self, map: Vec<Chunk>) -> Vec<Vec<u8>> {
         let mut byte_map = Vec::new();
         for chunk in map {
             let mut byte_position = 0;
-            let mut byte_chunk = Vec::new();
+            let mut byte_chunk = chunk.arity.to_le_bytes().to_vec();
             self.assemble_instruction(chunk.instructions, &mut byte_position, &mut byte_chunk);
             byte_map.push(byte_chunk)
         }
+        self.assemble_heavy_constants();
         byte_map
+    }
+
+    fn assemble_heavy_constants(&mut self) {
+        for constant in std::mem::take(&mut self.constants_pool.heavy_constants) {
+            match constant {
+                HeavyValue::String(string) => {
+                    let string_bytes = string.into_bytes();
+                    self.memory.permanent_space.extend_from_slice(&string_bytes.len().to_le_bytes());
+                    self.memory.permanent_space.extend_from_slice(&string_bytes)
+                },
+                HeavyValue::Function(body) => {
+                    let mut byte_position = 0;
+                    let mut byte_chunk = body.arity.to_le_bytes().to_vec();
+                    self.assemble_instruction(body.instructions, &mut byte_position, &mut byte_chunk);
+                    self.memory.permanent_space.extend_from_slice(&byte_chunk.len().to_le_bytes());
+                    self.memory.permanent_space.extend_from_slice(&byte_chunk)
+                },
+                _ => unreachable!()
+            }
+        };
     }
 
     fn assemble_instruction(&mut self, instructions: Vec<Instruction>, byte_position: &mut usize, byte_chunk: &mut Vec<u8>) {

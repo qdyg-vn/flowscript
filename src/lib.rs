@@ -12,4 +12,5 @@ pub mod value;
 pub mod virmac;
 pub mod builtins;
 pub mod constants_pool;
+pub mod assembler;
 pub mod memory;
