@@ -1,8 +1,8 @@
-use crate::instructions::Chunk;
 use std::cell::RefCell;
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
+use crate::instructions::Chunk;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
@@ -10,10 +10,10 @@ pub enum Value {
     Nil,
     Float(f64),
     Integer(i64),
-    String(Rc<String>),
-    Function(Rc<Chunk>),
-    Closure(Closure),
-    Array(Box<Vec<Value>>)
+    StringPointer(u32),
+    FunctionPointer(u32),
+    ClosurePointer(u32),
+    ArrayPointer(u32),
 }
 
 impl fmt::Display for Value {
@@ -22,19 +22,21 @@ impl fmt::Display for Value {
             Value::Boolean(boolean) => write!(f, "{}", boolean),
             Value::Nil => write!(f, "Nil"),
             Value::Float(float) => write!(f, "{}", float),
-            Value::String(string) => write!(f, "{}", string),
             Value::Integer(integer) => write!(f, "{}", integer),
-            Value::Array(elements) => {
-                write!(f, "[")?;
-                for (index, element) in elements.iter().enumerate() {
-                    if index > 0 {
-                        write!(f, ", ")?;
-                    }
-                    write!(f, "{}", element)?;
-                }
-                write!(f, "]")
-            },
             something => write!(f, "{:?}", something)
+        }
+    }
+}
+
+impl Value {
+    pub fn to_byte(&self) -> Vec<u8> {
+        match self {
+            Value::Boolean(boolean) => vec![*boolean as u8],
+            Value::Nil => vec![0],
+            Value::Float(float) => float.to_le_bytes().to_vec(),
+            Value::Integer(integer) => integer.to_le_bytes().to_vec(),
+            Value::StringPointer(index) | Value::FunctionPointer(index) | Value::ArrayPointer(index) => index.to_le_bytes().to_vec(),
+            _ => unreachable!()
         }
     }
 }
@@ -47,8 +49,27 @@ impl Hash for Value {
             Value::Boolean(boolean) => boolean.hash(state),
             Value::Integer(integer) => integer.hash(state),
             Value::Float(float) => float.to_bits().hash(state),
-            Value::String(string) => string.hash(state),
+            Value::StringPointer(string) => string.hash(state),
             Value::Nil => 0.hash(state),
+            _ => unreachable!(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum HeavyValue {
+    String(String),
+    Function(Chunk),
+    Closure(Closure),
+    Array(Vec<Value>),
+}
+
+impl Eq for HeavyValue {}
+
+impl Hash for HeavyValue {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self {
+            HeavyValue::String(string) => string.hash(state),
             _ => unreachable!(),
         }
     }
