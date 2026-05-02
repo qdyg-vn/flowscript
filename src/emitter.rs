@@ -3,8 +3,7 @@ use crate::error_handler::{Error, ErrorHandler};
 use crate::instructions::{Chunk, Instruction};
 use crate::node::Node;
 use crate::symbol_table::{SymbolTable, SymbolType};
-use crate::value::Value;
-use std::rc::Rc;
+use crate::value::HeavyValue;
 
 pub struct Emitter {
     error_handler: ErrorHandler,
@@ -40,8 +39,12 @@ impl Emitter {
             match station {
                 Node::Literal(value) => {
                     let index = self.constants_pool.add_constant(value);
-                    chunk.instructions.push(Instruction::Load(index as u16))
+                    chunk.instructions.push(Instruction::Load(index as u32))
                 },
+                Node::HeavyLiteral(heavy_value) => {
+                    let index = self.constants_pool.add_heavy_constant(heavy_value);
+                    chunk.instructions.push(Instruction::Load(index as u32))
+                }
                 Node::Apply {operator, arguments} => {
                     let arity = arguments.len() as u16;
                     self.create_chunk(arguments, chunk);
@@ -57,28 +60,28 @@ impl Emitter {
                 Node::RelativeReference(x, y) => chunk.instructions.push(Instruction::RelativeReference(x, y)),
                 Node::Assignment(name) => {
                     match self.symbol_table.add_variable(name) {
-                        Ok(SymbolType::Scope(scope, index)) => {
-                            chunk.instructions.push(Instruction::Store(scope, index));
+                        Ok(SymbolType::Scope(_, index)) => {
+                            chunk.instructions.push(Instruction::Store(index));
                             chunk.arity += 1
                         },
-                        Err(SymbolType::Scope(scope, index)) => chunk.instructions.push(Instruction::Store(scope, index)),
+                        Err(SymbolType::Scope(_, index)) => chunk.instructions.push(Instruction::Store(index)),
                         _ => unreachable!()
                     }
                 },
                 Node::Variable(name) => {
                     match self.symbol_table.resolve(&name) {
-                        Ok(SymbolType::Scope(scope, index)) => chunk.instructions.push(Instruction::LoadVariable(scope, index)),
+                        Ok(SymbolType::Scope(_, index)) => chunk.instructions.push(Instruction::LoadVariable(index)),
                         Err(error) => self.error_handler.errors.push(Error::SemanticError(error)),
                         _ => unreachable!()
                     }
                 },
                 Node::DefineFunction {operator, arguments, body} => {
                     let index = match self.symbol_table.add_variable(operator) {
-                        Ok(SymbolType::Scope(scope, index)) => {
+                        Ok(SymbolType::Scope(_, index)) => {
                             chunk.arity += 1;
                             index
                         },
-                        Err(SymbolType::Scope(scope, index)) => {
+                        Err(SymbolType::Scope(_, index)) => {
                             index
                         },
                         _ => unreachable!()
@@ -88,7 +91,7 @@ impl Emitter {
                     self.create_chunk(arguments, &mut child_chunk);
                     self.create_chunk(body, &mut child_chunk);
                     self.symbol_table.scopes.pop();
-                    let body_index = self.constants_pool.add_constant(Value::Function(Rc::from(child_chunk)));
+                    let body_index = self.constants_pool.add_heavy_constant(HeavyValue::Function(child_chunk));
                     chunk.instructions.push(Instruction::DefineFunction(index, body_index as u16));
                 },
                 Node::Pipeline(stations) => self.create_chunk(stations, chunk),
@@ -98,7 +101,7 @@ impl Emitter {
                     chunk.instructions.push(Instruction::Return)
                 },
                 Node::Array(elements) => {
-                    let count = elements.len() as u16;
+                    let count = elements.len() as u32;
                     self.create_chunk(elements, chunk);
                     chunk.instructions.push(Instruction::Array(count))
                 }
