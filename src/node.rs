@@ -1,8 +1,9 @@
-use crate::value::Value;
+use crate::value::{Value, HeavyValue};
 
 #[derive(Debug)]
 pub enum Node {
     Literal(Value),
+    HeavyLiteral(HeavyValue),
     Symbol(String),
     Apply {
         operator: Box<Node>,

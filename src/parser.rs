@@ -2,8 +2,7 @@ use crate::error_handler::{Error, SyntaxError, SyntaxErrorType};
 use crate::node::Node;
 use crate::lexer::Lexer;
 use crate::token::{Token, TokenType};
-use crate::value::Value;
-use std::rc::Rc;
+use crate::value::{Value, HeavyValue};
 
 pub struct Parser<'source_code> {
     lexer: Lexer<'source_code>,
@@ -61,7 +60,7 @@ impl<'source_code> Parser<'source_code> {
             TokenType::Boolean(boolean) => Ok(Node::Literal(Value::Boolean(boolean))),
             TokenType::Nil => Ok(Node::Literal(Value::Nil)),
             TokenType::Identifier(identifier) => self.parse_function(token.start, identifier),
-            TokenType::String(string) => Ok(Node::Literal(Value::String(Rc::from(string)))),
+            TokenType::String(string) => Ok(Node::HeavyLiteral(HeavyValue::String(string))),
             TokenType::RelativeReference(x, y) => Ok(Node::RelativeReference(x, y)),
             TokenType::Variable(name) => Ok(Node::Variable(name)),
             TokenType::DefineFunction => self.parse_define_function(token.start),
