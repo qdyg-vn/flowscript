@@ -9,16 +9,18 @@ pub struct VirMac {
     base_pointers: Vec<usize>,
     memory: Memory,
     constants_pool: Vec<Value>,
+    starts : Vec<usize>,
     error_handler: ErrorHandler,
 }
 
 impl VirMac {
-    pub fn new(memory: Memory, error_handler: ErrorHandler, constants_pool: Vec<Value>) -> Self {
+    pub fn new(memory: Memory, error_handler: ErrorHandler, constants_pool: Vec<Value>, starts: Vec<usize>) -> Self {
         Self {
             stations_output: Vec::new(),
             base_pointers: vec![0],
             memory,
             constants_pool,
+            starts,
             error_handler,
         }
     }
@@ -43,14 +45,14 @@ impl VirMac {
         match chunk[*instruction_position] {
             Bytecode::LOAD => {
                 let index = u32::from_le_bytes(chunk[*instruction_position + 1..=*instruction_position + 4].try_into().unwrap());
-                stack[*stack_position] = self.constants_pool[index as usize].clone();
-                self.stations_output.push(self.constants_pool[index as usize].clone());
+                stack[*stack_position] = self.constants_pool[index as usize];
+                self.stations_output.push(self.constants_pool[index as usize]);
                 *stack_position += 1;
                 *instruction_position += 3
             },
             Bytecode::LOADVARIABLE => {
                 let index = u16::from_le_bytes([chunk[*instruction_position + 1], chunk[*instruction_position + 2]]);
-                stack[*stack_position] = stack[base_pointer + index as usize].clone();
+                stack[*stack_position] = stack[base_pointer + index as usize];
                 *stack_position += 1;
                 *instruction_position += 3
             },
@@ -93,7 +95,7 @@ impl VirMac {
                 while function_instruction_position < length {
                     if matches!(function[function_instruction_position], Bytecode::RETURN) {
                         self.dispatch_instruction(&mut function, &mut function_instruction_position, stack, &mut child_stack_position, child_base_pointer);
-                        self.stations_output.push(stack[child_base_pointer].clone());
+                        self.stations_output.push(stack[child_base_pointer]);
                         break
                     }
                     self.dispatch_instruction(&mut function, &mut function_instruction_position, stack, &mut child_stack_position, child_base_pointer);
@@ -106,7 +108,7 @@ impl VirMac {
                 if self.stations_output.len() < x as usize {
                     self.error_handler.fatal(Error::RuntimeError(RuntimeError {kind: RuntimeErrorType::MissingStation(x)}))
                 }
-                let output = self.stations_output[self.stations_output.len() - x as usize].clone();
+                let output = self.stations_output[self.stations_output.len() - x as usize];
                 if y != 0 {
                     todo!("Currently under development")
                 } else {
@@ -122,7 +124,7 @@ impl VirMac {
             Bytecode::DEFINEFUNCTION => {
                 let index = u16::from_le_bytes([chunk[*instruction_position + 1], chunk[*instruction_position + 2]]);
                 let body_index = u16::from_le_bytes([chunk[*instruction_position + 3], chunk[*instruction_position + 4]]);
-                stack[base_pointer + index as usize] = self.constants_pool[body_index as usize].clone();
+                stack[base_pointer + index as usize] = self.constants_pool[body_index as usize];
                 *instruction_position += 5
             },
             Bytecode::ARRAY => {
@@ -137,7 +139,7 @@ impl VirMac {
                 self.memory.permanent_space.extend_from_slice(&array);
                 stack[start] = Value::ArrayPointer(index as u32);
                 *stack_position = start + 1;
-                self.stations_output.push(stack[*stack_position - 1].clone());
+                self.stations_output.push(stack[*stack_position - 1]);
                 *instruction_position += 5
             },
             _ => unreachable!()
@@ -151,7 +153,7 @@ impl VirMac {
                 BuiltinFunction::Math(function) => {
                     match function(arguments) {
                         Ok(value) => {
-                            self.stations_output.push(value.clone());
+                            self.stations_output.push(value);
                             stack[start] = value;
                             *stack_position = start + 1;
                         },
@@ -161,14 +163,14 @@ impl VirMac {
                 BuiltinFunction::IO(function) => function(arguments),
                 BuiltinFunction::Casting(function) | BuiltinFunction::Compare(function) => {
                     let value = function(arguments);
-                    self.stations_output.push(value.clone());
+                    self.stations_output.push(value);
                     stack[start] = value;
                     *stack_position = start + 1;
                 },
                 BuiltinFunction::Introspection(function) => {
                     match function(arguments) {
                         Ok(value) => {
-                            self.stations_output.push(value.clone());
+                            self.stations_output.push(value);
                             stack[start] = value;
                             *stack_position = start + 1;
                         },
