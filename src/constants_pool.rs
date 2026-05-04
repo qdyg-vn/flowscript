@@ -1,16 +1,16 @@
-use crate::value::{HeavyValue, Value};
+use crate::value::{HeavyValue, LightValue};
 use std::collections::{HashMap};
 
 #[derive(Default, Debug)]
 pub struct ConstantsPool {
-    pub constants: Vec<Value>,
-    pub lookup: HashMap<Value, usize>,
+    pub constants: Vec<LightValue>,
+    pub lookup: HashMap<LightValue, usize>,
     pub heavy_constants: Vec<HeavyValue>,
     pub heavy_lookup: HashMap<HeavyValue, usize>,
 }
 
 impl ConstantsPool {
-    pub fn add_constant(&mut self, constant: Value) -> usize {
+    pub fn add_constant(&mut self, constant: LightValue) -> usize {
         if let Some(&index) = self.lookup.get(&constant) {
             return index
         }
@@ -36,8 +36,8 @@ impl ConstantsPool {
             }
         };
         let index = self.add_constant(match constant {
-            HeavyValue::String(_) => Value::StringPointer(heavy_index as u32),
-            HeavyValue::Array(_) => Value::ArrayPointer(heavy_index as u32),
+            HeavyValue::String(_) => LightValue::StringPointer(heavy_index as u32),
+            HeavyValue::Array(_) => LightValue::ArrayPointer(heavy_index as u32),
             _ => unreachable!()
         });
         index

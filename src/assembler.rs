@@ -1,7 +1,7 @@
 use crate::instructions::{Bytecode, Instruction, Chunk};
 use crate::memory::Memory;
 use crate::constants_pool::ConstantsPool;
-use crate::value::HeavyValue;
+use crate::value::{LightValue, HeavyValue};
 
 pub struct Assembler {
     memory: Memory,
@@ -16,15 +16,15 @@ impl Assembler {
         }
     }
 
-    pub fn assemble_map(&mut self, map: Vec<Chunk>) -> (Vec<Vec<u8>>, Vec<usize>) {
+    pub fn assemble_map(mut self, map: Vec<Chunk>) -> (Vec<Vec<u8>>, Vec<usize>, Vec<LightValue>, Memory) {
         let mut byte_map = Vec::new();
         for chunk in map {
             let mut byte_position = 0;
-            let mut byte_chunk = chunk.arity.to_le_bytes().to_vec();
+            let mut byte_chunk = Vec::new();
             self.assemble_instruction(chunk.instructions, &mut byte_position, &mut byte_chunk);
             byte_map.push(byte_chunk)
         }
-        (byte_map, self.assemble_heavy_constants())
+        (byte_map, self.assemble_heavy_constants(), self.constants_pool.constants, self.memory)
     }
 
     fn assemble_heavy_constants(&mut self) -> Vec<usize> {

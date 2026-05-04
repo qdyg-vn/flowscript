@@ -2,7 +2,7 @@ use crate::error_handler::{Error, SyntaxError, SyntaxErrorType};
 use crate::node::Node;
 use crate::lexer::Lexer;
 use crate::token::{Token, TokenType};
-use crate::value::{Value, HeavyValue};
+use crate::value::{LightValue, HeavyValue};
 
 pub struct Parser<'source_code> {
     lexer: Lexer<'source_code>,
@@ -55,10 +55,10 @@ impl<'source_code> Parser<'source_code> {
 
     fn dispatch_node(&mut self, token: Token) -> Result<Node, Error> {
         match token.kind {
-            TokenType::Int(number) => Ok(Node::Literal(Value::Integer(number))),
-            TokenType::Float(number) => Ok(Node::Literal(Value::Float(number))),
-            TokenType::Boolean(boolean) => Ok(Node::Literal(Value::Boolean(boolean))),
-            TokenType::Nil => Ok(Node::Literal(Value::Nil)),
+            TokenType::Int(number) => Ok(Node::Literal(LightValue::Integer(number))),
+            TokenType::Float(number) => Ok(Node::Literal(LightValue::Float(number))),
+            TokenType::Boolean(boolean) => Ok(Node::Literal(LightValue::Boolean(boolean))),
+            TokenType::Nil => Ok(Node::Literal(LightValue::Nil)),
             TokenType::Identifier(identifier) => self.parse_function(token.start, identifier),
             TokenType::String(string) => Ok(Node::HeavyLiteral(HeavyValue::String(string))),
             TokenType::RelativeReference(x, y) => Ok(Node::RelativeReference(x, y)),
@@ -67,7 +67,7 @@ impl<'source_code> Parser<'source_code> {
             TokenType::If => self.parse_condition(token.start),
             TokenType::Return => Ok(Node::Return(Box::from(match self.advance(1) {
                 Some(token) => self.dispatch_node(token?)?,
-                None => Node::Literal(Value::Nil)
+                None => Node::Literal(LightValue::Nil)
             }))),
             TokenType::LeftBracket => self.parse_array(),
             _ => Err(self.error_pusher(token.start, SyntaxErrorType::UnimplementedToken(token)))

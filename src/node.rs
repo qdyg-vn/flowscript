@@ -1,8 +1,8 @@
-use crate::value::{Value, HeavyValue};
+use crate::value::{LightValue, HeavyValue};
 
 #[derive(Debug)]
 pub enum Node {
-    Literal(Value),
+    Literal(LightValue),
     HeavyLiteral(HeavyValue),
     Symbol(String),
     Apply {
