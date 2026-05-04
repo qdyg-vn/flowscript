@@ -1,20 +1,20 @@
 use crate::builtins::{get_builtin, BuiltinFunction};
 use crate::instructions::Bytecode;
-use crate::value::Value;
+use crate::value::{LightValue, Value};
 use crate::error_handler::{ErrorHandler, Error, RuntimeError, RuntimeErrorType};
 use crate::memory::Memory;
 
 pub struct VirMac {
-    stations_output: Vec<Value>,
+    stations_output: Vec<LightValue>,
     base_pointers: Vec<usize>,
     memory: Memory,
-    constants_pool: Vec<Value>,
+    constants_pool: Vec<LightValue>,
     starts : Vec<usize>,
     error_handler: ErrorHandler,
 }
 
 impl VirMac {
-    pub fn new(memory: Memory, error_handler: ErrorHandler, constants_pool: Vec<Value>, starts: Vec<usize>) -> Self {
+    pub fn new(memory: Memory, error_handler: ErrorHandler, constants_pool: Vec<LightValue>, starts: Vec<usize>) -> Self {
         Self {
             stations_output: Vec::new(),
             base_pointers: vec![0],
@@ -25,8 +25,8 @@ impl VirMac {
         }
     }
 
-    pub fn execute(&mut self, map: Vec<Vec<u8>>, total_arity: usize) -> Vec<Value> {
-        let mut stack = vec![Value::Nil; 1024];
+    pub fn execute(&mut self, map: Vec<Vec<u8>>, total_arity: usize) -> Vec<LightValue> {
+        let mut stack = vec![LightValue::Nil; 1024];
         for mut chunk in map {
             self.stations_output.clear();
             let chunk_size = chunk.len();
@@ -34,21 +34,20 @@ impl VirMac {
             let mut instruction_position = 0;
             while instruction_position < chunk_size {
                 self.dispatch_instruction(&mut chunk, &mut instruction_position, &mut stack, &mut stack_position, 0);
-                instruction_position += 1;
             }
         }
         stack
     }
 
-    fn dispatch_instruction(&mut self, chunk: &mut Vec<u8>, instruction_position: &mut usize, stack: &mut Vec<Value>, stack_position: &mut usize, base_pointer: usize) {
-        if stack.len() <= *stack_position { stack.resize(stack.len() * 2, Value::Nil) }
+    fn dispatch_instruction(&mut self, chunk: &mut Vec<u8>, instruction_position: &mut usize, stack: &mut Vec<LightValue>, stack_position: &mut usize, base_pointer: usize) {
+        if stack.len() <= *stack_position { stack.resize(stack.len() * 2, LightValue::Nil) }
         match chunk[*instruction_position] {
             Bytecode::LOAD => {
                 let index = u32::from_le_bytes(chunk[*instruction_position + 1..=*instruction_position + 4].try_into().unwrap());
                 stack[*stack_position] = self.constants_pool[index as usize];
                 self.stations_output.push(self.constants_pool[index as usize]);
                 *stack_position += 1;
-                *instruction_position += 3
+                *instruction_position += 5
             },
             Bytecode::LOADVARIABLE => {
                 let index = u16::from_le_bytes([chunk[*instruction_position + 1], chunk[*instruction_position + 2]]);
@@ -62,8 +61,10 @@ impl VirMac {
             },
             Bytecode::JUMPIFFALSE => {
                 let position = u16::from_le_bytes([chunk[*instruction_position + 1], chunk[*instruction_position + 2]]);
-                if stack[*stack_position - 1] == Value::Boolean(false) {
-                    *instruction_position = position as usize - 1
+                if stack[*stack_position - 1] == LightValue::Boolean(false) {
+                    *instruction_position = position as usize
+                } else {
+                    *instruction_position += 3
                 };
                 *stack_position -= 1
             },
@@ -84,7 +85,7 @@ impl VirMac {
                 let scope = u16::from_le_bytes([chunk[*instruction_position + 1], chunk[*instruction_position + 2]]);
                 let index = u16::from_le_bytes([chunk[*instruction_position + 3], chunk[*instruction_position + 4]]);
                 let function_index = match &stack[self.base_pointers[scope as usize] + index as usize] {
-                    Value::FunctionPointer(index) => *index,
+                    LightValue::FunctionPointer(index) => *index,
                     _ => todo!()
                 };
                 let (mut function, arity, length) = self.to_function(function_index as usize);
@@ -132,12 +133,21 @@ impl VirMac {
                 let start = *stack_position - count as usize;
                 let mut array = Vec::new();
                 for value in stack[start..*stack_position].iter() {
+                    array.push(match &value {
+                        LightValue::Boolean(_) => LightValue::BOOLEAN,
+                        LightValue::Nil => LightValue::NIL,
+                        LightValue::Float(_) => LightValue::FLOAT,
+                        LightValue::Integer(_) => LightValue::INTEGER,
+                        LightValue::StringPointer(_) => LightValue::STRINGPOINTER,
+                        LightValue::ArrayPointer(_) => LightValue::ARRAYPOINTER,
+                        _ => todo!()
+                    });
                     array.extend_from_slice(&value.to_byte())
                 }
                 let index = self.memory.permanent_space.len();
                 self.memory.permanent_space.extend_from_slice(&array.len().to_le_bytes());
                 self.memory.permanent_space.extend_from_slice(&array);
-                stack[start] = Value::ArrayPointer(index as u32);
+                stack[start] = LightValue::ArrayPointer(index as u32);
                 *stack_position = start + 1;
                 self.stations_output.push(stack[*stack_position - 1]);
                 *instruction_position += 5
@@ -146,40 +156,57 @@ impl VirMac {
         }
     }
 
-    fn execute_builtin_function(&mut self, index: u16, stack: &mut Vec<Value>, stack_position: &mut usize, start: usize, end: usize) {
-        if let Some(arguments) = stack.get(start..end) {
-            let builtin = get_builtin(index);
-            match builtin.function {
-                BuiltinFunction::Math(function) => {
-                    match function(arguments) {
-                        Ok(value) => {
-                            self.stations_output.push(value);
-                            stack[start] = value;
-                            *stack_position = start + 1;
-                        },
-                        Err(error) => todo!()
-                    };
+    fn execute_builtin_function(&mut self, index: u16, stack: &mut Vec<LightValue>, stack_position: &mut usize, start: usize, end: usize) {
+        let values = match stack.get(start..end) {
+            Some(argument) => argument,
+            None => { self.error_handler.fatal(Error::RuntimeError(RuntimeError { kind: RuntimeErrorType::OutOfBounds(start, end) })); unreachable!() }
+        };
+        let mut arguments = Vec::new();
+        for argument in values {
+            arguments.push(match argument {
+                LightValue::Boolean(boolean) => Value::Boolean(*boolean),
+                LightValue::Nil => Value::Nil,
+                LightValue::Float(float) => Value::Float(*float),
+                LightValue::Integer(integer) => Value::Integer(*integer),
+                LightValue::StringPointer(index) => {
+                    let string = self.to_string(*index as usize);
+                    Value::String(string)
                 },
-                BuiltinFunction::IO(function) => function(arguments),
-                BuiltinFunction::Casting(function) | BuiltinFunction::Compare(function) => {
-                    let value = function(arguments);
-                    self.stations_output.push(value);
-                    stack[start] = value;
-                    *stack_position = start + 1;
-                },
-                BuiltinFunction::Introspection(function) => {
-                    match function(arguments) {
-                        Ok(value) => {
-                            self.stations_output.push(value);
-                            stack[start] = value;
-                            *stack_position = start + 1;
-                        },
-                        Err(error) => self.error_handler.fatal(error)
-                    };
-                }
+                LightValue::ArrayPointer(index) => Value::Array(self.to_array(*index as usize)),
+                LightValue::FunctionPointer(_) | LightValue::ClosurePointer(_) => unreachable!(),
+            })
+        }
+        let builtin = get_builtin(index);
+        match builtin.function {
+            BuiltinFunction::Math(function) => {
+                match function(&arguments) {
+                    Ok(value) => {
+                        let light_value = self.push_into_storage(value);
+                        self.stations_output.push(light_value);
+                        stack[start] = light_value;
+                        *stack_position = start + 1;
+                    },
+                    Err(error) => todo!()
+                };
+            },
+            BuiltinFunction::IO(function) => function(&arguments),
+            BuiltinFunction::Casting(function) | BuiltinFunction::Compare(function) => {
+                let value = self.push_into_storage(function(&arguments));
+                self.stations_output.push(value);
+                stack[start] = value;
+                *stack_position = start + 1;
+            },
+            BuiltinFunction::Introspection(function) => {
+                match function(&arguments) {
+                    Ok(value) => {
+                        let light_value = self.push_into_storage(value);
+                        self.stations_output.push(light_value);
+                        stack[start] = light_value;
+                        *stack_position = start + 1;
+                    },
+                    Err(error) => self.error_handler.fatal(error)
+                };
             }
-        } else {
-            self.error_handler.fatal(Error::RuntimeError(RuntimeError {kind: RuntimeErrorType::OutOfBounds(start, end)}))
         }
     }
 
@@ -188,5 +215,92 @@ impl VirMac {
         let arity = u16::from_le_bytes([self.memory.permanent_space[start + 8], self.memory.permanent_space[start + 9]]);
         let function = self.memory.permanent_space[start + 10..start + length as usize].to_vec();
         (function, arity, length as usize)
+    }
+
+    fn to_string(&self, start: usize) -> String {
+        let length = u64::from_le_bytes(self.memory.permanent_space[start..start + 8].try_into().unwrap());
+        let string = String::from_utf8(self.memory.permanent_space[start + 8..start + length as usize].to_vec()).unwrap();
+        string
+    }
+
+    fn to_array(&self, mut start: usize) -> Vec<Value> {
+        let length = u64::from_le_bytes(self.memory.permanent_space[start..start + 8].try_into().unwrap());
+        let end = start + length as usize;
+        start += 8;
+        let mut array = Vec::new();
+        while start < end {
+            array.push(match self.memory.permanent_space[start] {
+                LightValue::BOOLEAN => {
+                    let boolean = Value::Boolean(self.memory.permanent_space[start + 1] != 0);
+                    start += 2;
+                    boolean
+                },
+                LightValue::NIL => {
+                    start += 1;
+                    Value::Nil
+                },
+                LightValue::FLOAT => {
+                    let float = Value::Float(f64::from_le_bytes(self.memory.permanent_space[start + 1..=start + 8].try_into().unwrap()));
+                    start += 9;
+                    float
+                },
+                LightValue::INTEGER => {
+                    let integer = Value::Integer(i64::from_le_bytes(self.memory.permanent_space[start + 1..=start + 8].try_into().unwrap()));
+                    start += 9;
+                    integer
+                },
+                LightValue::STRINGPOINTER => {
+                    let index = u32::from_le_bytes(self.memory.permanent_space[start + 1..=start + 4].try_into().unwrap());
+                    let string = self.to_string(index as usize);
+                    start += 5;
+                    Value::String(string)
+                },
+                LightValue::ARRAYPOINTER => {
+                    let index = u32::from_le_bytes(self.memory.permanent_space[start + 1..=start + 4].try_into().unwrap());
+                    let array = self.to_array(index as usize);
+                    start += 5;
+                    Value::Array(array)
+                },
+                _ => unreachable!()
+            })
+        }
+        array
+    }
+
+    fn push_into_storage(&mut self, value: Value) -> LightValue {
+        match value {
+            Value::Boolean(boolean) => LightValue::Boolean(boolean),
+            Value::Nil => LightValue::Nil,
+            Value::Float(float) => LightValue::Float(float),
+            Value::Integer(integer) => LightValue::Integer(integer),
+            Value::String(string) => {
+                let index = self.memory.from_space.len();
+                let string_bytes = string.into_bytes();
+                self.memory.from_space.extend_from_slice(&string_bytes.len().to_le_bytes());
+                self.memory.from_space.extend_from_slice(&string_bytes);
+                LightValue::StringPointer(index as u32)
+            },
+            Value::Array(array) => {
+                let index = self.memory.from_space.len();
+                self.memory.from_space.extend_from_slice(&0u64.to_le_bytes());
+                for value in array {
+                    self.push_into_storage(value);
+                };
+                let length = self.memory.from_space.len() - index - 8;
+                self.memory.from_space[index..index + 8].copy_from_slice(&length.to_le_bytes());
+                LightValue::ArrayPointer(index as u32)
+            },
+            _ => unreachable!()
+        }
+    }
+
+    fn collect_pointer(&self, stack: &mut Vec<LightValue>) {
+        let mut pointers = Vec::new();
+        for value in stack {
+            match value {
+                LightValue::StringPointer(index) | LightValue::ArrayPointer(index) => pointers.push(*index),
+                _ => ()
+            }
+        }
     }
 }

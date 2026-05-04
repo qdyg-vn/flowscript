@@ -88,6 +88,16 @@ impl fmt::Display for Value {
             Value::Nil => write!(f, "Nil"),
             Value::Float(float) => write!(f, "{}", float),
             Value::Integer(integer) => write!(f, "{}", integer),
+            Value::Array(elements) => {
+                write!(f, "[")?;
+                for (index, element) in elements.iter().enumerate() {
+                    if index > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}", element)?;
+                }
+                write!(f, "]")
+            },
             something => write!(f, "{:?}", something)
         }
     }
