@@ -133,16 +133,33 @@ impl VirMac {
                 let start = *stack_position - count as usize;
                 let mut array = Vec::new();
                 for value in stack[start..*stack_position].iter() {
-                    array.push(match &value {
-                        LightValue::Boolean(_) => LightValue::BOOLEAN,
-                        LightValue::Nil => LightValue::NIL,
-                        LightValue::Float(_) => LightValue::FLOAT,
-                        LightValue::Integer(_) => LightValue::INTEGER,
-                        LightValue::StringPointer(_) => LightValue::STRINGPOINTER,
-                        LightValue::ArrayPointer(_) => LightValue::ARRAYPOINTER,
-                        _ => todo!()
-                    });
-                    array.extend_from_slice(&value.to_byte())
+                    match value {
+                        LightValue::Boolean(boolean) => {
+                            array.push(LightValue::BOOLEAN);
+                            array.push(*boolean as u8)
+                        },
+                        LightValue::Nil => {
+                            array.push(LightValue::NIL);
+                            array.push(0)
+                        },
+                        LightValue::Float(float) => {
+                            array.push(LightValue::FLOAT);
+                            array.extend_from_slice(&float.to_le_bytes())
+                        },
+                        LightValue::Integer(integer) => {
+                            array.push(LightValue::INTEGER);
+                            array.extend_from_slice(&integer.to_le_bytes())
+                        },
+                        LightValue::StringPointer(index) => {
+                            array.push(LightValue::STRINGPOINTER);
+                            array.extend_from_slice(&index.to_le_bytes())
+                        },
+                        LightValue::ArrayPointer(index) => {
+                            array.push(LightValue::ARRAYPOINTER);
+                            array.extend_from_slice(&index.to_le_bytes())
+                        },
+                        _ => unreachable!()
+                    }
                 }
                 let index = self.memory.permanent_space.len();
                 self.memory.permanent_space.extend_from_slice(&array.len().to_le_bytes());

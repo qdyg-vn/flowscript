@@ -24,16 +24,6 @@ impl LightValue {
     pub const STRINGPOINTER: u8 = 4;
     pub const FUNCTIONPOINTER: u8 = 5;
     pub const ARRAYPOINTER: u8 = 6;
-    pub fn to_byte(&self) -> Vec<u8> {
-        match self {
-            LightValue::Boolean(boolean) => vec![*boolean as u8],
-            LightValue::Nil => vec![0],
-            LightValue::Float(float) => float.to_le_bytes().to_vec(),
-            LightValue::Integer(integer) => integer.to_le_bytes().to_vec(),
-            LightValue::StringPointer(index) | LightValue::FunctionPointer(index) | LightValue::ArrayPointer(index) => index.to_le_bytes().to_vec(),
-            _ => unreachable!()
-        }
-    }
 }
 
 impl Eq for LightValue {}
