@@ -1,5 +1,4 @@
 use crate::value::Value;
-use std::rc::Rc;
 
 pub fn to_string(arguments: &[Value]) -> Value {
     if arguments.len() == 0 {
@@ -13,5 +12,5 @@ pub fn to_string(arguments: &[Value]) -> Value {
         Value::String(_) => return arguments[0].clone(),
         _ => todo!(),
     };
-    Value::String(Rc::from(result))
+    Value::String(result)
 }

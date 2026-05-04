@@ -1,5 +1,4 @@
 use crate::value::Value;
-use std::rc::Rc;
 
 pub fn add(arguments: &[Value]) -> Result<Value, String> {
     if arguments.len() == 0 { return Err("Addition requires at least one operand".to_string()) }
@@ -9,7 +8,7 @@ pub fn add(arguments: &[Value]) -> Result<Value, String> {
         match (&accumulator, x) {
             (Value::Integer(a), Value::Integer(b)) => Ok(Value::Integer(a + b)),
             (Value::Float(a), Value::Float(b)) => Ok(Value::Float(a + b)),
-            (Value::String(a), Value::String(b)) => Ok(Value::String(Rc::from(a.to_string() + b))),
+            (Value::String(a), Value::String(b)) => Ok(Value::String(a.to_string() + b)),
             (Value::Float(a), Value::Integer(b)) => Ok(Value::Float(a + *b as f64)),
             (Value::Integer(a), Value::Float(b)) => Ok(Value::Float(*a as f64 + b)),
             _ => Err(format!("Cannot add {:?} and {:?}", accumulator, x))
@@ -49,7 +48,7 @@ pub fn multiply(arguments: &[Value]) -> Result<Value, String> {
         match (&accumulator, x) {
             (Value::Integer(a), Value::Integer(b)) => Ok(Value::Integer(a * b)),
             (Value::Float(a), Value::Float(b)) => Ok(Value::Float(a * b)),
-            (Value::String(a), Value::Integer(b)) => Ok(Value::String(Rc::from(a.repeat(*b as usize)))),
+            (Value::String(a), Value::Integer(b)) => Ok(Value::String(a.repeat(*b as usize))),
             (Value::Float(a), Value::Integer(b)) => Ok(Value::Float(a * *b as f64)),
             (Value::Integer(a), Value::Float(b)) => Ok(Value::Float(*a as f64 * b)),
             _ => Err(format!("Cannot multiply {:?} and {:?}", accumulator, x))
