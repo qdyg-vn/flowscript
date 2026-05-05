@@ -122,7 +122,7 @@ impl Assembler {
         }
     }
 
-    fn get_byte_distance(&self, instructions: &Vec<Instruction>, mut position: usize, target: u16) -> usize {
+    fn get_byte_distance(&self, instructions: &[Instruction], mut position: usize, target: u16) -> usize {
         let mut distance = 0;
         while position < target as usize {
             match instructions[position] {

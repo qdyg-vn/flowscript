@@ -15,7 +15,7 @@ impl ConstantsPool {
             return index
         }
         let index = self.constants.len();
-        self.constants.push(constant.clone());
+        self.constants.push(constant);
         self.lookup.insert(constant, index);
         index
     }

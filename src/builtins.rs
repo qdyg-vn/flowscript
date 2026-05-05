@@ -7,14 +7,14 @@ mod introspection;
 use crate::value::Value;
 use casting::to_string;
 use io::print;
-use math::{add, minus};
+use math::{add, minus, multiply};
 use compare::{equal, less, greater, not_equal};
 use introspection::length;
 use crate::error_handler::Error;
 
 #[derive(Copy, Clone, Debug)]
 pub enum BuiltinFunction {
-    Math(fn(&[Value]) -> Result<Value, String>),
+    Math(fn(&[Value]) -> Result<Value, Error>),
     IO(fn(&[Value])),
     Casting(fn(&[Value]) -> Value),
     Compare(fn(&[Value]) -> Value),
@@ -30,6 +30,7 @@ pub struct Builtin {
 pub const BUILTIN_TABLE: &[Builtin] = &[
     Builtin { name: "+", function: BuiltinFunction::Math(add) },
     Builtin { name: "-", function: BuiltinFunction::Math(minus) },
+    Builtin { name: "*", function: BuiltinFunction::Math(multiply) },
     Builtin { name: "print", function: BuiltinFunction::IO(print) },
     Builtin { name: "string", function: BuiltinFunction::Casting(to_string) },
     Builtin { name: "==", function: BuiltinFunction::Compare(equal) },

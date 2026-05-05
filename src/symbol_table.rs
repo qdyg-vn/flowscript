@@ -47,7 +47,7 @@ impl SymbolTable {
     pub fn resolve(&self, name: &str) -> Result<SymbolType, SemanticError> {
         for scope in self.scopes.iter().rev() {
             if let Some(symbol) = scope.get(name) {
-                return Ok(symbol.clone())
+                return Ok(*symbol)
             }
         }
         if let Some(&index) = self.builtins.get(name) {

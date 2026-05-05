@@ -58,7 +58,7 @@ impl fmt::Display for LexicalError {
             LexicalErrorType::MultipleUnderscores(_) => 4,
             LexicalErrorType::FloatRelativeReferences(_) => 5,
         };
-        write!(formatter, "\x1b[31;1m[Error FSCC1{:0>3}]\x1b[0m {}\n", code, self.kind)?;
+        writeln!(formatter, "\x1b[31;1m[Error FSCC1{:0>3}]\x1b[0m {}", code, self.kind)?;
         write!(formatter, "\x1b[38;2;143;255;46m  --> Line: {} Column: {}\n\x1b[0m", self.line, self.column)
     }
 }
@@ -110,7 +110,7 @@ impl fmt::Display for SyntaxError {
             SyntaxErrorType::NoStationBeforePipeline => 6,
             SyntaxErrorType::NoStationAfterPipeline => 7,
         };
-        write!(formatter, "\x1b[31;1m[Error FSCC3{:0>3}]\x1b[0m {}\n", code, self.kind)?;
+        writeln!(formatter, "\x1b[31;1m[Error FSCC3{:0>3}]\x1b[0m {}", code, self.kind)?;
         write!(formatter, "\x1b[38;2;143;255;46m  --> Line: {} Column: {}\n\x1b[0m", self.line, self.column)
     }
 }
@@ -148,7 +148,7 @@ impl fmt::Display for SemanticError {
         let code = match &self.kind {
             SemanticErrorType::UndefinedIdentifier(_) => 1,
         };
-        write!(formatter, "\x1b[31;1m[Error FSCC5{:0>3}]\x1b[0m {}\n", code, self.kind)
+        writeln!(formatter, "\x1b[31;1m[Error FSCC5{:0>3}]\x1b[0m {}", code, self.kind)
     }
 }
 
@@ -173,14 +173,16 @@ impl fmt::Display for RuntimeError {
         let code = match &self.kind {
             RuntimeErrorType::MissingStation(_) => 1,
             RuntimeErrorType::OutOfBounds(_, _) => 2,
+            RuntimeErrorType::InsufficientOperands(_) => 3,
         };
-        write!(formatter, "\x1b[31;1m[Error FSCC7{:0>3}]\x1b[0m {}\n", code, self.kind)
+        writeln!(formatter, "\x1b[31;1m[Error FSCC7{:0>3}]\x1b[0m {}", code, self.kind)
     }
 }
 
 pub enum RuntimeErrorType {
     MissingStation(u16),
     OutOfBounds(usize, usize),
+    InsufficientOperands(String),
 }
 
 impl fmt::Display for RuntimeErrorType {
@@ -188,6 +190,7 @@ impl fmt::Display for RuntimeErrorType {
         match self {
             RuntimeErrorType::MissingStation(x) => write!(formatter, "There is no station at position {}", x),
             RuntimeErrorType::OutOfBounds(start, end) => write!(formatter, "Stack out of bounds: start {} end {}", start, end),
+            RuntimeErrorType::InsufficientOperands(function) => write!(formatter, "{} requires at least one operand", function),
         }
     }
 }
@@ -200,19 +203,27 @@ impl fmt::Display for TypeError {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         let code = match &self.kind {
             TypeErrorType::NotSequence(_) => 1,
+            TypeErrorType::TypeMismatch(_, _, _) => 2,
+            TypeErrorType::InvalidOperand(_) => 3,
+            TypeErrorType::InvalidUnaryOperand(_) => 4,
         };
-        write!(formatter, "\x1b[31;1m[Error FSCC8{:0>3}]\x1b[0m {}\n", code, self.kind)
+        writeln!(formatter, "\x1b[31;1m[Error FSCC8{:0>3}]\x1b[0m {}", code, self.kind)
     }
 }
 
 pub enum TypeErrorType {
     NotSequence(Value),
+    TypeMismatch(String, Value, Value),
+    InvalidOperand(String),
+    InvalidUnaryOperand(String)
 }
 
 impl fmt::Display for TypeErrorType {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match self {
             TypeErrorType::NotSequence(station) => write!(formatter, "{} is not a sequence", station),
+            TypeErrorType::TypeMismatch(function, accumulator, x) => write!(formatter, "Cannot {} {} and {}", function, accumulator, x),
+            TypeErrorType::InvalidOperand(message) | TypeErrorType::InvalidUnaryOperand(message) => write!(formatter, "{}", message),
         }
     }
 }

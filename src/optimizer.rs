@@ -19,7 +19,7 @@ where
 
     pub fn optimize(mut self) -> (Vec<Node>, ErrorHandler) {
         let mut ast = Vec::new();
-        while let Some(item) = self.parser.next() {
+        for item in self.parser.by_ref() {
             match item {
                 Ok(node) => ast.push(node),
                 Err(error) => self.error_handler.errors.push(error)

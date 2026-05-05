@@ -1,9 +1,13 @@
 use crate::value::Value;
+use crate::error_handler::{Error, RuntimeError, RuntimeErrorType, TypeError, TypeErrorType};
 
-pub fn add(arguments: &[Value]) -> Result<Value, String> {
-    if arguments.len() == 0 { return Err("Addition requires at least one operand".to_string()) }
+pub fn add(arguments: &[Value]) -> Result<Value, Error> {
+    if arguments.is_empty() { return Err(Error::RuntimeError(RuntimeError { kind: RuntimeErrorType::InsufficientOperands("Addition".to_string()) })) }
     let (first, rest) = arguments.split_first().unwrap();
-    if rest.is_empty() { return Ok(first.to_owned()) };
+    if rest.is_empty() { return match first {
+        Value::Integer(_) | Value::Float(_) => Ok(first.to_owned()),
+        _ => Err(Error::TypeError(TypeError { kind: TypeErrorType::InvalidUnaryOperand("Unary add only supports numeric types".to_string()) }))
+    } };
     rest.iter().try_fold(first.clone(), |accumulator, x| {
         match (&accumulator, x) {
             (Value::Integer(a), Value::Integer(b)) => Ok(Value::Integer(a + b)),
@@ -11,19 +15,19 @@ pub fn add(arguments: &[Value]) -> Result<Value, String> {
             (Value::String(a), Value::String(b)) => Ok(Value::String(a.to_string() + b)),
             (Value::Float(a), Value::Integer(b)) => Ok(Value::Float(a + *b as f64)),
             (Value::Integer(a), Value::Float(b)) => Ok(Value::Float(*a as f64 + b)),
-            _ => Err(format!("Cannot add {:?} and {:?}", accumulator, x))
+            _ => Err(Error::TypeError(TypeError { kind: TypeErrorType::TypeMismatch("add".to_string(), accumulator, x.to_owned()) }))
         }
     })
 }
 
-pub fn minus(arguments: &[Value]) -> Result<Value, String> {
-    if arguments.len() == 0 { return Err("Minus requires at least one operand".into()) }
+pub fn minus(arguments: &[Value]) -> Result<Value, Error> {
+    if arguments.is_empty() { return Err(Error::RuntimeError(RuntimeError { kind: RuntimeErrorType::InsufficientOperands("Minus".to_string()) })) }
     let (first, rest) = arguments.split_first().unwrap();
     if rest.is_empty() {
         return match first {
             Value::Integer(a) => Ok(Value::Integer(-a)),
             Value::Float(a) => Ok(Value::Float(-a)),
-            _ => Err("Unary minus only supports numeric types".into())
+            _ => Err(Error::TypeError(TypeError { kind: TypeErrorType::InvalidUnaryOperand("Unary minus only supports numeric types".to_string()) }))
         }
     };
     rest.iter().try_fold(first.clone(), |accumulator, x| {
@@ -32,17 +36,17 @@ pub fn minus(arguments: &[Value]) -> Result<Value, String> {
             (Value::Float(a), Value::Float(b)) => Ok(Value::Float(a - b)),
             (Value::Float(a), Value::Integer(b)) => Ok(Value::Float(a - *b as f64)),
             (Value::Integer(a), Value::Float(b)) => Ok(Value::Float(*a as f64 - b)),
-            (Value::String(a), Value::String(b)) => Ok(Value::String(a.replacen(&**b, "", 1).into())),
-            _ => Err(format!("Cannot subtract {:?} and {:?}", accumulator, x))
+            (Value::String(a), Value::String(b)) => Ok(Value::String(a.replacen(&**b, "", 1))),
+            _ => Err(Error::TypeError(TypeError { kind: TypeErrorType::TypeMismatch("subtract".to_string(), accumulator, x.to_owned()) }))
         }
     })
 }
 
-pub fn multiply(arguments: &[Value]) -> Result<Value, String> {
-    if arguments.len() == 0 { return Err("multiply requires at least one operand".into()) }
+pub fn multiply(arguments: &[Value]) -> Result<Value, Error> {
+    if arguments.is_empty() { return Err(Error::RuntimeError(RuntimeError { kind: RuntimeErrorType::InsufficientOperands("Multiply".to_string()) })) }
     let (first, rest) = arguments.split_first().unwrap();
     if rest.is_empty() {
-        return Err("Multiply is a binary operator, not a unary operator".to_string())
+        return Err(Error::TypeError(TypeError { kind: TypeErrorType::InvalidOperand("Multiplication is a binary operator".to_string()) }))
     };
     rest.iter().try_fold(first.clone(), |accumulator, x| {
         match (&accumulator, x) {
@@ -51,7 +55,7 @@ pub fn multiply(arguments: &[Value]) -> Result<Value, String> {
             (Value::String(a), Value::Integer(b)) => Ok(Value::String(a.repeat(*b as usize))),
             (Value::Float(a), Value::Integer(b)) => Ok(Value::Float(a * *b as f64)),
             (Value::Integer(a), Value::Float(b)) => Ok(Value::Float(*a as f64 * b)),
-            _ => Err(format!("Cannot multiply {:?} and {:?}", accumulator, x))
+            _ => Err(Error::TypeError(TypeError { kind: TypeErrorType::TypeMismatch("multiply".to_string(), accumulator, x.to_owned()) }))
         }
     })
 }
