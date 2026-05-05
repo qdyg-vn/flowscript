@@ -7,6 +7,8 @@ use flowscript::optimizer::Optimizer;
 use flowscript::symbol_table::SymbolTable;
 use flowscript::constants_pool::ConstantsPool;
 use flowscript::emitter::Emitter;
+use flowscript::memory::Memory;
+use flowscript::assembler::Assembler;
 use flowscript::virmac::VirMac;
 
 fn main() {
@@ -37,6 +39,7 @@ fn read_file(path: String) {
 
 fn run(source_code: Vec<u8>) {
     let mut error_handler = ErrorHandler::default();
+    let memory = Memory::default();
     let lexer = Lexer::new(&source_code);
     let mut parser = Parser::new(lexer);
     let mut optimizer = Optimizer::new(parser, error_handler);
@@ -45,6 +48,8 @@ fn run(source_code: Vec<u8>) {
     let constants_pool = ConstantsPool::default();
     let mut emitter = Emitter::new(error_handler, symbol_table, constants_pool);
     let (error_handler, constants_pool, map, total_arity) = emitter.emit(ast);
-    let mut virmac = VirMac::new(constants_pool.constants, error_handler);
-    virmac.execute(map, total_arity);
+    let mut asm = Assembler::new(memory, constants_pool);
+    let (byte_map, starts, constants, memory) = asm.assemble_map(map);
+    let mut virmac = VirMac::new(memory, error_handler, constants, starts);
+    virmac.execute(byte_map, total_arity);
 }
