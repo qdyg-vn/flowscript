@@ -39,7 +39,7 @@ fn read_file(path: String) {
 
 fn run(source_code: Vec<u8>) {
     let mut error_handler = ErrorHandler::default();
-    let memory = Memory::default();
+    let memory = Memory::new();
     let lexer = Lexer::new(&source_code);
     let mut parser = Parser::new(lexer);
     let mut optimizer = Optimizer::new(parser, error_handler);

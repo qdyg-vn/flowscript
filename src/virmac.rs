@@ -204,7 +204,7 @@ impl VirMac {
             BuiltinFunction::Math(function) | BuiltinFunction::Introspection(function) => {
                 match function(&arguments) {
                     Ok(value) => {
-                        let light_value = self.push_into_storage(value);
+                        let light_value = self.push_into_storage(value, stack);
                         self.stations_output.push(light_value);
                         stack[start] = light_value;
                         *stack_position = start + 1;
@@ -214,7 +214,7 @@ impl VirMac {
             },
             BuiltinFunction::IO(function) => function(&arguments),
             BuiltinFunction::Casting(function) | BuiltinFunction::Compare(function) => {
-                let value = self.push_into_storage(function(&arguments));
+                let value = self.push_into_storage(function(&arguments), stack);
                 self.stations_output.push(value);
                 stack[start] = value;
                 *stack_position = start + 1;
@@ -330,7 +330,7 @@ impl VirMac {
         array
     }
 
-    fn push_into_storage(&mut self, value: Value) -> LightValue {
+    fn push_into_storage(&mut self, value: Value, stack: &mut [LightValue]) -> LightValue {
         match value {
             Value::Boolean(boolean) => LightValue::Boolean(boolean),
             Value::Nil => LightValue::Nil,
@@ -339,31 +339,21 @@ impl VirMac {
             Value::String(string) => {
                 let index = self.memory.from_space.len();
                 let string_bytes = string.into_bytes();
-                self.memory.from_space.extend_from_slice(&string_bytes.len().to_le_bytes());
-                self.memory.from_space.extend_from_slice(&string_bytes);
+                self.memory.push_to_heap(&string_bytes.len().to_le_bytes(), stack);
+                self.memory.push_to_heap(&string_bytes, stack);
                 LightValue::StringHeapPointer(index as u32)
             },
             Value::Array(array) => {
                 let index = self.memory.from_space.len();
-                self.memory.from_space.extend_from_slice(&0u64.to_le_bytes());
+                self.memory.push_to_heap(&0u64.to_le_bytes(), stack);
                 for value in array {
-                    self.push_into_storage(value);
+                    self.push_into_storage(value, stack);
                 };
                 let length = self.memory.from_space.len() - index - 8;
                 self.memory.from_space[index..index + 8].copy_from_slice(&length.to_le_bytes());
                 LightValue::ArrayHeapPointer(index as u32)
             },
             _ => unreachable!()
-        }
-    }
-
-    fn collect_pointer(&self, stack: &mut Vec<LightValue>) {
-        let mut pointers = Vec::new();
-        for value in stack {
-            match value {
-                LightValue::StringHeapPointer(index) | LightValue::ArrayHeapPointer(index) => pointers.push(*index),
-                _ => ()
-            }
         }
     }
 }
