@@ -36,6 +36,7 @@ impl VirMac {
                 self.dispatch_instruction(&mut chunk, &mut instruction_position, &mut stack, &mut stack_position, 0);
             }
         }
+        println!("{:?}", self.memory.from_space);
         stack
     }
 
@@ -189,7 +190,12 @@ impl VirMac {
                     let string = self.to_string(*index as usize);
                     Value::String(string)
                 },
+                LightValue::StringHeapPointer(index) => {
+                    let string = self.to_heap_string(*index as usize);
+                    Value::String(string)
+                },
                 LightValue::ArrayPointer(index) => Value::Array(self.to_array(*index as usize)),
+                LightValue::ArrayHeapPointer(index) => Value::Array(self.to_heap_array(*index as usize)),
                 LightValue::FunctionPointer(_) | LightValue::ClosurePointer(_) => unreachable!(),
             })
         }
@@ -216,19 +222,27 @@ impl VirMac {
         }
     }
 
-    fn to_function(&self, start: usize) -> (Vec<u8>, u16, usize) {
+    fn to_function(&self, index_of_start: usize) -> (Vec<u8>, u16, usize) {
+        let start = self.starts[index_of_start];
         let length = u64::from_le_bytes(self.memory.permanent_space[start..start + 8].try_into().unwrap());
         let arity = u16::from_le_bytes([self.memory.permanent_space[start + 8], self.memory.permanent_space[start + 9]]);
-        let function = self.memory.permanent_space[start + 10..start + length as usize].to_vec();
+        let function = self.memory.permanent_space[start + 10..start + 10 + length as usize].to_vec();
         (function, arity, length as usize)
     }
 
-    fn to_string(&self, start: usize) -> String {
+    fn to_string(&self, index_of_start: usize) -> String {
+        let start = self.starts[index_of_start];
         let length = u64::from_le_bytes(self.memory.permanent_space[start..start + 8].try_into().unwrap());
-        String::from_utf8(self.memory.permanent_space[start + 8..start + length as usize].to_vec()).unwrap()
+        String::from_utf8(self.memory.permanent_space[start + 8..start + 8 + length as usize].to_vec()).unwrap()
     }
 
-    fn to_array(&self, mut start: usize) -> Vec<Value> {
+    fn to_heap_string(&self, start: usize) -> String {
+        let length = u64::from_le_bytes(self.memory.from_space[start..start + 8].try_into().unwrap());
+        String::from_utf8(self.memory.from_space[start + 8..start + 8 + length as usize].to_vec()).unwrap()
+    }
+
+    fn to_array(&self, index_of_start: usize) -> Vec<Value> {
+        let mut start = self.starts[index_of_start];
         let length = u64::from_le_bytes(self.memory.permanent_space[start..start + 8].try_into().unwrap());
         let end = start + length as usize;
         start += 8;
@@ -272,6 +286,50 @@ impl VirMac {
         array
     }
 
+    fn to_heap_array(&self, mut start: usize) -> Vec<Value> {
+        let length = u64::from_le_bytes(self.memory.from_space[start..start + 8].try_into().unwrap());
+        let end = start + length as usize;
+        start += 8;
+        let mut array = Vec::new();
+        while start < end {
+            array.push(match self.memory.from_space[start] {
+                LightValue::BOOLEAN => {
+                    let boolean = Value::Boolean(self.memory.from_space[start + 1] != 0);
+                    start += 2;
+                    boolean
+                },
+                LightValue::NIL => {
+                    start += 1;
+                    Value::Nil
+                },
+                LightValue::FLOAT => {
+                    let float = Value::Float(f64::from_le_bytes(self.memory.from_space[start + 1..=start + 8].try_into().unwrap()));
+                    start += 9;
+                    float
+                },
+                LightValue::INTEGER => {
+                    let integer = Value::Integer(i64::from_le_bytes(self.memory.from_space[start + 1..=start + 8].try_into().unwrap()));
+                    start += 9;
+                    integer
+                },
+                LightValue::STRINGPOINTER => {
+                    let index = u32::from_le_bytes(self.memory.from_space[start + 1..=start + 4].try_into().unwrap());
+                    let string = self.to_string(index as usize);
+                    start += 5;
+                    Value::String(string)
+                },
+                LightValue::ARRAYPOINTER => {
+                    let index = u32::from_le_bytes(self.memory.from_space[start + 1..=start + 4].try_into().unwrap());
+                    let array = self.to_array(index as usize);
+                    start += 5;
+                    Value::Array(array)
+                },
+                _ => unreachable!()
+            })
+        }
+        array
+    }
+
     fn push_into_storage(&mut self, value: Value) -> LightValue {
         match value {
             Value::Boolean(boolean) => LightValue::Boolean(boolean),
@@ -283,7 +341,7 @@ impl VirMac {
                 let string_bytes = string.into_bytes();
                 self.memory.from_space.extend_from_slice(&string_bytes.len().to_le_bytes());
                 self.memory.from_space.extend_from_slice(&string_bytes);
-                LightValue::StringPointer(index as u32)
+                LightValue::StringHeapPointer(index as u32)
             },
             Value::Array(array) => {
                 let index = self.memory.from_space.len();
@@ -293,7 +351,7 @@ impl VirMac {
                 };
                 let length = self.memory.from_space.len() - index - 8;
                 self.memory.from_space[index..index + 8].copy_from_slice(&length.to_le_bytes());
-                LightValue::ArrayPointer(index as u32)
+                LightValue::ArrayHeapPointer(index as u32)
             },
             _ => unreachable!()
         }
@@ -303,7 +361,7 @@ impl VirMac {
         let mut pointers = Vec::new();
         for value in stack {
             match value {
-                LightValue::StringPointer(index) | LightValue::ArrayPointer(index) => pointers.push(*index),
+                LightValue::StringHeapPointer(index) | LightValue::ArrayHeapPointer(index) => pointers.push(*index),
                 _ => ()
             }
         }

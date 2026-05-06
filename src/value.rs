@@ -14,6 +14,8 @@ pub enum LightValue {
     FunctionPointer(u32),
     ClosurePointer(u32),
     ArrayPointer(u32),
+    StringHeapPointer(u32),
+    ArrayHeapPointer(u32),
 }
 
 impl LightValue {
