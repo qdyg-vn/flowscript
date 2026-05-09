@@ -36,7 +36,6 @@ impl VirMac {
                 self.dispatch_instruction(&mut chunk, &mut instruction_position, &mut stack, &mut stack_position, 0);
             }
         }
-        println!("{:?}", self.memory.from_space);
         stack
     }
 
@@ -101,8 +100,8 @@ impl VirMac {
                         break
                     }
                     self.dispatch_instruction(&mut function, &mut function_instruction_position, stack, &mut child_stack_position, child_base_pointer);
-                    function_instruction_position += 1;
                 };
+                *instruction_position += 5
             },
             Bytecode::RELATIVEREFERENCE => {
                 let x = u16::from_le_bytes([chunk[*instruction_position + 1], chunk[*instruction_position + 2]]);
@@ -241,8 +240,7 @@ impl VirMac {
         String::from_utf8(self.memory.from_space[start + 8..start + 8 + length as usize].to_vec()).unwrap()
     }
 
-    fn to_array(&self, index_of_start: usize) -> Vec<Value> {
-        let mut start = self.starts[index_of_start];
+    fn to_array(&self, mut start: usize) -> Vec<Value> {
         let length = u64::from_le_bytes(self.memory.permanent_space[start..start + 8].try_into().unwrap());
         let end = start + length as usize;
         start += 8;

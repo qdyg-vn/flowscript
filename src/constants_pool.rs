@@ -21,23 +21,24 @@ impl ConstantsPool {
     }
 
     pub fn add_heavy_constant(&mut self, constant: HeavyValue) -> usize {
-        if matches!(constant, HeavyValue::Function(_) | HeavyValue::Closure(_)) {
+        let heavy_index = if matches!(constant, HeavyValue::Function(_) | HeavyValue::Closure(_)) {
             let heavy_index = self.heavy_constants.len();
-            self.heavy_constants.push(constant);
-            return heavy_index
-        };
-        let heavy_index = match self.heavy_lookup.get(&constant) {
-            Some(&heavy_index) => heavy_index,
-            None => {
-                let heavy_index = self.heavy_constants.len();
-                self.heavy_constants.push(constant.clone());
-                self.heavy_lookup.insert(constant.clone(), heavy_index);
-                heavy_index
+            self.heavy_constants.push(constant.clone());
+            heavy_index
+        } else {
+            match self.heavy_lookup.get(&constant) {
+                Some(&heavy_index) => heavy_index,
+                None => {
+                    let heavy_index = self.heavy_constants.len();
+                    self.heavy_constants.push(constant.clone());
+                    self.heavy_lookup.insert(constant.clone(), heavy_index);
+                    heavy_index
+                }
             }
         };
         let index = self.add_constant(match constant {
             HeavyValue::String(_) => LightValue::StringPointer(heavy_index as u32),
-            HeavyValue::Array(_) => LightValue::ArrayPointer(heavy_index as u32),
+            HeavyValue::Function(_) => LightValue::FunctionPointer(heavy_index as u32),
             _ => unreachable!()
         });
         index

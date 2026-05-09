@@ -38,6 +38,7 @@ impl Hash for LightValue {
             LightValue::Float(float) => float.to_bits().hash(state),
             LightValue::StringPointer(string) => string.hash(state),
             LightValue::Nil => 0.hash(state),
+            LightValue::FunctionPointer(function) => function.hash(state),
             _ => unreachable!(),
         }
     }
