@@ -147,6 +147,7 @@ impl fmt::Display for SemanticError {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         let code = match &self.kind {
             SemanticErrorType::UndefinedIdentifier(_) => 1,
+            SemanticErrorType::DuplicateParameter(_) => 2,
         };
         writeln!(formatter, "\x1b[31;1m[Error FSCC5{:0>3}]\x1b[0m {}", code, self.kind)
     }
@@ -154,12 +155,14 @@ impl fmt::Display for SemanticError {
 
 pub enum SemanticErrorType {
     UndefinedIdentifier(String),
+    DuplicateParameter(String),
 }
 
 impl fmt::Display for SemanticErrorType {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match self {
             SemanticErrorType::UndefinedIdentifier(name) => write!(formatter, "Cannot find {} in symbol table", name),
+            SemanticErrorType::DuplicateParameter(name) => write!(formatter, "Identifier '{}' is bound more than once", name)
         }
     }
 }

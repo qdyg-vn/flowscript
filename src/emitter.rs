@@ -1,5 +1,5 @@
 use crate::constants_pool::ConstantsPool;
-use crate::error_handler::{Error, ErrorHandler};
+use crate::error_handler::{Error, ErrorHandler, SemanticError, SemanticErrorType};
 use crate::instructions::{Chunk, Instruction};
 use crate::node::Node;
 use crate::symbol_table::{SymbolTable, SymbolType};
@@ -31,6 +31,7 @@ impl Emitter {
                 map.push(chunk)
             }
         }
+        if !self.error_handler.errors.is_empty() { self.error_handler.report_exit() }
         (self.error_handler, self.constants_pool, map, total_arity as usize)
     }
 
@@ -88,7 +89,14 @@ impl Emitter {
                     };
                     self.symbol_table.new_scope();
                     let mut child_chunk = Chunk { instructions: Vec::new(), arity: 0 };
-                    self.create_chunk(arguments, &mut child_chunk);
+                    for argument in arguments {
+                        let Node::Assignment(name) = argument else { unreachable!() };
+                        match self.symbol_table.add_variable(name.clone()) {
+                            Ok(_) => child_chunk.arity += 1,
+                            Err(SymbolType::Scope(_, _)) => self.error_handler.errors.push(Error::SemanticError(SemanticError {kind: SemanticErrorType::DuplicateParameter(name)})),
+                            _ => unreachable!()
+                        }
+                    }
                     self.create_chunk(body, &mut child_chunk);
                     self.symbol_table.scopes.pop();
                     let body_index = self.constants_pool.add_heavy_constant(HeavyValue::Function(child_chunk));
