@@ -21,7 +21,7 @@ pub enum TokenType {
     Nil,
     Identifier(String),
     Macro(String),
-    Int(i64),
+    Integer(i64),
     LeftParen,
     Minus,
     Mul,
@@ -39,4 +39,6 @@ pub enum TokenType {
     Return,
     LeftBracket,
     RightBracket,
+    Colon,
+    Kind(String),
 }

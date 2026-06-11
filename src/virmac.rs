@@ -1,7 +1,7 @@
 use crate::builtins::{get_builtin, BuiltinFunction};
 use crate::instructions::Bytecode;
-use crate::value::{LightValue, Value};
-use crate::error_handler::{ErrorHandler, Error, RuntimeError, RuntimeErrorType};
+use crate::value::{Kind, LightValue, Value};
+use crate::error_handler::{ErrorHandler, Error, RuntimeError, RuntimeErrorType, TypeError, TypeErrorType};
 use crate::memory::Memory;
 
 pub struct VirMac {
@@ -72,6 +72,18 @@ impl VirMac {
                 let index = u16::from_le_bytes([chunk[*instruction_position + 1], chunk[*instruction_position + 2]]);
                 stack.swap(base_pointer + index as usize, *stack_position - 1);
                 *instruction_position += 3
+            },
+            Bytecode::HARDSTORE => {
+                let index = u16::from_le_bytes([chunk[*instruction_position + 1], chunk[*instruction_position + 2]]);
+                let kind = chunk[*instruction_position + 3];
+                let value = stack[*stack_position -1];
+                let received_kind = self.get_type(value);
+                let required_kind = self.to_type(kind);
+                if received_kind != required_kind {
+                    self.error_handler.fatal(Error::TypeError(TypeError {kind: TypeErrorType::AssignTypeMismatch(received_kind, required_kind)}))
+                }
+                stack.swap(base_pointer + index as usize, *stack_position - 1);
+                *instruction_position += 4
             },
             Bytecode::BUILTINCALL => {
                 let index = u16::from_le_bytes([chunk[*instruction_position + 1], chunk[*instruction_position + 2]]);
@@ -328,6 +340,17 @@ impl VirMac {
         array
     }
 
+    fn to_type(&self, kind: u8) -> Kind {
+        match kind {
+            Kind::BOOLEAN => Kind::Boolean,
+            Kind::FLOAT => Kind::Float,
+            Kind::INTEGER => Kind::Integer,
+            Kind::STRING => Kind::String,
+            Kind::ARRAY => Kind::Array,
+            _ => unreachable!()
+        }
+    }
+
     fn push_into_storage(&mut self, value: Value, stack: &mut [LightValue]) -> LightValue {
         match value {
             Value::Boolean(boolean) => LightValue::Boolean(boolean),
@@ -352,6 +375,17 @@ impl VirMac {
                 LightValue::ArrayHeapPointer(index as u32)
             },
             _ => unreachable!()
+        }
+    }
+
+    fn get_type(&self, value: LightValue) -> Kind {
+        match value {
+            LightValue::Boolean(_) => Kind::Boolean,
+            LightValue::Integer(_) => Kind::Integer,
+            LightValue::Float(_) => Kind::Float,
+            LightValue::StringPointer(_) => Kind::String,
+            LightValue::ArrayPointer(_) => Kind::Array,
+            _ => todo!()
         }
     }
 }

@@ -15,7 +15,7 @@ pub fn add(arguments: &[Value]) -> Result<Value, Error> {
             (Value::String(a), Value::String(b)) => Ok(Value::String(a.to_string() + b)),
             (Value::Float(a), Value::Integer(b)) => Ok(Value::Float(a + *b as f64)),
             (Value::Integer(a), Value::Float(b)) => Ok(Value::Float(*a as f64 + b)),
-            _ => Err(Error::TypeError(TypeError { kind: TypeErrorType::TypeMismatch("add".to_string(), accumulator, x.to_owned()) }))
+            _ => Err(Error::TypeError(TypeError { kind: TypeErrorType::TypeMismatch(accumulator, x.to_owned()) }))
         }
     })
 }
@@ -37,7 +37,7 @@ pub fn minus(arguments: &[Value]) -> Result<Value, Error> {
             (Value::Float(a), Value::Integer(b)) => Ok(Value::Float(a - *b as f64)),
             (Value::Integer(a), Value::Float(b)) => Ok(Value::Float(*a as f64 - b)),
             (Value::String(a), Value::String(b)) => Ok(Value::String(a.replacen(&**b, "", 1))),
-            _ => Err(Error::TypeError(TypeError { kind: TypeErrorType::TypeMismatch("subtract".to_string(), accumulator, x.to_owned()) }))
+            _ => Err(Error::TypeError(TypeError { kind: TypeErrorType::TypeMismatch(accumulator, x.to_owned()) }))
         }
     })
 }
@@ -55,7 +55,7 @@ pub fn multiply(arguments: &[Value]) -> Result<Value, Error> {
             (Value::String(a), Value::Integer(b)) => Ok(Value::String(a.repeat(*b as usize))),
             (Value::Float(a), Value::Integer(b)) => Ok(Value::Float(a * *b as f64)),
             (Value::Integer(a), Value::Float(b)) => Ok(Value::Float(*a as f64 * b)),
-            _ => Err(Error::TypeError(TypeError { kind: TypeErrorType::TypeMismatch("multiply".to_string(), accumulator, x.to_owned()) }))
+            _ => Err(Error::TypeError(TypeError { kind: TypeErrorType::TypeMismatch(accumulator, x.to_owned()) }))
         }
     })
 }

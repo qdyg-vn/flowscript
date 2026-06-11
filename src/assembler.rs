@@ -85,6 +85,12 @@ impl Assembler {
                     byte_chunk.extend_from_slice(&index.to_le_bytes());
                     *byte_position += 3
                 },
+                Instruction::HardStore(index, kind) => {
+                    byte_chunk.push(Bytecode::HardStore as u8);
+                    byte_chunk.extend_from_slice(&index.to_le_bytes());
+                    byte_chunk.push(kind);
+                    *byte_position += 4
+                },
                 Instruction::LoadVariable(index) => {
                     byte_chunk.push(Bytecode::LoadVariable as u8);
                     byte_chunk.extend_from_slice(&index.to_le_bytes());

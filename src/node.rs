@@ -1,4 +1,4 @@
-use crate::value::{LightValue, HeavyValue};
+use crate::value::{Kind, LightValue, HeavyValue};
 
 #[derive(Debug)]
 pub enum Node {
@@ -13,6 +13,7 @@ pub enum Node {
     RelativeReference(u16, u16),
     Variable(String),
     Assignment(String),
+    HardAssignment(String, Kind),
     DefineFunction {
         operator: String,
         arguments: Vec<Node>,

@@ -4,6 +4,36 @@ use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 use crate::instructions::Chunk;
 
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Kind {
+    Boolean,
+    Float,
+    Integer,
+    String,
+    Array,
+}
+
+impl Kind {
+    pub const BOOLEAN: u8 = Kind::Boolean as u8;
+    pub const FLOAT: u8 = Kind::Float as u8;
+    pub const INTEGER: u8 = Kind::Integer as u8;
+    pub const STRING: u8 = Kind::String as u8;
+    pub const ARRAY: u8 = Kind::Array as u8;
+}
+
+impl fmt::Display for Kind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Kind::Boolean => write!(f, "boolean"),
+            Kind::Float => write!(f, "float"),
+            Kind::Integer => write!(f, "integer"),
+            Kind::String => write!(f, "string"),
+            Kind::Array => write!(f, "array"),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum LightValue {
     Boolean(bool),
@@ -66,12 +96,17 @@ impl Hash for HeavyValue {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
     Boolean(bool),
+    StaticBoolean(bool),
     Nil,
     Float(f64),
+    StaticFloat(f64),
     Integer(i64),
+    StaticInteger(i64),
     String(String),
+    StaticString(String),
     Function(Vec<u8>),
     Array(Vec<Value>),
+    StaticArray(Vec<Value>),
 }
 
 impl fmt::Display for Value {

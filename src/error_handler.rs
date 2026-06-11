@@ -1,6 +1,6 @@
 use std::{fmt, process::exit};
 use crate::token::Token;
-use crate::value::Value;
+use crate::value::{Kind, Value};
 
 #[derive(Default)]
 pub struct ErrorHandler {
@@ -109,6 +109,7 @@ impl fmt::Display for SyntaxError {
             SyntaxErrorType::MissingLeftBrace => 5,
             SyntaxErrorType::NoStationBeforePipeline => 6,
             SyntaxErrorType::NoStationAfterPipeline => 7,
+            SyntaxErrorType::MissingTypeIdentity => 8,
         };
         writeln!(formatter, "\x1b[31;1m[Error FSCC3{:0>3}]\x1b[0m {}", code, self.kind)?;
         write!(formatter, "\x1b[38;2;143;255;46m  --> Line: {} Column: {}\n\x1b[0m", self.line, self.column)
@@ -123,6 +124,7 @@ pub enum SyntaxErrorType {
     MissingLeftBrace,
     NoStationBeforePipeline,
     NoStationAfterPipeline,
+    MissingTypeIdentity,
 }
 
 impl fmt::Display for SyntaxErrorType {
@@ -135,6 +137,7 @@ impl fmt::Display for SyntaxErrorType {
             SyntaxErrorType::MissingLeftBrace => write!(formatter, "Behind operator need a left brace!"),
             SyntaxErrorType::NoStationBeforePipeline => write!(formatter, "There is no station before pipeline!"),
             SyntaxErrorType::NoStationAfterPipeline => write!(formatter, "There is no station after pipeline!"),
+            SyntaxErrorType::MissingTypeIdentity => write!(formatter, "Missing type in declaration"),
         }
     }
 }
@@ -206,9 +209,10 @@ impl fmt::Display for TypeError {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         let code = match &self.kind {
             TypeErrorType::NotSequence(_) => 1,
-            TypeErrorType::TypeMismatch(_, _, _) => 2,
+            TypeErrorType::TypeMismatch(_, _) => 2,
             TypeErrorType::InvalidOperand(_) => 3,
             TypeErrorType::InvalidUnaryOperand(_) => 4,
+            TypeErrorType::AssignTypeMismatch(_, _) => 5,
         };
         writeln!(formatter, "\x1b[31;1m[Error FSCC8{:0>3}]\x1b[0m {}", code, self.kind)
     }
@@ -216,17 +220,19 @@ impl fmt::Display for TypeError {
 
 pub enum TypeErrorType {
     NotSequence(Value),
-    TypeMismatch(String, Value, Value),
+    TypeMismatch(Value, Value),
     InvalidOperand(String),
-    InvalidUnaryOperand(String)
+    InvalidUnaryOperand(String),
+    AssignTypeMismatch(Kind, Kind)
 }
 
 impl fmt::Display for TypeErrorType {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match self {
             TypeErrorType::NotSequence(station) => write!(formatter, "{} is not a sequence", station),
-            TypeErrorType::TypeMismatch(function, accumulator, x) => write!(formatter, "Cannot {} {} and {}", function, accumulator, x),
+            TypeErrorType::TypeMismatch(accumulator, x) => write!(formatter, "Expected {} found {}", accumulator, x),
             TypeErrorType::InvalidOperand(message) | TypeErrorType::InvalidUnaryOperand(message) => write!(formatter, "{}", message),
+            TypeErrorType::AssignTypeMismatch(received_kind, required_kind) => write!(formatter, "Type '{}' is not assignable to type '{}'", received_kind, required_kind),
         }
     }
 }

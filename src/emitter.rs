@@ -69,6 +69,16 @@ impl Emitter {
                         _ => unreachable!()
                     }
                 },
+                Node::HardAssignment(name, kind) => {
+                    match self.symbol_table.add_variable(name) {
+                        Ok(SymbolType::Scope(_, index)) => {
+                            chunk.instructions.push(Instruction::HardStore(index, kind as u8));
+                            chunk.arity += 1
+                        },
+                        Err(SymbolType::Scope(_, index)) => chunk.instructions.push(Instruction::HardStore(index, kind as u8)),
+                        _ => unreachable!()
+                    }
+                },
                 Node::Variable(name) => {
                     match self.symbol_table.resolve(&name) {
                         Ok(SymbolType::Scope(_, index)) => chunk.instructions.push(Instruction::LoadVariable(index)),
@@ -90,11 +100,25 @@ impl Emitter {
                     self.symbol_table.new_scope();
                     let mut child_chunk = Chunk { instructions: Vec::new(), arity: 0 };
                     for argument in arguments {
-                        let Node::Assignment(name) = argument else { unreachable!() };
-                        match self.symbol_table.add_variable(name.clone()) {
-                            Ok(_) => child_chunk.arity += 1,
-                            Err(SymbolType::Scope(_, _)) => self.error_handler.errors.push(Error::SemanticError(SemanticError {kind: SemanticErrorType::DuplicateParameter(name)})),
-                            _ => unreachable!()
+                        match argument {
+                            Node::Assignment(name) => {
+                                match self.symbol_table.add_variable(name.clone()) {
+                                    Ok(_) => child_chunk.arity += 1,
+                                    Err(SymbolType::Scope(_, _)) => self.error_handler.errors.push(Error::SemanticError(SemanticError {kind: SemanticErrorType::DuplicateParameter(name)})),
+                                    _ => unreachable!()
+                                }
+                            },
+                            Node::HardAssignment(name, kind) => {
+                                match self.symbol_table.add_variable(name.clone()) {
+                                    Ok(SymbolType::Scope(_, index)) => {
+                                        child_chunk.instructions.push(Instruction::HardStore(index, kind as u8));
+                                        child_chunk.arity += 1
+                                    },
+                                    Err(SymbolType::Scope(_, _)) => self.error_handler.errors.push(Error::SemanticError(SemanticError {kind: SemanticErrorType::DuplicateParameter(name)})),
+                                    _ => unreachable!()
+                                }
+                            }
+                            _ => todo!(),
                         }
                     }
                     self.create_chunk(body, &mut child_chunk);
@@ -112,7 +136,7 @@ impl Emitter {
                     let count = elements.len() as u32;
                     self.create_chunk(elements, chunk);
                     chunk.instructions.push(Instruction::Array(count))
-                }
+                },
                 _ => unreachable!(),
             }
         }

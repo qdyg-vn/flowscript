@@ -2,7 +2,7 @@ use crate::error_handler::{Error, SyntaxError, SyntaxErrorType};
 use crate::node::Node;
 use crate::lexer::Lexer;
 use crate::token::{Token, TokenType};
-use crate::value::{LightValue, HeavyValue};
+use crate::value::{Kind, LightValue, HeavyValue};
 
 pub struct Parser<'source_code> {
     lexer: Lexer<'source_code>,
@@ -53,9 +53,16 @@ impl<'source_code> Parser<'source_code> {
         }
     }
 
+    fn last_index(&self) -> usize {
+        for item in self.tokens.iter().rev() {
+            if matches!(item, Token {start: _, end: _, kind: _}) { return item.end }
+        }
+        0
+    }
+
     fn dispatch_node(&mut self, token: Token) -> Result<Node, Error> {
         match token.kind {
-            TokenType::Int(number) => Ok(Node::Literal(LightValue::Integer(number))),
+            TokenType::Integer(number) => Ok(Node::Literal(LightValue::Integer(number))),
             TokenType::Float(number) => Ok(Node::Literal(LightValue::Float(number))),
             TokenType::Boolean(boolean) => Ok(Node::Literal(LightValue::Boolean(boolean))),
             TokenType::Nil => Ok(Node::Literal(LightValue::Nil)),
@@ -97,6 +104,29 @@ impl<'source_code> Parser<'source_code> {
         Ok(Node::Apply {operator, arguments})
     }
 
+    fn parse_hard_assignment(&mut self, name: String) -> Result<Node, Error> {
+        self.advance(1);
+        let token = self.advance(1).transpose()?;
+        if let Some(token) = token {
+            if matches!(token.kind, TokenType::Kind(_)) {
+                let kind = match token.kind {
+                    TokenType::Kind(kind) => match kind.as_str() {
+                        "boolean" => Kind::Boolean,
+                        "float" => Kind::Float,
+                        "integer" => Kind::Integer,
+                        "string" => Kind::String,
+                        "array" => Kind::Array,
+                        _ => unreachable!(),
+                    }
+                    _ => unreachable!()
+                };
+                return Ok(Node::HardAssignment(name, kind))
+            }
+            return Err(self.error_pusher(token.start, SyntaxErrorType::MissingTypeIdentity))
+        }
+        Err(self.error_pusher(self.last_index(), SyntaxErrorType::MissingTypeIdentity))
+    }
+
     fn parse_define_function(&mut self, start: usize) -> Result<Node, Error> {
         let operator = match self.advance(1).transpose()? {
             Some(token) => match token.kind {
@@ -111,7 +141,13 @@ impl<'source_code> Parser<'source_code> {
         let mut arguments = Vec::new();
         while let Some(argument) = self.advance(1).transpose()? && argument.kind != TokenType::RightParen {
             arguments.push(match argument.kind {
-                TokenType::Variable(name) => Node::Assignment(name), // Because in a lexer when it encounters a function argument, it converts it into a variable
+                TokenType::Variable(name) => {
+                    if let Some(token) = self.peek().transpose()? && token.kind == TokenType::Colon {
+                        self.parse_hard_assignment(name)?
+                    } else {
+                        Node::Assignment(name) // Because in a lexer when it encounters a function argument, it converts it into a variable
+                    }
+                },
                 _ => todo!()
             })
         };
@@ -185,16 +221,22 @@ impl<'source_code> Parser<'source_code> {
         let mut stations = Vec::new();
         stations.push(self.dispatch_node(token)?);
         if self.peek().is_none() || self.peek().transpose()?.unwrap().kind != TokenType::Arrow {
-            match stations.pop() {
-                Some(station) => return Ok(station),
-                _ => return Err(self.error_pusher(start, SyntaxErrorType::NoStationBeforePipeline)),
+            return match stations.pop() {
+                Some(station) => Ok(station),
+                _ => Err(self.error_pusher(start, SyntaxErrorType::NoStationBeforePipeline)),
             }
         }
         while let Some(token) = self.peek().transpose()? && token.kind == TokenType::Arrow {
             self.advance(1);
             if let Some(token) = self.advance(1).transpose()? {
                 stations.push(match self.dispatch_node(token) {
-                    Ok(Node::Variable(name)) => Node::Assignment(name),
+                    Ok(Node::Variable(name)) => {
+                        if let Some(token) = self.peek().transpose()? && token.kind == TokenType::Colon {
+                            self.parse_hard_assignment(name)?
+                        } else {
+                            Node::Assignment(name)
+                        }
+                    },
                     other => other?
                 });
             } else {

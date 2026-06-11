@@ -10,6 +10,7 @@ pub enum Bytecode {
     RelativeReference, // u16: x, u16: y
     Return,
     Store, // u16: offset from base pointer
+    HardStore, // u16: offset from base pointer, u8: kind
     Array, // u32: length
     DefineFunction, // u16: offset from base pointer, u16: index of body in constant pool
 }
@@ -24,6 +25,7 @@ impl Bytecode {
     pub const RELATIVEREFERENCE: u8 = Bytecode::RelativeReference as u8;
     pub const RETURN: u8 = Bytecode::Return as u8;
     pub const STORE: u8 = Bytecode::Store as u8;
+    pub const HARDSTORE: u8 = Bytecode::HardStore as u8;
     pub const ARRAY: u8 = Bytecode::Array as u8;
     pub const DEFINEFUNCTION: u8 = Bytecode::DefineFunction as u8;
 }
@@ -39,6 +41,7 @@ pub enum Instruction {
     RelativeReference(u16, u16),
     Return,
     Store(u16),
+    HardStore(u16, u8),
     Array(u32),
     DefineFunction(u16, u16),
 }
