@@ -47,33 +47,35 @@ impl VirMac {
                 stack[*stack_position] = self.constants_pool[index as usize];
                 self.stations_output.push(self.constants_pool[index as usize]);
                 *stack_position += 1;
-                *instruction_position += 5
+                *instruction_position += Bytecode::LOAD_SIZE
             },
-            Bytecode::LOADVARIABLE => {
+            Bytecode::LOAD_VARIABLE => {
                 let index = u16::from_le_bytes([chunk[*instruction_position + 1], chunk[*instruction_position + 2]]);
                 stack[*stack_position] = stack[base_pointer + index as usize];
+                self.stations_output.push(stack[*stack_position]);
                 *stack_position += 1;
-                *instruction_position += 3
-            },
+                *instruction_position += Bytecode::LOAD_VARIABLE_SIZE
+            }
             Bytecode::JUMP => {
                 let position = u16::from_le_bytes([chunk[*instruction_position + 1], chunk[*instruction_position + 2]]);
                 *instruction_position = position as usize
             },
-            Bytecode::JUMPIFFALSE => {
+            Bytecode::JUMP_IF_FALSE => {
                 let position = u16::from_le_bytes([chunk[*instruction_position + 1], chunk[*instruction_position + 2]]);
                 if stack[*stack_position - 1] == LightValue::Boolean(false) {
                     *instruction_position = position as usize
                 } else {
-                    *instruction_position += 3
+                    *instruction_position += Bytecode::JUMP_IF_FALSE_SIZE
                 };
                 *stack_position -= 1
-            },
+            }
             Bytecode::STORE => {
                 let index = u16::from_le_bytes([chunk[*instruction_position + 1], chunk[*instruction_position + 2]]);
+                self.stations_output.push(stack[*stack_position - 1]);
                 stack.swap(base_pointer + index as usize, *stack_position - 1);
-                *instruction_position += 3
+                *instruction_position += Bytecode::STORE_SIZE
             },
-            Bytecode::HARDSTORE => {
+            Bytecode::HARD_STORE => {
                 let index = u16::from_le_bytes([chunk[*instruction_position + 1], chunk[*instruction_position + 2]]);
                 let kind = chunk[*instruction_position + 3];
                 let value = stack[*stack_position -1];
@@ -82,17 +84,18 @@ impl VirMac {
                 if received_kind != required_kind {
                     self.error_handler.fatal(Error::TypeError(TypeError {kind: TypeErrorType::AssignTypeMismatch(received_kind, required_kind)}))
                 }
+                self.stations_output.push(stack[*stack_position - 1]);
                 stack.swap(base_pointer + index as usize, *stack_position - 1);
-                *instruction_position += 4
-            },
-            Bytecode::BUILTINCALL => {
+                *instruction_position += Bytecode::HARD_STORE_SIZE
+            }
+            Bytecode::BUILTIN_CALL => {
                 let index = u16::from_le_bytes([chunk[*instruction_position + 1], chunk[*instruction_position + 2]]);
                 let arity = u16::from_le_bytes([chunk[*instruction_position + 3], chunk[*instruction_position + 4]]);
                 let start = *stack_position - arity as usize;
                 let end = *stack_position;
                 self.execute_builtin_function(index, stack, stack_position, start, end);
-                *instruction_position += 5
-            },
+                *instruction_position += Bytecode::BUILTIN_CALL_SIZE
+            }
             Bytecode::CALL => {
                 let scope = u16::from_le_bytes([chunk[*instruction_position + 1], chunk[*instruction_position + 2]]);
                 let index = u16::from_le_bytes([chunk[*instruction_position + 3], chunk[*instruction_position + 4]]);
@@ -113,9 +116,9 @@ impl VirMac {
                     }
                     self.dispatch_instruction(&mut function, &mut function_instruction_position, stack, &mut child_stack_position, child_base_pointer);
                 };
-                *instruction_position += 5
+                *instruction_position += Bytecode::CALL_SIZE
             },
-            Bytecode::RELATIVEREFERENCE => {
+            Bytecode::RELATIVE_REFERENCE => {
                 let x = u16::from_le_bytes([chunk[*instruction_position + 1], chunk[*instruction_position + 2]]);
                 let y = u16::from_le_bytes([chunk[*instruction_position + 3], chunk[*instruction_position + 4]]);
                 if self.stations_output.len() < x as usize {
@@ -128,18 +131,18 @@ impl VirMac {
                     stack[*stack_position] = output;
                 }
                 *stack_position += 1;
-                *instruction_position += 5;
-            },
+                *instruction_position += Bytecode::RELATIVE_REFERENCE_SIZE;
+            }
             Bytecode::RETURN => {
                 stack.swap(base_pointer, *stack_position - 1);
-                *instruction_position += 1
+                *instruction_position += Bytecode::RETURN_SIZE
             },
-            Bytecode::DEFINEFUNCTION => {
+            Bytecode::DEFINE_FUNCTION => {
                 let index = u16::from_le_bytes([chunk[*instruction_position + 1], chunk[*instruction_position + 2]]);
                 let body_index = u16::from_le_bytes([chunk[*instruction_position + 3], chunk[*instruction_position + 4]]);
                 stack[base_pointer + index as usize] = self.constants_pool[body_index as usize];
-                *instruction_position += 5
-            },
+                *instruction_position += Bytecode::DEFINE_FUNCTION_SIZE
+            }
             Bytecode::ARRAY => {
                 let count = u32::from_le_bytes(chunk[*instruction_position + 1..=*instruction_position + 4].try_into().unwrap());
                 let start = *stack_position - count as usize;
@@ -179,7 +182,7 @@ impl VirMac {
                 stack[start] = LightValue::ArrayPointer(index as u32);
                 *stack_position = start + 1;
                 self.stations_output.push(stack[*stack_position - 1]);
-                *instruction_position += 5
+                *instruction_position += Bytecode::ARRAY_SIZE
             },
             _ => unreachable!()
         }

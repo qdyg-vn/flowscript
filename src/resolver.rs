@@ -1,6 +1,7 @@
-use crate::error_handler::{Error, ErrorHandler, SemanticError, SemanticErrorType};
+use crate::error_handler::{Error, ErrorHandler, SemanticError, SemanticErrorType, TypeError, TypeErrorType};
 use crate::node::{Node, ResolvedNode, AST};
 use crate::symbol_table::{SymbolTable, SymbolType};
+use crate::value::{HeavyValue, Kind, LightValue};
 
 pub struct Resolver {
     error_handler: ErrorHandler,
@@ -48,6 +49,17 @@ impl Resolver {
                     }
                 },
                 Node::HardAssignment(name, kind) => {
+                    match resolved_stations.last() {
+                        Some(ResolvedNode::Literal(value)) => {
+                            let received_kind = self.get_type(*value);
+                            if received_kind != kind { self.error_handler.errors.push(Error::TypeError(TypeError { kind: TypeErrorType::AssignTypeMismatch(received_kind, kind) })) }
+                        },
+                        Some(ResolvedNode::HeavyLiteral(value)) => {
+                            let received_kind = self.get_heavy_type(value);
+                            if received_kind != kind { self.error_handler.errors.push(Error::TypeError(TypeError {kind: TypeErrorType::AssignTypeMismatch(received_kind, kind) })) }
+                        },
+                        _ => {}
+                    };
                     match self.symbol_table.add_variable(name) {
                         Ok(SymbolType::Scope(_, index)) => {
                             resolved_stations.push(ResolvedNode::HardAssignment(index, kind));
@@ -126,5 +138,21 @@ impl Resolver {
             }
         }
         resolved_stations
+    }
+
+    fn get_type(&self, value: LightValue) -> Kind {
+        match value {
+            LightValue::Boolean(_) => Kind::Boolean,
+            LightValue::Integer(_) => Kind::Integer,
+            LightValue::Float(_) => Kind::Float,
+            _ => todo!()
+        }
+    }
+
+    fn get_heavy_type(&self, value: &HeavyValue) -> Kind {
+        match value {
+            HeavyValue::String(_) => Kind::String,
+            _ => todo!()
+        }
     }
 }
