@@ -4,9 +4,8 @@ use crate::value::{Kind, LightValue, HeavyValue};
 pub enum Node {
     Literal(LightValue),
     HeavyLiteral(HeavyValue),
-    Symbol(String),
     Apply {
-        operator: Box<Node>,
+        operator: String,
         arguments: Vec<Node>,
     },
     Pipeline(Vec<Node>),

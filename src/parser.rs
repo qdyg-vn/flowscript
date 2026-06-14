@@ -89,8 +89,7 @@ impl<'source_code> Parser<'source_code> {
         Ok(Node::Array(arguments))
     }
 
-    fn parse_function(&mut self, start: usize, token: String) -> Result<Node, Error> {
-        let operator = Box::new(Node::Symbol(token));
+    fn parse_function(&mut self, start: usize, operator: String) -> Result<Node, Error> {
         if let Some(token) = self.advance(1).transpose()? && token.kind != TokenType::LeftParen {
             return Err(self.error_pusher(start, SyntaxErrorType::MissingLeftParen));
         }

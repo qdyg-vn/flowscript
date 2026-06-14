@@ -21,10 +21,10 @@ impl<'source_code> Lexer<'source_code> {
     }
 
     fn advance(&mut self, steps: usize) -> Option<u8> {
-        if let Some(result) = self.peek(steps) {
-            if result == b'\n' { self.lines.push(self.position + steps + 1)}
+        if let Some(byte) = self.peek(steps) {
+            if byte == b'\n' { self.lines.push(self.position + steps + 1)}
             self.position += steps + 1;
-            return Some(result)
+            return Some(byte)
         }
         None
     }
@@ -88,7 +88,7 @@ impl<'source_code> Lexer<'source_code> {
             return Ok(Token::new(start, end, TokenType::RelativeReference(x, y)))
         }
         match has_dot {
-            0 => Ok(Token::new(start, end, TokenType::Int(value.parse().unwrap()))),
+            0 => Ok(Token::new(start, end, TokenType::Integer(value.parse().unwrap()))),
             1 => Ok(Token::new(start, end, TokenType::Float(value.parse().unwrap()))),
             _ => Err(self.error_collector(start, LexicalErrorType::DecimalPoints(value.to_owned()))),
         }
@@ -130,6 +130,7 @@ impl<'source_code> Lexer<'source_code> {
             "true" => return Ok(Token::new(start, end, TokenType::Boolean(true))),
             "false" => return Ok(Token::new(start, end, TokenType::Boolean(false))),
             "nil" => return Ok(Token::new(start, end, TokenType::Nil)),
+            "boolean" | "integer" | "float" | "string" | "array" => return Ok(Token::new(start, end, TokenType::Kind(value.to_owned()))),
             _ => ()
         }
         if self.peek(0) != Some(b'(') {
@@ -177,6 +178,7 @@ impl<'source_code> Iterator for Lexer<'source_code> {
                 b'}' => return Some(Ok(Token::new(start, start + 1, TokenType::RightBrace))),
                 b'[' => return Some(Ok(Token::new(start, start + 1, TokenType::LeftBracket))),
                 b']' => return Some(Ok(Token::new(start, start + 1, TokenType::RightBracket))),
+                b':' => return Some(Ok(Token::new(start, start + 1, TokenType::Colon))),
                 b'#' => { self.skip_comment(); continue },
                 _ => {
                     let bytes_needed = match byte {

@@ -49,13 +49,11 @@ impl Emitter {
                 Node::Apply {operator, arguments} => {
                     let arity = arguments.len() as u16;
                     self.create_chunk(arguments, chunk);
-                    if let Node::Symbol(name) = *operator {
-                        let result = self.symbol_table.resolve(&name);
-                        match result {
-                            Ok(SymbolType::Builtin(index)) => chunk.instructions.push(Instruction::BuiltinCall(index, arity)),
-                            Ok(SymbolType::Scope(scope, index)) => chunk.instructions.push(Instruction::Call(scope, index)),
-                            Err(error) => self.error_handler.errors.push(Error::SemanticError(error))
-                        }
+                    let result = self.symbol_table.resolve(&operator);
+                    match result {
+                        Ok(SymbolType::Builtin(index)) => chunk.instructions.push(Instruction::BuiltinCall(index, arity)),
+                        Ok(SymbolType::Scope(scope, index)) => chunk.instructions.push(Instruction::Call(scope, index)),
+                        Err(error) => self.error_handler.errors.push(Error::SemanticError(error))
                     }
                 },
                 Node::RelativeReference(x, y) => chunk.instructions.push(Instruction::RelativeReference(x, y)),
