@@ -18,14 +18,14 @@ where
     }
 
     pub fn optimize(mut self) -> (Vec<Node>, ErrorHandler) {
-        let mut ast = Vec::new();
+        let mut nodes = Vec::new();
         for item in self.parser.by_ref() {
             match item {
-                Ok(node) => ast.push(node),
+                Ok(node) => nodes.push(node),
                 Err(error) => self.error_handler.errors.push(error)
             }
         }
         if !self.error_handler.errors.is_empty() { self.error_handler.report_exit() }
-        (ast, self.error_handler)
+        (nodes, self.error_handler)
     }
 }

@@ -1,0 +1,128 @@
+use crate::error_handler::{Error, ErrorHandler, SemanticError, SemanticErrorType};
+use crate::node::{Node, ResolvedNode, AST};
+use crate::symbol_table::{SymbolTable, SymbolType};
+
+struct Resolver {
+    error_handler: ErrorHandler,
+    symbol_table: SymbolTable,
+}
+impl Resolver {
+    pub fn new(error_handler: ErrorHandler, symbol_table: SymbolTable) -> Self {
+        Self { error_handler, symbol_table }
+    }
+
+    pub fn resolve(&mut self, nodes: Vec<Node>) -> AST {
+        let mut ast = AST {nodes: Vec::with_capacity(nodes.len()), arity: 0};
+        for node in nodes {
+            if let Node::Pipeline(stations) = node {
+                ast.nodes = self.solve(stations, &mut ast)
+            }
+        }
+        ast
+    }
+
+    fn solve(&mut self, stations: Vec<Node>, ast: &mut AST) -> Vec<ResolvedNode> {
+        let mut resolved_stations = Vec::with_capacity(stations.len());
+        for station in stations {
+            match station {
+                Node::Literal(value) => resolved_stations.push(ResolvedNode::Literal(value)),
+                Node::HeavyLiteral(value) => resolved_stations.push(ResolvedNode::HeavyLiteral(value)),
+                Node::RelativeReference(x, y) => resolved_stations.push(ResolvedNode::RelativeReference(x, y)),
+                Node::Apply {operator, arguments} => {
+                    match self.symbol_table.resolve(&operator) {
+                        Ok(SymbolType::Builtin(index)) => resolved_stations.push(ResolvedNode::BuiltinCall {index, arguments: self.solve(arguments, ast)}),
+                        Ok(SymbolType::Scope(scope, index)) => resolved_stations.push(ResolvedNode::Call {scope, index, arguments: self.solve(arguments, ast)}),
+                        Err(error) => self.error_handler.errors.push(Error::SemanticError(error))
+                    }
+                },
+                Node::Assignment(name) => {
+                    match self.symbol_table.add_variable(name) {
+                        Ok(SymbolType::Scope(_, index)) => {
+                            resolved_stations.push(ResolvedNode::Assignment(index));
+                            ast.arity += 1
+                        }
+                        Err(SymbolType::Scope(_, index)) => resolved_stations.push(ResolvedNode::Assignment(index)),
+                        _ => unreachable!()
+                    }
+                },
+                Node::HardAssignment(name, kind) => {
+                    match self.symbol_table.add_variable(name) {
+                        Ok(SymbolType::Scope(_, index)) => {
+                            resolved_stations.push(ResolvedNode::HardAssignment(index, kind));
+                            ast.arity += 1
+                        }
+                        Err(SymbolType::Scope(_, index)) => resolved_stations.push(ResolvedNode::HardAssignment(index, kind)),
+                        _ => unreachable!()
+                    }
+                },
+                Node::Variable(name) => {
+                    match self.symbol_table.resolve(&name) {
+                        Ok(SymbolType::Scope(_, index)) => resolved_stations.push(ResolvedNode::Variable(index)),
+                        Err(error) => self.error_handler.errors.push(Error::SemanticError(error)),
+                        _ => unreachable!()
+                    }
+                },
+                Node::DefineFunction {operator, arguments, body} => {
+                    let index = match self.symbol_table.add_variable(operator) {
+                        Ok(SymbolType::Scope(_, index)) => {
+                            ast.arity += 1;
+                            index
+                        },
+                        Err(SymbolType::Scope(_, index)) => {
+                            index
+                        },
+                        _ => unreachable!()
+                    };
+                    self.symbol_table.new_scope();
+                    let mut child_ast = AST {nodes: Vec::with_capacity(arguments.len() + body.len()), arity: 0};
+                    for argument in arguments {
+                        match argument {
+                            Node::Assignment(name) => {
+                                match self.symbol_table.add_variable(name.clone()) {
+                                    Ok(_) => child_ast.arity += 1,
+                                    Err(SymbolType::Scope(_, _)) => self.error_handler.errors.push(Error::SemanticError(SemanticError {kind: SemanticErrorType::DuplicateParameter(name)})),
+                                    _ => unreachable!()
+                                }
+                            }
+                            Node::HardAssignment(name, kind) => {
+                                match self.symbol_table.add_variable(name.clone()) {
+                                    Ok(SymbolType::Scope(_, index)) => {
+                                        child_ast.nodes.push(ResolvedNode::HardAssignment(index, kind));
+                                        child_ast.arity += 1
+                                    },
+                                    Err(SymbolType::Scope(_, _)) => self.error_handler.errors.push(Error::SemanticError(SemanticError {kind: SemanticErrorType::DuplicateParameter(name)})),
+                                    _ => unreachable!()
+                                }
+                            }
+                            _ => todo!()
+                        }
+                    }
+                    self.solve(body, &mut child_ast);
+                    self.symbol_table.scopes.pop();
+                    ast.nodes.push(ResolvedNode::DefineFunction {index, body: child_ast})
+                },
+                Node::Pipeline(stations) => {
+                    let stations = self.solve(stations, ast);
+                    ast.nodes.push(ResolvedNode::Pipeline(stations))
+                },
+                Node::Condition {branches, final_branch} => {
+                    let mut resolved_branches = Vec::with_capacity(branches.len());
+                    for branch in branches {
+                        resolved_branches.push((self.solve(branch.0, ast), self.solve(branch.1, ast)))
+                    }
+                    let final_branch = self.solve(final_branch, ast);
+                    ast.nodes.push(ResolvedNode::Condition {branches: resolved_branches, final_branch})
+                },
+                Node::Return(value) => {
+                    let value = self.solve(vec![*value], ast).pop().unwrap();
+                    ast.nodes.push(ResolvedNode::Return(Box::new(value)))
+                },
+                Node::Array(elements) => {
+                    let elements = self.solve(elements, ast);
+                    ast.nodes.push(ResolvedNode::Array(elements))
+                }
+            }
+        }
+        resolved_stations
+    }
+}

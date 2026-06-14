@@ -25,3 +25,39 @@ pub enum Node {
     Return(Box<Node>),
     Array(Vec<Node>),
 }
+
+#[derive(Debug)]
+pub enum ResolvedNode {
+    Literal(LightValue),
+    HeavyLiteral(HeavyValue),
+    BuiltinCall {
+        index: u16,
+        arguments: Vec<ResolvedNode>,
+    },
+    Call {
+        scope: u16,
+        index: u16,
+        arguments: Vec<ResolvedNode>,
+    },
+    Pipeline(Vec<ResolvedNode>),
+    RelativeReference(u16, u16),
+    Variable(u16),
+    Assignment(u16),
+    HardAssignment(u16, Kind),
+    DefineFunction {
+        index: u16,
+        body: AST,
+    },
+    Condition {
+        branches: Vec<(Vec<ResolvedNode>, Vec<ResolvedNode>)>,
+        final_branch: Vec<ResolvedNode>,
+    },
+    Return(Box<ResolvedNode>),
+    Array(Vec<ResolvedNode>),
+}
+
+#[derive(Debug)]
+pub struct AST {
+    pub nodes: Vec<ResolvedNode>,
+    pub arity: u16,
+}
