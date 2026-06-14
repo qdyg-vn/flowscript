@@ -99,13 +99,13 @@ impl Resolver {
                             _ => todo!()
                         }
                     }
-                    self.solve(body, &mut child_ast);
+                    child_ast.nodes = self.solve(body, &mut child_ast);
                     self.symbol_table.scopes.pop();
-                    ast.nodes.push(ResolvedNode::DefineFunction {index, body: child_ast})
+                    resolved_stations.push(ResolvedNode::DefineFunction {index, body: child_ast})
                 },
                 Node::Pipeline(stations) => {
                     let stations = self.solve(stations, ast);
-                    ast.nodes.push(ResolvedNode::Pipeline(stations))
+                    resolved_stations.push(ResolvedNode::Pipeline(stations))
                 },
                 Node::Condition {branches, final_branch} => {
                     let mut resolved_branches = Vec::with_capacity(branches.len());
@@ -113,15 +113,15 @@ impl Resolver {
                         resolved_branches.push((self.solve(branch.0, ast), self.solve(branch.1, ast)))
                     }
                     let final_branch = self.solve(final_branch, ast);
-                    ast.nodes.push(ResolvedNode::Condition {branches: resolved_branches, final_branch})
+                    resolved_stations.push(ResolvedNode::Condition {branches: resolved_branches, final_branch})
                 },
                 Node::Return(value) => {
                     let value = self.solve(vec![*value], ast).pop().unwrap();
-                    ast.nodes.push(ResolvedNode::Return(Box::new(value)))
+                    resolved_stations.push(ResolvedNode::Return(Box::new(value)))
                 },
                 Node::Array(elements) => {
                     let elements = self.solve(elements, ast);
-                    ast.nodes.push(ResolvedNode::Array(elements))
+                    resolved_stations.push(ResolvedNode::Array(elements))
                 }
             }
         }
