@@ -14,3 +14,4 @@ pub mod builtins;
 pub mod constants_pool;
 pub mod assembler;
 pub mod memory;
+pub mod resolver;

@@ -2,7 +2,7 @@ use crate::error_handler::{Error, ErrorHandler, SemanticError, SemanticErrorType
 use crate::node::{Node, ResolvedNode, AST};
 use crate::symbol_table::{SymbolTable, SymbolType};
 
-struct Resolver {
+pub struct Resolver {
     error_handler: ErrorHandler,
     symbol_table: SymbolTable,
 }
@@ -11,14 +11,16 @@ impl Resolver {
         Self { error_handler, symbol_table }
     }
 
-    pub fn resolve(&mut self, nodes: Vec<Node>) -> AST {
+    pub fn resolve(mut self, nodes: Vec<Node>) -> (ErrorHandler, usize, AST) {
         let mut ast = AST {nodes: Vec::with_capacity(nodes.len()), arity: 0};
         for node in nodes {
             if let Node::Pipeline(stations) = node {
-                ast.nodes = self.solve(stations, &mut ast)
+                let result = ResolvedNode::Pipeline(self.solve(stations, &mut ast));
+                ast.nodes.push(result)
             }
         }
-        ast
+        if !self.error_handler.errors.is_empty() { self.error_handler.report_exit() }
+        (self.error_handler, ast.arity as usize, ast)
     }
 
     fn solve(&mut self, stations: Vec<Node>, ast: &mut AST) -> Vec<ResolvedNode> {

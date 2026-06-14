@@ -1,146 +1,77 @@
 use crate::constants_pool::ConstantsPool;
-use crate::error_handler::{Error, ErrorHandler, SemanticError, SemanticErrorType};
 use crate::instructions::{Chunk, Instruction};
-use crate::node::Node;
-use crate::symbol_table::{SymbolTable, SymbolType};
+use crate::node::{ResolvedNode, AST};
 use crate::value::HeavyValue;
 
 pub struct Emitter {
-    error_handler: ErrorHandler,
-    symbol_table: SymbolTable,
     constants_pool: ConstantsPool,
 }
 
 impl Emitter {
-    pub fn new(error_handler: ErrorHandler, symbol_table: SymbolTable, constants_pool: ConstantsPool) -> Self {
+    pub fn new(constants_pool: ConstantsPool) -> Self {
         Self {
-            error_handler,
-            symbol_table,
             constants_pool,
         }
     }
 
-    pub fn emit(mut self, ast: Vec<Node>) -> (ErrorHandler, ConstantsPool, Vec<Chunk>, usize) {
-        let mut total_arity = 0;
+    pub fn emit(mut self, ast: AST) -> (ConstantsPool, Vec<Chunk>) {
         let mut map: Vec<Chunk> = Vec::new();
-        for instructions in ast {
-            if let Node::Pipeline(stations) = instructions {
+        for instructions in ast.nodes {
+            if let ResolvedNode::Pipeline(stations) = instructions {
                 let mut chunk = Chunk { instructions: Vec::new(), arity: 0 };
                 self.create_chunk(stations, &mut chunk);
-                total_arity += chunk.arity;
                 map.push(chunk)
             }
         }
-        if !self.error_handler.errors.is_empty() { self.error_handler.report_exit() }
-        (self.error_handler, self.constants_pool, map, total_arity as usize)
+        (self.constants_pool, map)
     }
 
-    fn create_chunk(&mut self, stations: Vec<Node>, chunk: &mut Chunk) {
+    fn create_chunk(&mut self, stations: Vec<ResolvedNode>, chunk: &mut Chunk) {
         for station in stations {
             match station {
-                Node::Literal(value) => {
+                ResolvedNode::Literal(value) => {
                     let index = self.constants_pool.add_constant(value);
                     chunk.instructions.push(Instruction::Load(index as u32))
                 },
-                Node::HeavyLiteral(heavy_value) => {
+                ResolvedNode::HeavyLiteral(heavy_value) => {
                     let index = self.constants_pool.add_heavy_constant(heavy_value);
                     chunk.instructions.push(Instruction::Load(index as u32))
-                }
-                Node::Apply {operator, arguments} => {
+                },
+                ResolvedNode::BuiltinCall {index, arguments} => {
                     let arity = arguments.len() as u16;
                     self.create_chunk(arguments, chunk);
-                    let result = self.symbol_table.resolve(&operator);
-                    match result {
-                        Ok(SymbolType::Builtin(index)) => chunk.instructions.push(Instruction::BuiltinCall(index, arity)),
-                        Ok(SymbolType::Scope(scope, index)) => chunk.instructions.push(Instruction::Call(scope, index)),
-                        Err(error) => self.error_handler.errors.push(Error::SemanticError(error))
-                    }
+                    chunk.instructions.push(Instruction::BuiltinCall(index, arity))
                 },
-                Node::RelativeReference(x, y) => chunk.instructions.push(Instruction::RelativeReference(x, y)),
-                Node::Assignment(name) => {
-                    match self.symbol_table.add_variable(name) {
-                        Ok(SymbolType::Scope(_, index)) => {
-                            chunk.instructions.push(Instruction::Store(index));
-                            chunk.arity += 1
-                        },
-                        Err(SymbolType::Scope(_, index)) => chunk.instructions.push(Instruction::Store(index)),
-                        _ => unreachable!()
-                    }
+                ResolvedNode::Call {scope, index, arguments} => {
+                    self.create_chunk(arguments, chunk);
+                    chunk.instructions.push(Instruction::Call(scope, index))
                 },
-                Node::HardAssignment(name, kind) => {
-                    match self.symbol_table.add_variable(name) {
-                        Ok(SymbolType::Scope(_, index)) => {
-                            chunk.instructions.push(Instruction::HardStore(index, kind as u8));
-                            chunk.arity += 1
-                        },
-                        Err(SymbolType::Scope(_, index)) => chunk.instructions.push(Instruction::HardStore(index, kind as u8)),
-                        _ => unreachable!()
-                    }
-                },
-                Node::Variable(name) => {
-                    match self.symbol_table.resolve(&name) {
-                        Ok(SymbolType::Scope(_, index)) => chunk.instructions.push(Instruction::LoadVariable(index)),
-                        Err(error) => self.error_handler.errors.push(Error::SemanticError(error)),
-                        _ => unreachable!()
-                    }
-                },
-                Node::DefineFunction {operator, arguments, body} => {
-                    let index = match self.symbol_table.add_variable(operator) {
-                        Ok(SymbolType::Scope(_, index)) => {
-                            chunk.arity += 1;
-                            index
-                        },
-                        Err(SymbolType::Scope(_, index)) => {
-                            index
-                        },
-                        _ => unreachable!()
-                    };
-                    self.symbol_table.new_scope();
-                    let mut child_chunk = Chunk { instructions: Vec::new(), arity: 0 };
-                    for argument in arguments {
-                        match argument {
-                            Node::Assignment(name) => {
-                                match self.symbol_table.add_variable(name.clone()) {
-                                    Ok(_) => child_chunk.arity += 1,
-                                    Err(SymbolType::Scope(_, _)) => self.error_handler.errors.push(Error::SemanticError(SemanticError {kind: SemanticErrorType::DuplicateParameter(name)})),
-                                    _ => unreachable!()
-                                }
-                            },
-                            Node::HardAssignment(name, kind) => {
-                                match self.symbol_table.add_variable(name.clone()) {
-                                    Ok(SymbolType::Scope(_, index)) => {
-                                        child_chunk.instructions.push(Instruction::HardStore(index, kind as u8));
-                                        child_chunk.arity += 1
-                                    },
-                                    Err(SymbolType::Scope(_, _)) => self.error_handler.errors.push(Error::SemanticError(SemanticError {kind: SemanticErrorType::DuplicateParameter(name)})),
-                                    _ => unreachable!()
-                                }
-                            }
-                            _ => todo!(),
-                        }
-                    }
-                    self.create_chunk(body, &mut child_chunk);
-                    self.symbol_table.scopes.pop();
+                ResolvedNode::RelativeReference(x, y) => chunk.instructions.push(Instruction::RelativeReference(x, y)),
+                ResolvedNode::Assignment(index) => chunk.instructions.push(Instruction::Store(index)),
+                ResolvedNode::HardAssignment(index, kind) => chunk.instructions.push(Instruction::HardStore(index, kind as u8)),
+                ResolvedNode::Variable(index) => chunk.instructions.push(Instruction::LoadVariable(index)),
+                ResolvedNode::DefineFunction {index, body} => {
+                    let mut child_chunk = Chunk { instructions: Vec::new(), arity: body.arity };
+                    self.create_chunk(body.nodes, &mut child_chunk);
                     let body_index = self.constants_pool.add_heavy_constant(HeavyValue::Function(child_chunk));
                     chunk.instructions.push(Instruction::DefineFunction(index, body_index as u16));
                 },
-                Node::Pipeline(stations) => self.create_chunk(stations, chunk),
-                Node::Condition {branches, final_branch} => self.emit_condition(branches, final_branch, chunk),
-                Node::Return(value) => {
+                ResolvedNode::Pipeline(stations) => self.create_chunk(stations, chunk),
+                ResolvedNode::Condition {branches, final_branch} => self.emit_condition(branches, final_branch, chunk),
+                ResolvedNode::Return(value) => {
                     self.create_chunk(vec![*value], chunk);
                     chunk.instructions.push(Instruction::Return)
                 },
-                Node::Array(elements) => {
+                ResolvedNode::Array(elements) => {
                     let count = elements.len() as u32;
                     self.create_chunk(elements, chunk);
                     chunk.instructions.push(Instruction::Array(count))
                 },
-                _ => unreachable!(),
             }
         }
     }
 
-    fn emit_condition(&mut self, branches: Vec<(Vec<Node>, Vec<Node>)>, final_branch: Vec<Node>, chunk: &mut Chunk) {
+    fn emit_condition(&mut self, branches: Vec<(Vec<ResolvedNode>, Vec<ResolvedNode>)>, final_branch: Vec<ResolvedNode>, chunk: &mut Chunk) {
         let mut complete_positions = Vec::with_capacity(branches.len());
         for (condition, body) in branches {
             self.create_chunk(condition, chunk);
