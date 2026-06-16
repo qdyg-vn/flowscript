@@ -213,6 +213,7 @@ impl fmt::Display for TypeError {
             TypeErrorType::InvalidOperand(_) => 3,
             TypeErrorType::InvalidUnaryOperand(_) => 4,
             TypeErrorType::AssignTypeMismatch(_, _) => 5,
+            TypeErrorType::ArityMismatchError(_, _) => 6,
         };
         writeln!(formatter, "\x1b[31;1m[Error FSCC8{:0>3}]\x1b[0m {}", code, self.kind)
     }
@@ -220,10 +221,11 @@ impl fmt::Display for TypeError {
 
 pub enum TypeErrorType {
     NotSequence(Value),
-    TypeMismatch(Value, Value),
+    TypeMismatch(Kind, Kind),
     InvalidOperand(String),
     InvalidUnaryOperand(String),
-    AssignTypeMismatch(Kind, Kind)
+    AssignTypeMismatch(Kind, Kind),
+    ArityMismatchError(usize, usize),
 }
 
 impl fmt::Display for TypeErrorType {
@@ -233,6 +235,7 @@ impl fmt::Display for TypeErrorType {
             TypeErrorType::TypeMismatch(accumulator, x) => write!(formatter, "Expected {} found {}", accumulator, x),
             TypeErrorType::InvalidOperand(message) | TypeErrorType::InvalidUnaryOperand(message) => write!(formatter, "{}", message),
             TypeErrorType::AssignTypeMismatch(received_kind, required_kind) => write!(formatter, "Type '{}' is not assignable to type '{}'", received_kind, required_kind),
+            TypeErrorType::ArityMismatchError(received_arity, required_arity) => write!(formatter, "Function expects {} arguments, but got {}", required_arity, received_arity),
         }
     }
 }

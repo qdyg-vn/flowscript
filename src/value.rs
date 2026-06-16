@@ -20,6 +20,15 @@ impl Kind {
     pub const INTEGER: u8 = Kind::Integer as u8;
     pub const STRING: u8 = Kind::String as u8;
     pub const ARRAY: u8 = Kind::Array as u8;
+    pub fn get_variable_type(&self) -> VariableType {
+        match self {
+            Kind::Boolean => VariableType::Boolean,
+            Kind::Float => VariableType::Float,
+            Kind::Integer => VariableType::Integer,
+            Kind::String => VariableType::String,
+            _ => todo!()
+        }
+    }
 }
 
 impl fmt::Display for Kind {
@@ -30,6 +39,29 @@ impl fmt::Display for Kind {
             Kind::Integer => write!(f, "integer"),
             Kind::String => write!(f, "string"),
             Kind::Array => write!(f, "array"),
+        }
+    }
+}
+
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum VariableType {
+    Boolean,
+    Float,
+    Integer,
+    String,
+    Function(u32),
+    Dynamic,
+}
+
+impl VariableType {
+    pub fn get_kind(&self) -> Kind {
+        match self {
+            VariableType::Boolean => Kind::Boolean,
+            VariableType::Float => Kind::Float,
+            VariableType::Integer => Kind::Integer,
+            VariableType::String => Kind::String,
+            _ => todo!()
         }
     }
 }
@@ -56,6 +88,14 @@ impl LightValue {
     pub const STRINGPOINTER: u8 = 4;
     pub const FUNCTIONPOINTER: u8 = 5;
     pub const ARRAYPOINTER: u8 = 6;
+    pub fn get_kind(&self) -> Kind {
+        match self {
+            LightValue::Boolean(_) => Kind::Boolean,
+            LightValue::Integer(_) => Kind::Integer,
+            LightValue::Float(_) => Kind::Float,
+            _ => todo!()
+        }
+    }
 }
 
 impl Eq for LightValue {}
@@ -80,6 +120,15 @@ pub enum HeavyValue {
     Function(Chunk),
     Closure(Closure),
     Array(Vec<LightValue>),
+}
+
+impl HeavyValue {
+    pub fn get_kind(&self) -> Kind {
+        match self {
+            HeavyValue::String(_) => Kind::String,
+            _ => todo!()
+        }
+    }
 }
 
 impl Eq for HeavyValue {}
@@ -107,6 +156,18 @@ pub enum Value {
     Function(Vec<u8>),
     Array(Vec<Value>),
     StaticArray(Vec<Value>),
+}
+
+impl Value {
+    pub fn get_kind(&self) -> Kind {
+        match self {
+            Value::Boolean(_) => Kind::Boolean,
+            Value::Float(_) => Kind::Float,
+            Value::Integer(_) => Kind::Integer,
+            Value::String(_) => Kind::String,
+            _ => todo!()
+        }
+    }
 }
 
 impl fmt::Display for Value {

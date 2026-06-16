@@ -1,7 +1,7 @@
 use crate::error_handler::{Error, ErrorHandler, SemanticError, SemanticErrorType, TypeError, TypeErrorType};
 use crate::node::{Node, ResolvedNode, AST};
 use crate::symbol_table::{SymbolTable, SymbolType};
-use crate::value::{HeavyValue, Kind, LightValue};
+use crate::value::VariableType;
 
 pub struct Resolver {
     error_handler: ErrorHandler,
@@ -34,55 +34,62 @@ impl Resolver {
                 Node::Apply {operator, arguments} => {
                     match self.symbol_table.resolve(&operator) {
                         Ok(SymbolType::Builtin(index)) => resolved_stations.push(ResolvedNode::BuiltinCall {index, arguments: self.solve(arguments, ast)}),
-                        Ok(SymbolType::Scope(scope, index)) => resolved_stations.push(ResolvedNode::Call {scope, index, arguments: self.solve(arguments, ast)}),
+                        Ok(SymbolType::Scope(scope, index, function)) => {
+                            let arguments = self.solve(arguments, ast);
+                            if let VariableType::Function(function_index) = function {
+                                let required_variables_type = self.symbol_table.get_arguments(function_index);
+                                self.check_function_arguments(&arguments, required_variables_type)
+                            }
+                            resolved_stations.push(ResolvedNode::Call { scope, index, arguments })
+                        },
                         Err(error) => self.error_handler.errors.push(Error::SemanticError(error))
                     }
                 },
                 Node::Assignment(name) => {
-                    match self.symbol_table.add_variable(name) {
-                        Ok(SymbolType::Scope(_, index)) => {
+                    match self.symbol_table.add_variable(name, VariableType::Dynamic) {
+                        Ok(SymbolType::Scope(_, index, _)) => {
                             resolved_stations.push(ResolvedNode::Assignment(index));
                             ast.arity += 1
                         }
-                        Err(SymbolType::Scope(_, index)) => resolved_stations.push(ResolvedNode::Assignment(index)),
+                        Err(SymbolType::Scope(_, index, _)) => resolved_stations.push(ResolvedNode::Assignment(index)),
                         _ => unreachable!()
                     }
                 },
                 Node::HardAssignment(name, kind) => {
                     match resolved_stations.last() {
                         Some(ResolvedNode::Literal(value)) => {
-                            let received_kind = self.get_type(*value);
+                            let received_kind = value.get_kind();
                             if received_kind != kind { self.error_handler.errors.push(Error::TypeError(TypeError { kind: TypeErrorType::AssignTypeMismatch(received_kind, kind) })) }
                         },
                         Some(ResolvedNode::HeavyLiteral(value)) => {
-                            let received_kind = self.get_heavy_type(value);
+                            let received_kind = value.get_kind();
                             if received_kind != kind { self.error_handler.errors.push(Error::TypeError(TypeError {kind: TypeErrorType::AssignTypeMismatch(received_kind, kind) })) }
                         },
                         _ => {}
                     };
-                    match self.symbol_table.add_variable(name) {
-                        Ok(SymbolType::Scope(_, index)) => {
+                    match self.symbol_table.add_variable(name, kind.get_variable_type()) {
+                        Ok(SymbolType::Scope(_, index, _)) => {
                             resolved_stations.push(ResolvedNode::HardAssignment(index, kind));
                             ast.arity += 1
                         }
-                        Err(SymbolType::Scope(_, index)) => resolved_stations.push(ResolvedNode::HardAssignment(index, kind)),
+                        Err(SymbolType::Scope(_, index, _)) => resolved_stations.push(ResolvedNode::HardAssignment(index, kind)),
                         _ => unreachable!()
                     }
                 },
                 Node::Variable(name) => {
                     match self.symbol_table.resolve(&name) {
-                        Ok(SymbolType::Scope(_, index)) => resolved_stations.push(ResolvedNode::Variable(index)),
+                        Ok(SymbolType::Scope(_, index, _)) => resolved_stations.push(ResolvedNode::Variable(index)),
                         Err(error) => self.error_handler.errors.push(Error::SemanticError(error)),
                         _ => unreachable!()
                     }
                 },
                 Node::DefineFunction {operator, arguments, body} => {
-                    let index = match self.symbol_table.add_variable(operator) {
-                        Ok(SymbolType::Scope(_, index)) => {
+                    let index = match self.symbol_table.add_variable(operator, VariableType::Function(arguments.len() as u32)) {
+                        Ok(SymbolType::Scope(_, index, _)) => {
                             ast.arity += 1;
                             index
                         },
-                        Err(SymbolType::Scope(_, index)) => {
+                        Err(SymbolType::Scope(_, index, _)) => {
                             index
                         },
                         _ => unreachable!()
@@ -92,26 +99,33 @@ impl Resolver {
                     for argument in arguments {
                         match argument {
                             Node::Assignment(name) => {
-                                match self.symbol_table.add_variable(name.clone()) {
-                                    Ok(_) => child_ast.arity += 1,
-                                    Err(SymbolType::Scope(_, _)) => self.error_handler.errors.push(Error::SemanticError(SemanticError {kind: SemanticErrorType::DuplicateParameter(name)})),
+                                match self.symbol_table.add_variable(name.clone(), VariableType::Dynamic) {
+                                    Ok(SymbolType::Scope(_, index, _)) => {
+                                        child_ast.nodes.push(ResolvedNode::Assignment(index));
+                                        child_ast.arity += 1;
+                                        self.symbol_table.all_arguments.push(VariableType::Dynamic)
+                                    },
+                                    Err(SymbolType::Scope(_, _, _)) => self.error_handler.errors.push(Error::SemanticError(SemanticError {kind: SemanticErrorType::DuplicateParameter(name)})),
                                     _ => unreachable!()
                                 }
                             }
                             Node::HardAssignment(name, kind) => {
-                                match self.symbol_table.add_variable(name.clone()) {
-                                    Ok(SymbolType::Scope(_, index)) => {
+                                let variable_type = kind.get_variable_type();
+                                match self.symbol_table.add_variable(name.clone(), variable_type) {
+                                    Ok(SymbolType::Scope(_, index, _)) => {
                                         child_ast.nodes.push(ResolvedNode::HardAssignment(index, kind));
-                                        child_ast.arity += 1
+                                        child_ast.arity += 1;
+                                        self.symbol_table.all_arguments.push(variable_type)
                                     },
-                                    Err(SymbolType::Scope(_, _)) => self.error_handler.errors.push(Error::SemanticError(SemanticError {kind: SemanticErrorType::DuplicateParameter(name)})),
+                                    Err(SymbolType::Scope(_, _, _)) => self.error_handler.errors.push(Error::SemanticError(SemanticError {kind: SemanticErrorType::DuplicateParameter(name)})),
                                     _ => unreachable!()
                                 }
                             }
                             _ => todo!()
                         }
                     }
-                    child_ast.nodes = self.solve(body, &mut child_ast);
+                    let body = self.solve(body, &mut child_ast);
+                    child_ast.nodes.extend(body);
                     self.symbol_table.scopes.pop();
                     resolved_stations.push(ResolvedNode::DefineFunction {index, body: child_ast})
                 },
@@ -140,19 +154,30 @@ impl Resolver {
         resolved_stations
     }
 
-    fn get_type(&self, value: LightValue) -> Kind {
-        match value {
-            LightValue::Boolean(_) => Kind::Boolean,
-            LightValue::Integer(_) => Kind::Integer,
-            LightValue::Float(_) => Kind::Float,
-            _ => todo!()
+    fn check_function_arguments(&mut self, arguments: &[ResolvedNode], required_variables_type: Vec<VariableType>) {
+        let received_arity = arguments.len();
+        let required_arity = required_variables_type.len();
+        for index in 0..std::cmp::min(received_arity, required_arity) {
+            match &arguments[index] {
+                ResolvedNode::Literal(value) => {
+                    let received_variable_type = value.get_kind().get_variable_type();
+                    let required_variable_type = required_variables_type[index];
+                    if required_variable_type != VariableType::Dynamic && received_variable_type != VariableType::Dynamic && received_variable_type != required_variable_type {
+                        self.error_handler.errors.push(Error::TypeError(TypeError {kind: TypeErrorType::TypeMismatch(received_variable_type.get_kind(), required_variable_type.get_kind())}))
+                    }
+                },
+                ResolvedNode::HeavyLiteral(value) => {
+                    let received_variable_type = value.get_kind().get_variable_type();
+                    let required_variable_type = required_variables_type[index];
+                    if required_variable_type != VariableType::Dynamic && received_variable_type != VariableType::Dynamic && received_variable_type != required_variable_type {
+                        self.error_handler.errors.push(Error::TypeError(TypeError {kind: TypeErrorType::TypeMismatch(received_variable_type.get_kind(), required_variable_type.get_kind())}))
+                    }
+                },
+                _ => {todo!("Currently under development")}
+            }
         }
-    }
-
-    fn get_heavy_type(&self, value: &HeavyValue) -> Kind {
-        match value {
-            HeavyValue::String(_) => Kind::String,
-            _ => todo!()
+        if received_arity != required_arity {
+            self.error_handler.errors.push(Error::TypeError(TypeError {kind: TypeErrorType::ArityMismatchError(received_arity, required_arity)}))
         }
     }
 }
