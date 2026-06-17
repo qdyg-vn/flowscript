@@ -46,12 +46,26 @@ impl Resolver {
                     }
                 },
                 Node::Assignment(name) => {
-                    match self.symbol_table.add_variable(name, VariableType::Dynamic) {
+                    let kind = match resolved_stations.last() {
+                        Some(ResolvedNode::Literal(value)) => {
+                            value.get_kind()
+                        },
+                        Some(ResolvedNode::HeavyLiteral(value)) => {
+                            value.get_kind()
+                        },
+                        _ => {todo!()}
+                    };
+                    match self.symbol_table.add_variable(name, kind.get_variable_type()) {
                         Ok(SymbolType::Scope(_, index, _)) => {
-                            resolved_stations.push(ResolvedNode::Assignment(index));
+                            resolved_stations.push(ResolvedNode::HardAssignment(index, kind));
                             ast.arity += 1
                         }
-                        Err(SymbolType::Scope(_, index, _)) => resolved_stations.push(ResolvedNode::Assignment(index)),
+                        Err(SymbolType::Scope(_, index, variable_type)) => {
+                            if kind.get_variable_type() != variable_type {
+                                self.error_handler.errors.push(Error::TypeError(TypeError { kind: TypeErrorType::AssignTypeMismatch(kind, variable_type.get_kind()) }))
+                            }
+                            resolved_stations.push(ResolvedNode::HardAssignment(index, kind))
+                        },
                         _ => unreachable!()
                     }
                 },

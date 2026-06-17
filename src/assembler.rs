@@ -134,6 +134,7 @@ impl Assembler {
             match instructions[position] {
                 Instruction::Return => distance += 1,
                 Instruction::Store(_) | Instruction::LoadVariable(_) | Instruction::Jump(_) | Instruction::JumpIfFalse(_) => distance += 3,
+                Instruction::HardStore(_, _) => distance += 4,
                 _ => distance += 5,
             }
             position += 1

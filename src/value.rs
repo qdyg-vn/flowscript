@@ -145,17 +145,12 @@ impl Hash for HeavyValue {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
     Boolean(bool),
-    StaticBoolean(bool),
     Nil,
     Float(f64),
-    StaticFloat(f64),
     Integer(i64),
-    StaticInteger(i64),
     String(String),
-    StaticString(String),
     Function(Vec<u8>),
     Array(Vec<Value>),
-    StaticArray(Vec<Value>),
 }
 
 impl Value {
