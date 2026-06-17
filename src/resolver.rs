@@ -114,8 +114,7 @@ impl Resolver {
                         match argument {
                             Node::Assignment(name) => {
                                 match self.symbol_table.add_variable(name.clone(), VariableType::Dynamic) {
-                                    Ok(SymbolType::Scope(_, index, _)) => {
-                                        child_ast.nodes.push(ResolvedNode::Assignment(index));
+                                    Ok(SymbolType::Scope(_, _, _)) => {
                                         child_ast.arity += 1;
                                         self.symbol_table.all_arguments.push(VariableType::Dynamic)
                                     },
@@ -124,12 +123,10 @@ impl Resolver {
                                 }
                             }
                             Node::HardAssignment(name, kind) => {
-                                let variable_type = kind.get_variable_type();
-                                match self.symbol_table.add_variable(name.clone(), variable_type) {
-                                    Ok(SymbolType::Scope(_, index, _)) => {
-                                        child_ast.nodes.push(ResolvedNode::HardAssignment(index, kind));
+                                match self.symbol_table.add_variable(name.clone(), kind.get_variable_type()) {
+                                    Ok(SymbolType::Scope(_, _, _)) => {
                                         child_ast.arity += 1;
-                                        self.symbol_table.all_arguments.push(variable_type)
+                                        self.symbol_table.all_arguments.push(kind.get_variable_type())
                                     },
                                     Err(SymbolType::Scope(_, _, _)) => self.error_handler.errors.push(Error::SemanticError(SemanticError {kind: SemanticErrorType::DuplicateParameter(name)})),
                                     _ => unreachable!()
