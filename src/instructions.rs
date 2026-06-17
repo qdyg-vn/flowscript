@@ -9,8 +9,7 @@ pub enum Bytecode {
     JumpIfFalse, // u16: instruction position
     RelativeReference, // u16: x, u16: y
     Return,
-    Store, // u16: offset from base pointer
-    HardStore, // u16: offset from base pointer, u8: kind
+    Store, // u16: offset from base pointer, u8: kind
     Array, // u32: length
     DefineFunction, // u16: offset from base pointer, u16: index of body in constant pool
 }
@@ -33,9 +32,7 @@ impl Bytecode {
     pub const RETURN: u8 = Bytecode::Return as u8;
     pub const RETURN_SIZE: usize = 1;
     pub const STORE: u8 = Bytecode::Store as u8;
-    pub const STORE_SIZE: usize = 1 + 2;
-    pub const HARD_STORE: u8 = Bytecode::HardStore as u8;
-    pub const HARD_STORE_SIZE: usize = 1 + 2 + 1;
+    pub const STORE_SIZE: usize = 1 + 2 + 1;
     pub const ARRAY: u8 = Bytecode::Array as u8;
     pub const ARRAY_SIZE: usize = 1 + 4;
     pub const DEFINE_FUNCTION: u8 = Bytecode::DefineFunction as u8;
@@ -52,8 +49,7 @@ pub enum Instruction {
     JumpIfFalse(u16),
     RelativeReference(u16, u16),
     Return,
-    Store(u16),
-    HardStore(u16, u8),
+    Store(u16, u8),
     Array(u32),
     DefineFunction(u16, u16),
 }

@@ -45,7 +45,7 @@ impl Resolver {
                         Err(error) => self.error_handler.errors.push(Error::SemanticError(error))
                     }
                 },
-                Node::Assignment(name) => {
+                Node::SoftAssignment(name) => {
                     let kind = match resolved_stations.last() {
                         Some(ResolvedNode::Literal(value)) => {
                             value.get_kind()
@@ -53,23 +53,24 @@ impl Resolver {
                         Some(ResolvedNode::HeavyLiteral(value)) => {
                             value.get_kind()
                         },
+                        Some(ResolvedNode::Assignment(_, kind)) => *kind,
                         _ => {todo!()}
                     };
                     match self.symbol_table.add_variable(name, kind.get_variable_type()) {
                         Ok(SymbolType::Scope(_, index, _)) => {
-                            resolved_stations.push(ResolvedNode::HardAssignment(index, kind));
+                            resolved_stations.push(ResolvedNode::Assignment(index, kind));
                             ast.arity += 1
                         }
                         Err(SymbolType::Scope(_, index, variable_type)) => {
                             if kind.get_variable_type() != variable_type {
                                 self.error_handler.errors.push(Error::TypeError(TypeError { kind: TypeErrorType::AssignTypeMismatch(kind, variable_type.get_kind()) }))
                             }
-                            resolved_stations.push(ResolvedNode::HardAssignment(index, kind))
+                            resolved_stations.push(ResolvedNode::Assignment(index, kind))
                         },
                         _ => unreachable!()
                     }
                 },
-                Node::HardAssignment(name, kind) => {
+                Node::Assignment(name, kind) => {
                     match resolved_stations.last() {
                         Some(ResolvedNode::Literal(value)) => {
                             let received_kind = value.get_kind();
@@ -83,10 +84,10 @@ impl Resolver {
                     };
                     match self.symbol_table.add_variable(name, kind.get_variable_type()) {
                         Ok(SymbolType::Scope(_, index, _)) => {
-                            resolved_stations.push(ResolvedNode::HardAssignment(index, kind));
+                            resolved_stations.push(ResolvedNode::Assignment(index, kind));
                             ast.arity += 1
                         }
-                        Err(SymbolType::Scope(_, index, _)) => resolved_stations.push(ResolvedNode::HardAssignment(index, kind)),
+                        Err(SymbolType::Scope(_, index, _)) => resolved_stations.push(ResolvedNode::Assignment(index, kind)),
                         _ => unreachable!()
                     }
                 },
@@ -112,7 +113,7 @@ impl Resolver {
                     let mut child_ast = AST {nodes: Vec::with_capacity(arguments.len() + body.len()), arity: 0};
                     for argument in arguments {
                         match argument {
-                            Node::Assignment(name) => {
+                            Node::SoftAssignment(name) => {
                                 match self.symbol_table.add_variable(name.clone(), VariableType::Dynamic) {
                                     Ok(SymbolType::Scope(_, _, _)) => {
                                         child_ast.arity += 1;
@@ -122,7 +123,7 @@ impl Resolver {
                                     _ => unreachable!()
                                 }
                             }
-                            Node::HardAssignment(name, kind) => {
+                            Node::Assignment(name, kind) => {
                                 match self.symbol_table.add_variable(name.clone(), kind.get_variable_type()) {
                                     Ok(SymbolType::Scope(_, _, _)) => {
                                         child_ast.arity += 1;

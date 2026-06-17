@@ -103,7 +103,7 @@ impl<'source_code> Parser<'source_code> {
         Ok(Node::Apply {operator, arguments})
     }
 
-    fn parse_hard_assignment(&mut self, name: String) -> Result<Node, Error> {
+    fn parse_assignment(&mut self, name: String) -> Result<Node, Error> {
         self.advance(1);
         let token = self.advance(1).transpose()?;
         if let Some(token) = token {
@@ -119,7 +119,7 @@ impl<'source_code> Parser<'source_code> {
                     }
                     _ => unreachable!()
                 };
-                return Ok(Node::HardAssignment(name, kind))
+                return Ok(Node::Assignment(name, kind))
             }
             return Err(self.error_pusher(token.start, SyntaxErrorType::MissingTypeIdentity))
         }
@@ -142,9 +142,9 @@ impl<'source_code> Parser<'source_code> {
             arguments.push(match argument.kind {
                 TokenType::Variable(name) => {
                     if let Some(token) = self.peek().transpose()? && token.kind == TokenType::Colon {
-                        self.parse_hard_assignment(name)?
+                        self.parse_assignment(name)?
                     } else {
-                        Node::Assignment(name) // Because in a lexer when it encounters a function argument, it converts it into a variable
+                        Node::SoftAssignment(name) // Because in a lexer when it encounters a function argument, it converts it into a variable
                     }
                 },
                 _ => todo!()
@@ -231,9 +231,9 @@ impl<'source_code> Parser<'source_code> {
                 stations.push(match self.dispatch_node(token) {
                     Ok(Node::Variable(name)) => {
                         if let Some(token) = self.peek().transpose()? && token.kind == TokenType::Colon {
-                            self.parse_hard_assignment(name)?
+                            self.parse_assignment(name)?
                         } else {
-                            Node::Assignment(name)
+                            Node::SoftAssignment(name)
                         }
                     },
                     other => other?

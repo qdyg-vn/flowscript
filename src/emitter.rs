@@ -47,8 +47,7 @@ impl Emitter {
                     chunk.instructions.push(Instruction::Call(scope, index))
                 },
                 ResolvedNode::RelativeReference(x, y) => chunk.instructions.push(Instruction::RelativeReference(x, y)),
-                ResolvedNode::Assignment(index) => chunk.instructions.push(Instruction::Store(index)),
-                ResolvedNode::HardAssignment(index, kind) => chunk.instructions.push(Instruction::HardStore(index, kind as u8)),
+                ResolvedNode::Assignment(index, kind) => chunk.instructions.push(Instruction::Store(index, kind as u8)),
                 ResolvedNode::Variable(index) => chunk.instructions.push(Instruction::LoadVariable(index)),
                 ResolvedNode::DefineFunction {index, body} => {
                     let mut child_chunk = Chunk { instructions: Vec::new(), arity: body.arity };

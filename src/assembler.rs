@@ -80,13 +80,8 @@ impl Assembler {
                     byte_chunk.extend_from_slice(&y.to_le_bytes());
                     *byte_position += 5
                 },
-                Instruction::Store(index) => {
+                Instruction::Store(index, kind) => {
                     byte_chunk.push(Bytecode::Store as u8);
-                    byte_chunk.extend_from_slice(&index.to_le_bytes());
-                    *byte_position += 3
-                },
-                Instruction::HardStore(index, kind) => {
-                    byte_chunk.push(Bytecode::HardStore as u8);
                     byte_chunk.extend_from_slice(&index.to_le_bytes());
                     byte_chunk.push(kind);
                     *byte_position += 4
@@ -133,8 +128,8 @@ impl Assembler {
         while position < target as usize {
             match instructions[position] {
                 Instruction::Return => distance += 1,
-                Instruction::Store(_) | Instruction::LoadVariable(_) | Instruction::Jump(_) | Instruction::JumpIfFalse(_) => distance += 3,
-                Instruction::HardStore(_, _) => distance += 4,
+                Instruction::LoadVariable(_) | Instruction::Jump(_) | Instruction::JumpIfFalse(_) => distance += 3,
+                Instruction::Store(_, _) => distance += 4,
                 _ => distance += 5,
             }
             position += 1

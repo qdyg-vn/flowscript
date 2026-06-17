@@ -11,8 +11,8 @@ pub enum Node {
     Pipeline(Vec<Node>),
     RelativeReference(u16, u16),
     Variable(String),
-    Assignment(String),
-    HardAssignment(String, Kind),
+    SoftAssignment(String),
+    Assignment(String, Kind),
     DefineFunction {
         operator: String,
         arguments: Vec<Node>,
@@ -42,8 +42,7 @@ pub enum ResolvedNode {
     Pipeline(Vec<ResolvedNode>),
     RelativeReference(u16, u16),
     Variable(u16),
-    Assignment(u16),
-    HardAssignment(u16, Kind),
+    Assignment(u16, Kind),
     DefineFunction {
         index: u16,
         body: AST,
