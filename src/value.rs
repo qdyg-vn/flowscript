@@ -82,12 +82,19 @@ pub enum LightValue {
 
 impl LightValue {
     pub const BOOLEAN: u8 = 0;
+    pub const BOOLEAN_SIZE: usize = 1 + 1;
     pub const NIL: u8 = 1;
+    pub const NIL_SIZE: usize = 1;
     pub const FLOAT: u8 = 2;
+    pub const FLOAT_SIZE: usize = 1 + 8;
     pub const INTEGER: u8 = 3;
+    pub const INTEGER_SIZE: usize = 1 + 8;  
     pub const STRINGPOINTER: u8 = 4;
+    pub const STRINGPOINTER_SIZE: usize = 1 + 4;
     pub const FUNCTIONPOINTER: u8 = 5;
+    pub const FUNCTIONPOINTER_SIZE: usize = 1 + 4;
     pub const ARRAYPOINTER: u8 = 6;
+    pub const ARRAYPOINTER_SIZE: usize = 1 + 4;
     pub fn get_kind(&self) -> Kind {
         match self {
             LightValue::Boolean(_) => Kind::Boolean,

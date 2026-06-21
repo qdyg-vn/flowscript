@@ -127,10 +127,17 @@ impl Assembler {
         let mut distance = 0;
         while position < target as usize {
             match instructions[position] {
-                Instruction::Return => distance += 1,
-                Instruction::LoadVariable(_) | Instruction::Jump(_) | Instruction::JumpIfFalse(_) => distance += 3,
-                Instruction::Store(_, _) => distance += 4,
-                _ => distance += 5,
+                Instruction::Call(_, _) => distance += Bytecode::CALL_SIZE,
+                Instruction::BuiltinCall(_, _) => distance += Bytecode::BUILTIN_CALL_SIZE,
+                Instruction::Load(_) => distance += Bytecode::LOAD_SIZE,
+                Instruction::LoadVariable(_) => distance += Bytecode::LOAD_VARIABLE_SIZE,
+                Instruction::Jump(_) => distance += Bytecode::JUMP_SIZE,
+                Instruction::JumpIfFalse(_) => distance += Bytecode::JUMP_IF_FALSE_SIZE,
+                Instruction::RelativeReference(_, _) => distance += Bytecode::RELATIVE_REFERENCE_SIZE,
+                Instruction::Return => distance += Bytecode::RETURN_SIZE,
+                Instruction::Store(_, _) => distance += Bytecode::STORE_SIZE,
+                Instruction::Array(_) => distance += Bytecode::ARRAY_SIZE,
+                Instruction::DefineFunction(_, _) => distance += Bytecode::DEFINE_FUNCTION_SIZE,
             }
             position += 1
         }

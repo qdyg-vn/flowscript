@@ -1,7 +1,7 @@
 use crate::builtins::{get_builtin, BuiltinFunction};
 use crate::instructions::Bytecode;
-use crate::value::{Kind, LightValue, Value};
-use crate::error_handler::{ErrorHandler, Error, RuntimeError, RuntimeErrorType, TypeError, TypeErrorType};
+use crate::value::{LightValue, Value};
+use crate::error_handler::{ErrorHandler, Error, RuntimeError, RuntimeErrorType};
 use crate::memory::Memory;
 
 pub struct VirMac {
@@ -251,33 +251,33 @@ impl VirMac {
             array.push(match self.memory.permanent_space[start] {
                 LightValue::BOOLEAN => {
                     let boolean = Value::Boolean(self.memory.permanent_space[start + 1] != 0);
-                    start += 2;
+                    start += LightValue::BOOLEAN_SIZE;
                     boolean
                 },
                 LightValue::NIL => {
-                    start += 1;
+                    start += LightValue::NIL_SIZE;
                     Value::Nil
                 },
                 LightValue::FLOAT => {
                     let float = Value::Float(f64::from_le_bytes(self.memory.permanent_space[start + 1..=start + 8].try_into().unwrap()));
-                    start += 9;
+                    start += LightValue::FLOAT_SIZE;
                     float
                 },
                 LightValue::INTEGER => {
                     let integer = Value::Integer(i64::from_le_bytes(self.memory.permanent_space[start + 1..=start + 8].try_into().unwrap()));
-                    start += 9;
+                    start += LightValue::INTEGER_SIZE;
                     integer
                 },
                 LightValue::STRINGPOINTER => {
                     let index = u32::from_le_bytes(self.memory.permanent_space[start + 1..=start + 4].try_into().unwrap());
                     let string = self.to_string(index as usize);
-                    start += 5;
+                    start += LightValue::STRINGPOINTER_SIZE;
                     Value::String(string)
                 },
                 LightValue::ARRAYPOINTER => {
                     let index = u32::from_le_bytes(self.memory.permanent_space[start + 1..=start + 4].try_into().unwrap());
                     let array = self.to_array(index as usize);
-                    start += 5;
+                    start += LightValue::ARRAYPOINTER_SIZE;
                     Value::Array(array)
                 },
                 _ => unreachable!()
@@ -295,33 +295,33 @@ impl VirMac {
             array.push(match self.memory.from_space[start] {
                 LightValue::BOOLEAN => {
                     let boolean = Value::Boolean(self.memory.from_space[start + 1] != 0);
-                    start += 2;
+                    start += LightValue::BOOLEAN_SIZE;
                     boolean
                 },
                 LightValue::NIL => {
-                    start += 1;
+                    start += LightValue::NIL_SIZE;
                     Value::Nil
                 },
                 LightValue::FLOAT => {
                     let float = Value::Float(f64::from_le_bytes(self.memory.from_space[start + 1..=start + 8].try_into().unwrap()));
-                    start += 9;
+                    start += LightValue::FLOAT_SIZE;
                     float
                 },
                 LightValue::INTEGER => {
                     let integer = Value::Integer(i64::from_le_bytes(self.memory.from_space[start + 1..=start + 8].try_into().unwrap()));
-                    start += 9;
+                    start += LightValue::INTEGER_SIZE;
                     integer
                 },
                 LightValue::STRINGPOINTER => {
                     let index = u32::from_le_bytes(self.memory.from_space[start + 1..=start + 4].try_into().unwrap());
                     let string = self.to_string(index as usize);
-                    start += 5;
+                    start += LightValue::STRINGPOINTER_SIZE;
                     Value::String(string)
                 },
                 LightValue::ARRAYPOINTER => {
                     let index = u32::from_le_bytes(self.memory.from_space[start + 1..=start + 4].try_into().unwrap());
                     let array = self.to_array(index as usize);
-                    start += 5;
+                    start += LightValue::ARRAYPOINTER_SIZE;
                     Value::Array(array)
                 },
                 _ => unreachable!()
