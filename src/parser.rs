@@ -94,10 +94,7 @@ impl<'source_code> Parser<'source_code> {
             return Err(self.error_pusher(start, SyntaxErrorType::MissingLeftParen));
         }
         let mut arguments = Vec::new();
-        while let Some(argument) = self.advance(1).transpose()? {
-            if argument.kind == TokenType::RightParen {
-                break;
-            }
+        while let Some(argument) = self.advance(1).transpose()? && argument.kind != TokenType::RightParen {
             arguments.push(self.dispatch_node(argument)?);
         }
         Ok(Node::Apply {operator, arguments})
@@ -105,25 +102,21 @@ impl<'source_code> Parser<'source_code> {
 
     fn parse_assignment(&mut self, name: String) -> Result<Node, Error> {
         self.advance(1);
-        let token = self.advance(1).transpose()?;
-        if let Some(token) = token {
-            if matches!(token.kind, TokenType::Kind(_)) {
-                let kind = match token.kind {
-                    TokenType::Kind(kind) => match kind.as_str() {
-                        "boolean" => Kind::Boolean,
-                        "float" => Kind::Float,
-                        "integer" => Kind::Integer,
-                        "string" => Kind::String,
-                        "array" => Kind::Array,
-                        _ => unreachable!(),
-                    }
-                    _ => unreachable!()
+        let Some(token) = self.advance(1).transpose()? else {return Err(self.error_pusher(self.last_index(), SyntaxErrorType::MissingTypeIdentity))};
+        match token.kind {
+            TokenType::Kind(kind) => {
+                let node_kind = match kind.as_str() {
+                    "boolean" => Kind::Boolean,
+                    "float" => Kind::Float,
+                    "integer" => Kind::Integer,
+                    "string" => Kind::String,
+                    "array" => Kind::Array,
+                    _ => unreachable!(),
                 };
-                return Ok(Node::Assignment(name, kind))
-            }
-            return Err(self.error_pusher(token.start, SyntaxErrorType::MissingTypeIdentity))
+                Ok(Node::Assignment(name, node_kind))
+            },
+            _ => Err(self.error_pusher(token.start, SyntaxErrorType::MissingTypeIdentity))
         }
-        Err(self.error_pusher(self.last_index(), SyntaxErrorType::MissingTypeIdentity))
     }
 
     fn parse_define_function(&mut self, start: usize) -> Result<Node, Error> {
@@ -227,20 +220,17 @@ impl<'source_code> Parser<'source_code> {
         }
         while let Some(token) = self.peek().transpose()? && token.kind == TokenType::Arrow {
             self.advance(1);
-            if let Some(token) = self.advance(1).transpose()? {
-                stations.push(match self.dispatch_node(token) {
-                    Ok(Node::Variable(name)) => {
-                        if let Some(token) = self.peek().transpose()? && token.kind == TokenType::Colon {
-                            self.parse_assignment(name)?
-                        } else {
-                            Node::SoftAssignment(name)
-                        }
-                    },
-                    other => other?
-                });
-            } else {
-                return Err(self.error_pusher(start, SyntaxErrorType::NoStationAfterPipeline))
-            }
+            let Some(token) = self.advance(1).transpose()? else {return Err(self.error_pusher(start, SyntaxErrorType::NoStationAfterPipeline))};
+            stations.push(match self.dispatch_node(token) {
+                Ok(Node::Variable(name)) => {
+                    if let Some(token) = self.peek().transpose()? && token.kind == TokenType::Colon {
+                        self.parse_assignment(name)?
+                    } else {
+                        Node::SoftAssignment(name)
+                    }
+                },
+                other => other?
+            });
         }
         Ok(Node::Pipeline(stations))
     }
