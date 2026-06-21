@@ -41,7 +41,7 @@ pub enum ResolvedNode {
     },
     Pipeline(Vec<ResolvedNode>),
     RelativeReference(u16, u16),
-    Variable(u16),
+    Variable(u16, Kind),
     Assignment(u16, Kind),
     DefineFunction {
         index: u16,

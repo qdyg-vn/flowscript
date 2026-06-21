@@ -53,7 +53,7 @@ impl Resolver {
                         Some(ResolvedNode::HeavyLiteral(value)) => {
                             value.get_kind()
                         },
-                        Some(ResolvedNode::Assignment(_, kind)) => *kind,
+                        Some(ResolvedNode::Variable(_, kind)) | Some(ResolvedNode::Assignment(_, kind)) => *kind,
                         _ => {todo!()}
                     };
                     match self.symbol_table.add_variable(name, kind.get_variable_type()) {
@@ -93,7 +93,7 @@ impl Resolver {
                 },
                 Node::Variable(name) => {
                     match self.symbol_table.resolve(&name) {
-                        Ok(SymbolType::Scope(_, index, _)) => resolved_stations.push(ResolvedNode::Variable(index)),
+                        Ok(SymbolType::Scope(_, index, variable_type)) => resolved_stations.push(ResolvedNode::Variable(index, variable_type.get_kind())),
                         Err(error) => self.error_handler.errors.push(Error::SemanticError(error)),
                         _ => unreachable!()
                     }
@@ -170,21 +170,26 @@ impl Resolver {
         let received_arity = arguments.len();
         let required_arity = required_variables_type.len();
         for index in 0..std::cmp::min(received_arity, required_arity) {
+            let required_variable_type = required_variables_type[index];
             match &arguments[index] {
                 ResolvedNode::Literal(value) => {
                     let received_variable_type = value.get_kind().get_variable_type();
-                    let required_variable_type = required_variables_type[index];
                     if required_variable_type != VariableType::Dynamic && received_variable_type != VariableType::Dynamic && received_variable_type != required_variable_type {
-                        self.error_handler.errors.push(Error::TypeError(TypeError {kind: TypeErrorType::TypeMismatch(received_variable_type.get_kind(), required_variable_type.get_kind())}))
+                        self.error_handler.errors.push(Error::TypeError(TypeError {kind: TypeErrorType::TypeMismatch(required_variable_type.get_kind(), received_variable_type.get_kind())}))
                     }
                 },
                 ResolvedNode::HeavyLiteral(value) => {
                     let received_variable_type = value.get_kind().get_variable_type();
-                    let required_variable_type = required_variables_type[index];
                     if required_variable_type != VariableType::Dynamic && received_variable_type != VariableType::Dynamic && received_variable_type != required_variable_type {
-                        self.error_handler.errors.push(Error::TypeError(TypeError {kind: TypeErrorType::TypeMismatch(received_variable_type.get_kind(), required_variable_type.get_kind())}))
+                        self.error_handler.errors.push(Error::TypeError(TypeError {kind: TypeErrorType::TypeMismatch(required_variable_type.get_kind(), received_variable_type.get_kind())}))
                     }
                 },
+                ResolvedNode::Variable(_, kind) => {
+                    let received_variable_type = kind.get_variable_type();
+                    if required_variable_type != VariableType::Dynamic && received_variable_type != VariableType::Dynamic && received_variable_type != required_variable_type {
+                        self.error_handler.errors.push(Error::TypeError(TypeError {kind: TypeErrorType::TypeMismatch(required_variable_type.get_kind(), received_variable_type.get_kind())}))
+                    }
+                }
                 _ => {todo!("Currently under development")}
             }
         }
