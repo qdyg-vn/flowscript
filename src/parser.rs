@@ -121,10 +121,8 @@ impl<'source_code> Parser<'source_code> {
 
     fn parse_define_function(&mut self, start: usize) -> Result<Node, Error> {
         let operator = match self.advance(1).transpose()? {
-            Some(token) => match token.kind {
-                TokenType::Variable(name) => name,
-                _ => return Err(self.error_pusher(start, SyntaxErrorType::MissingFunctionName))
-            },
+            Some(Token {kind: TokenType::Variable(name), ..}) => name,
+            Some(_) => return Err(self.error_pusher(start, SyntaxErrorType::MissingFunctionName)),
             None => return Err(self.error_pusher(start, SyntaxErrorType::RedundantFunctionDefinition))
         };
         if let Some(token) = self.advance(1).transpose()? && token.kind != TokenType::LeftParen {
@@ -215,7 +213,7 @@ impl<'source_code> Parser<'source_code> {
         if self.peek().is_none() || self.peek().transpose()?.unwrap().kind != TokenType::Arrow {
             return match stations.pop() {
                 Some(station) => Ok(station),
-                _ => Err(self.error_pusher(start, SyntaxErrorType::NoStationBeforePipeline)),
+                _ => Err(self.error_pusher(start, SyntaxErrorType::NoStationBeforePipeline))
             }
         }
         while let Some(token) = self.peek().transpose()? && token.kind == TokenType::Arrow {

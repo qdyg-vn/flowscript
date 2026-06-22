@@ -1,31 +1,48 @@
-use crate::node::Node;
-use crate::error_handler::{ErrorHandler, Error};
+use crate::node::{ResolvedNode, AST};
+use crate::builtins::{get_builtin, BuiltinFunction};
+use crate::value::{LightValue, HeavyValue, Value};
+use crate::error_handler::ErrorHandler;
 
-pub struct Optimizer<P>
-where
-    P: Iterator<Item = Result<Node, Error>>,
-{
-    parser: P,
+pub struct Optimizer {
     error_handler: ErrorHandler,
 }
 
-impl<P> Optimizer<P>
-where
-    P: Iterator<Item = Result<Node, Error>>,
-{
-    pub fn new(parser: P, error_handler: ErrorHandler) -> Self {
-        Self { parser, error_handler }
+impl Optimizer {
+    pub fn new(error_handler: ErrorHandler) -> Self {
+        Self { error_handler }
     }
 
-    pub fn optimize(mut self) -> (Vec<Node>, ErrorHandler) {
-        let mut nodes = Vec::new();
-        for item in self.parser.by_ref() {
-            match item {
-                Ok(node) => nodes.push(node),
-                Err(error) => self.error_handler.errors.push(error)
+    pub fn optimizer(mut self, mut ast: AST) -> (AST, ErrorHandler) {
+        for pipeline in &mut ast.nodes {
+            let ResolvedNode::Pipeline(stations) = pipeline else {unreachable!()};
+            self.optimize(stations);
+        }
+        (ast, self.error_handler)
+    }
+
+    fn optimize(&mut self, stations: &mut Vec<ResolvedNode>) {
+        for station in stations {
+            let ResolvedNode::BuiltinCall { index, arguments: argument_nodes } = station else { continue } ;
+            let builtin = get_builtin(*index);
+            let BuiltinFunction::Math(function) = builtin.function else { continue };
+            let mut arguments = Vec::with_capacity(argument_nodes.len());
+            let mut skip = false;
+            for argument in argument_nodes {
+                arguments.push(match argument {
+                    ResolvedNode::Literal(LightValue::Float(value)) => Value::Float(*value),
+                    ResolvedNode::Literal(LightValue::Integer(value)) => Value::Integer(*value),
+                    ResolvedNode::HeavyLiteral(HeavyValue::String(value)) => Value::String(value.clone()),
+                    _ => { skip = true; break }
+                })
+            }
+            if skip { continue }
+            *station = match function(&arguments) {
+                Ok(Value::Float(value)) => ResolvedNode::Literal(LightValue::Float(value)),
+                Ok(Value::Integer(value)) => ResolvedNode::Literal(LightValue::Integer(value)),
+                Ok(Value::String(value)) => ResolvedNode::HeavyLiteral(HeavyValue::String(value)),
+                Ok(_) => todo!(),
+                Err(error) => { self.error_handler.errors.push(error); continue }
             }
         }
-        if !self.error_handler.errors.is_empty() { self.error_handler.report_exit() }
-        (nodes, self.error_handler)
     }
 }

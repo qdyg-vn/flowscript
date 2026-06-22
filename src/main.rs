@@ -43,11 +43,19 @@ fn run(source_code: Vec<u8>) {
     let memory = Memory::new();
     let lexer = Lexer::new(&source_code);
     let mut parser = Parser::new(lexer);
-    let mut optimizer = Optimizer::new(parser, error_handler);
-    let (nodes, error_handler) = optimizer.optimize();
+    let mut nodes = Vec::new();
+    for item in parser {
+        match item {
+            Ok(node) => nodes.push(node),
+            Err(error) => error_handler.errors.push(error)
+        }
+    }
+    if !error_handler.errors.is_empty() { error_handler.report_exit() }
     let symbol_table = SymbolTable::new();
     let mut resolver = Resolver::new(error_handler, symbol_table);
     let (error_handler, total_arity, ast) = resolver.resolve(nodes);
+    let mut optimizer = Optimizer::new(error_handler);
+    let (ast, error_handler) = optimizer.optimizer(ast);
     let constants_pool = ConstantsPool::default();
     let mut emitter = Emitter::new(constants_pool);
     let (constants_pool, map) = emitter.emit(ast);
