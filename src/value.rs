@@ -12,6 +12,7 @@ pub enum Kind {
     Integer,
     String,
     Array,
+    Dynamic,
 }
 
 impl Kind {
@@ -39,6 +40,7 @@ impl fmt::Display for Kind {
             Kind::Integer => write!(f, "integer"),
             Kind::String => write!(f, "string"),
             Kind::Array => write!(f, "array"),
+            _ => todo!()
         }
     }
 }
@@ -61,6 +63,7 @@ impl VariableType {
             VariableType::Float => Kind::Float,
             VariableType::Integer => Kind::Integer,
             VariableType::String => Kind::String,
+            VariableType::Dynamic => Kind::Dynamic,
             _ => todo!()
         }
     }

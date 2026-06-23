@@ -121,7 +121,7 @@ impl<'source_code> Parser<'source_code> {
 
     fn parse_define_function(&mut self, start: usize) -> Result<Node, Error> {
         let operator = match self.advance(1).transpose()? {
-            Some(Token {kind: TokenType::Variable(name), ..}) => name,
+            Some(Token {kind: TokenType::Variable(name), ..}) | Some(Token {kind: TokenType::Identifier(name), ..}) => name,
             Some(_) => return Err(self.error_pusher(start, SyntaxErrorType::MissingFunctionName)),
             None => return Err(self.error_pusher(start, SyntaxErrorType::RedundantFunctionDefinition))
         };

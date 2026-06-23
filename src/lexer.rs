@@ -130,7 +130,10 @@ impl<'source_code> Lexer<'source_code> {
             "true" => return Ok(Token::new(start, end, TokenType::Boolean(true))),
             "false" => return Ok(Token::new(start, end, TokenType::Boolean(false))),
             "nil" => return Ok(Token::new(start, end, TokenType::Nil)),
-            "boolean" | "integer" | "float" | "string" | "array" => return Ok(Token::new(start, end, TokenType::Kind(value.to_owned()))),
+            "boolean" | "integer" | "float" | "string" | "array" => {
+                return if self.peek(0) != Some(b'(') { Ok(Token::new(start, end, TokenType::Kind(value.to_owned()))) } 
+                else { Ok(Token::new(start, end, TokenType::Identifier(value.to_owned()))) } 
+            },
             _ => ()
         }
         if self.peek(0) != Some(b'(') {
