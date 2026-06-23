@@ -16,8 +16,8 @@ use crate::error_handler::Error;
 pub enum BuiltinFunction {
     Math(fn(&[Value]) -> Result<Value, Error>),
     IO(fn(&[Value])),
-    Casting(fn(&[Value]) -> Value),
-    Compare(fn(&[Value]) -> Value),
+    Casting(fn(&[Value]) -> Result<Value, Error>),
+    Compare(fn(&[Value]) -> Result<Value, Error>),
     Introspection(fn(&[Value]) -> Result<Value, Error>),
 }
 

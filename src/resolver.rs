@@ -194,7 +194,7 @@ impl Resolver {
             }
         }
         if received_arity != required_arity {
-            self.error_handler.errors.push(Error::TypeError(TypeError {kind: TypeErrorType::ArityMismatchError(received_arity, required_arity)}))
+            self.error_handler.errors.push(Error::TypeError(TypeError {kind: TypeErrorType::ArityMismatch(received_arity, required_arity)}))
         }
     }
 }

@@ -202,7 +202,7 @@ impl VirMac {
         }
         let builtin = get_builtin(index);
         match builtin.function {
-            BuiltinFunction::Math(function) | BuiltinFunction::Introspection(function) => {
+            BuiltinFunction::Math(function) | BuiltinFunction::Introspection(function) | BuiltinFunction::Compare(function) | BuiltinFunction::Casting(function) => {
                 match function(&arguments) {
                     Ok(value) => {
                         let light_value = self.push_into_storage(value, stack);
@@ -214,12 +214,6 @@ impl VirMac {
                 };
             },
             BuiltinFunction::IO(function) => function(&arguments),
-            BuiltinFunction::Casting(function) | BuiltinFunction::Compare(function) => {
-                let value = self.push_into_storage(function(&arguments), stack);
-                self.stations_output.push(value);
-                stack[start] = value;
-                *stack_position = start + 1;
-            },
         }
     }
 

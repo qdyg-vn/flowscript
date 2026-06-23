@@ -24,7 +24,10 @@ impl Optimizer {
         for station in stations {
             let ResolvedNode::BuiltinCall { index, arguments: argument_nodes } = station else { continue } ;
             let builtin = get_builtin(*index);
-            let BuiltinFunction::Math(function) = builtin.function else { continue };
+            let function = match builtin.function {
+                BuiltinFunction::Math(function) | BuiltinFunction::Compare(function) | BuiltinFunction::Casting(function) | BuiltinFunction::Introspection(function) => function,
+                _ => continue
+            };
             let mut arguments = Vec::with_capacity(argument_nodes.len());
             let mut skip = false;
             for argument in argument_nodes {
@@ -37,6 +40,7 @@ impl Optimizer {
             }
             if skip { continue }
             *station = match function(&arguments) {
+                Ok(Value::Boolean(value)) => ResolvedNode::Literal(LightValue::Boolean(value)),
                 Ok(Value::Float(value)) => ResolvedNode::Literal(LightValue::Float(value)),
                 Ok(Value::Integer(value)) => ResolvedNode::Literal(LightValue::Integer(value)),
                 Ok(Value::String(value)) => ResolvedNode::HeavyLiteral(HeavyValue::String(value)),

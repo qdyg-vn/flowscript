@@ -1,16 +1,17 @@
+use crate::error_handler::{Error, RuntimeError, RuntimeErrorType};
 use crate::value::Value;
 
-pub fn to_string(arguments: &[Value]) -> Value {
-    if arguments.len() == 0 {
-        return Value::Nil
+pub fn to_string(arguments: &[Value]) -> Result<Value, Error> {
+    if arguments.is_empty() {
+        return Err(Error::RuntimeError(RuntimeError {kind: RuntimeErrorType::InsufficientOperands("String".to_string())}))
     }
     let result = match &arguments[0] {
         Value::Float(float) => float.to_string(),
         Value::Integer(integer) => integer.to_string(),
         Value::Boolean(boolean) => boolean.to_string(),
         Value::Nil => "Nil".to_string(),
-        Value::String(_) => return arguments[0].clone(),
+        Value::String(_) => return Ok(arguments[0].clone()),
         _ => todo!(),
     };
-    Value::String(result)
+    Ok(Value::String(result))
 }
