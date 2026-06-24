@@ -22,31 +22,75 @@ impl Optimizer {
 
     fn optimize(&mut self, stations: &mut Vec<ResolvedNode>) {
         for station in stations {
-            let ResolvedNode::BuiltinCall { index, arguments: argument_nodes } = station else { continue } ;
-            let builtin = get_builtin(*index);
-            let function = match builtin.function {
-                BuiltinFunction::Math(function) | BuiltinFunction::Compare(function) | BuiltinFunction::Casting(function) | BuiltinFunction::Introspection(function) => function,
-                _ => continue
-            };
-            let mut arguments = Vec::with_capacity(argument_nodes.len());
-            let mut skip = false;
-            for argument in argument_nodes {
-                arguments.push(match argument {
-                    ResolvedNode::Literal(LightValue::Float(value)) => Value::Float(*value),
-                    ResolvedNode::Literal(LightValue::Integer(value)) => Value::Integer(*value),
-                    ResolvedNode::HeavyLiteral(HeavyValue::String(value)) => Value::String(value.clone()),
-                    _ => { skip = true; break }
-                })
+            match station {
+                ResolvedNode::BuiltinCall { .. } => self.builtin_node(station),
+                ResolvedNode::DefineFunction { body: AST { nodes, .. }, .. } => self.optimize(nodes),
+                ResolvedNode::Call { arguments, .. } => self.optimize(arguments),
+                ResolvedNode::Pipeline(station) => self.optimize(station),
+                ResolvedNode::Condition { .. } => self.condition_node(station),
+                ResolvedNode::Array(arguments) => self.optimize(arguments),
+                _ => {}
             }
-            if skip { continue }
-            *station = match function(&arguments) {
-                Ok(Value::Boolean(value)) => ResolvedNode::Literal(LightValue::Boolean(value)),
-                Ok(Value::Float(value)) => ResolvedNode::Literal(LightValue::Float(value)),
-                Ok(Value::Integer(value)) => ResolvedNode::Literal(LightValue::Integer(value)),
-                Ok(Value::String(value)) => ResolvedNode::HeavyLiteral(HeavyValue::String(value)),
-                Ok(_) => todo!(),
-                Err(error) => { self.error_handler.errors.push(error); continue }
+        }
+    }
+
+    fn builtin_node(&mut self, station: &mut ResolvedNode) {
+        let ResolvedNode::BuiltinCall { index, arguments: argument_nodes } = station else { unreachable!() };
+        let builtin = get_builtin(*index);
+        let function = match builtin.function {
+            BuiltinFunction::Math(function) | BuiltinFunction::Compare(function) | BuiltinFunction::Casting(function) | BuiltinFunction::Introspection(function) => function,
+            _ => return
+        };
+        let mut arguments = Vec::with_capacity(argument_nodes.len());
+        let mut only_have_literal_node = true;
+        for argument in argument_nodes {
+            arguments.push(match argument {
+                ResolvedNode::Literal(LightValue::Float(value)) => Value::Float(*value),
+                ResolvedNode::Literal(LightValue::Integer(value)) => Value::Integer(*value),
+                ResolvedNode::HeavyLiteral(HeavyValue::String(value)) => Value::String(value.clone()),
+                ResolvedNode::Condition { .. } => { self.condition_node(argument); only_have_literal_node = false; continue }
+                ResolvedNode::BuiltinCall { .. } => {
+                    self.builtin_node(argument);
+                    match argument {
+                        ResolvedNode::Literal(LightValue::Float(value)) => Value::Float(*value),
+                        ResolvedNode::Literal(LightValue::Integer(value)) => Value::Integer(*value),
+                        ResolvedNode::HeavyLiteral(HeavyValue::String(value)) => Value::String(value.clone()),
+                        _ => { only_have_literal_node = false; continue }
+                    }
+                }
+                _ => { only_have_literal_node = false; continue }
+            })
+        }
+        if !only_have_literal_node { return }
+        *station = match function(&arguments) {
+            Ok(Value::Boolean(value)) => ResolvedNode::Literal(LightValue::Boolean(value)),
+            Ok(Value::Float(value)) => ResolvedNode::Literal(LightValue::Float(value)),
+            Ok(Value::Integer(value)) => ResolvedNode::Literal(LightValue::Integer(value)),
+            Ok(Value::String(value)) => ResolvedNode::HeavyLiteral(HeavyValue::String(value)),
+            Ok(_) => todo!(),
+            Err(error) => { self.error_handler.errors.push(error); return }
+        }
+    }
+
+    fn condition_node(&mut self, station: &mut ResolvedNode) {
+        let ResolvedNode::Condition { branches, final_branch } = station else { unreachable!() };
+        for (condition, body) in branches.iter_mut() {
+            self.optimize(condition);
+            self.optimize(body);
+        }
+        let mut have_condition_always_true = false;
+        branches.retain(|(condition, _)| {
+            if have_condition_always_true { return false }
+            match condition.last().unwrap() {
+                ResolvedNode::Literal(LightValue::Boolean(boolean)) => {
+                    if *boolean { have_condition_always_true = true }
+                    *boolean
+                }
+                _ => true
             }
+        });
+        if have_condition_always_true {
+            *final_branch = vec![]
         }
     }
 }
