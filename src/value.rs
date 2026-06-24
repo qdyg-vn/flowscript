@@ -127,7 +127,7 @@ impl Hash for LightValue {
 #[derive(Debug, Clone, PartialEq)]
 pub enum HeavyValue {
     String(String),
-    Function(Chunk),
+    Function(Vec<Chunk>),
     Closure(Closure),
     Array(Vec<LightValue>),
 }

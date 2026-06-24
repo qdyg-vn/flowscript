@@ -24,7 +24,15 @@ impl Optimizer {
         for station in stations {
             match station {
                 ResolvedNode::BuiltinCall { .. } => self.builtin_node(station),
-                ResolvedNode::DefineFunction { body: AST { nodes, .. }, .. } => self.optimize(nodes),
+                ResolvedNode::DefineFunction { body: AST { nodes, .. }, .. } => {
+                    for node in nodes {
+                        let ResolvedNode::Pipeline(pipeline) = node else { unreachable!() };
+                        if let Some(index) = pipeline.iter().position(|node| matches!(node, ResolvedNode::Return(_))) {
+                            pipeline.truncate(index + 1);
+                        }
+                        self.optimize(pipeline)
+                    }
+                },
                 ResolvedNode::Call { arguments, .. } => self.optimize(arguments),
                 ResolvedNode::Pipeline(station) => self.optimize(station),
                 ResolvedNode::Condition { .. } => self.condition_node(station),

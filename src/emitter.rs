@@ -50,9 +50,14 @@ impl Emitter {
                 ResolvedNode::Assignment(index, kind) => chunk.instructions.push(Instruction::Store(index, kind as u8)),
                 ResolvedNode::Variable(index, _) => chunk.instructions.push(Instruction::LoadVariable(index)),
                 ResolvedNode::DefineFunction {index, body} => {
-                    let mut child_chunk = Chunk { instructions: Vec::new(), arity: body.arity };
-                    self.create_chunk(body.nodes, &mut child_chunk);
-                    let body_index = self.constants_pool.add_heavy_constant(HeavyValue::Function(child_chunk));
+                    let mut pipelines = Vec::with_capacity(body.nodes.len());
+                    for node in body.nodes {
+                        let ResolvedNode::Pipeline(pipeline) = node else { unreachable!() };
+                        let mut child_chunk = Chunk { instructions: Vec::with_capacity(pipeline.len()), arity: body.arity };
+                        self.create_chunk(pipeline, &mut child_chunk);
+                        pipelines.push(child_chunk)
+                    }
+                    let body_index = self.constants_pool.add_heavy_constant(HeavyValue::Function(pipelines));
                     chunk.instructions.push(Instruction::DefineFunction(index, body_index as u16));
                 },
                 ResolvedNode::Pipeline(stations) => self.create_chunk(stations, chunk),

@@ -145,9 +145,8 @@ impl<'source_code> Parser<'source_code> {
             return Err(self.error_pusher(start, SyntaxErrorType::MissingLeftBrace))
         }
         let mut body = Vec::new();
-        if let Some(argument) = self.advance(1).transpose()? && argument.kind != TokenType::RightBrace {
+        while let Some(argument) = self.advance(1).transpose()? && argument.kind != TokenType::RightBrace {
             body.push(self.parse_pipeline(argument)?);
-            self.advance(1);
         };
         Ok(Node::DefineFunction {operator, arguments, body})
     }

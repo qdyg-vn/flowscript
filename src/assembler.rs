@@ -39,12 +39,15 @@ impl Assembler {
                 },
                 HeavyValue::Function(body) => {
                     starts.push(self.memory.permanent_space.len());
-                    let mut byte_position = 0;
-                    let mut byte_chunk = body.arity.to_le_bytes().to_vec();
-                    let arity_length = 2;
-                    self.assemble_instruction(body.instructions, &mut byte_position, &mut byte_chunk);
-                    self.memory.permanent_space.extend_from_slice(&(byte_chunk.len() - arity_length).to_le_bytes());
-                    self.memory.permanent_space.extend_from_slice(&byte_chunk)
+                    self.memory.permanent_space.extend_from_slice(&body.len().to_le_bytes());
+                    for chunk in body {
+                        let mut byte_position = 0;
+                        let mut byte_chunk = chunk.arity.to_le_bytes().to_vec();
+                        let arity_length = 2;
+                        self.assemble_instruction(chunk.instructions, &mut byte_position, &mut byte_chunk);
+                        self.memory.permanent_space.extend_from_slice(&(byte_chunk.len() - arity_length).to_le_bytes());
+                        self.memory.permanent_space.extend_from_slice(&byte_chunk)
+                    }
                 },
                 _ => unreachable!()
             }
