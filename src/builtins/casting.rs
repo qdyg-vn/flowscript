@@ -15,3 +15,21 @@ pub fn to_string(arguments: &[Value]) -> Result<Value, Error> {
     };
     Ok(Value::String(result))
 }
+
+pub fn to_integer(arguments: &[Value]) -> Result<Value, Error> {
+    if arguments.is_empty() {
+        return Err(Error::RuntimeError(RuntimeError {kind: RuntimeErrorType::InsufficientOperands("Integer".to_string())}))
+    }
+    let result = match &arguments[0] {
+        Value::Float(float) => *float as i64,
+        Value::Integer(integer) => *integer,
+        Value::Boolean(boolean) => *boolean as i64,
+        Value::Nil => 0,
+        Value::String(string) => match string.parse() {
+            Ok(integer) => integer,
+            Err(_) => todo!()
+        },
+        _ => todo!(),
+    };
+    Ok(Value::Integer(result))
+}

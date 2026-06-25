@@ -63,63 +63,63 @@ impl Assembler {
                 Instruction::Load(index) => {
                     byte_chunk.push(Bytecode::Load as u8);
                     byte_chunk.extend_from_slice(&index.to_le_bytes());
-                    *byte_position += 5
+                    *byte_position += Bytecode::LOAD_SIZE
                 },
                 Instruction::BuiltinCall(index, arity) => {
                     byte_chunk.push(Bytecode::BuiltinCall as u8);
                     byte_chunk.extend_from_slice(&index.to_le_bytes());
                     byte_chunk.extend_from_slice(&arity.to_le_bytes());
-                    *byte_position += 5
+                    *byte_position += Bytecode::BUILTIN_CALL_SIZE
                 },
                 Instruction::Call(scope, index) => {
                     byte_chunk.push(Bytecode::Call as u8);
                     byte_chunk.extend_from_slice(&scope.to_le_bytes());
                     byte_chunk.extend_from_slice(&index.to_le_bytes());
-                    *byte_position += 5
+                    *byte_position += Bytecode::CALL_SIZE
                 },
                 Instruction::RelativeReference(x, y) => {
                     byte_chunk.push(Bytecode::RelativeReference as u8);
                     byte_chunk.extend_from_slice(&x.to_le_bytes());
                     byte_chunk.extend_from_slice(&y.to_le_bytes());
-                    *byte_position += 5
+                    *byte_position += Bytecode::RELATIVE_REFERENCE_SIZE
                 },
                 Instruction::Store(index, kind) => {
                     byte_chunk.push(Bytecode::Store as u8);
                     byte_chunk.extend_from_slice(&index.to_le_bytes());
                     byte_chunk.push(kind);
-                    *byte_position += 4
+                    *byte_position += Bytecode::STORE_SIZE
                 },
                 Instruction::LoadVariable(index) => {
                     byte_chunk.push(Bytecode::LoadVariable as u8);
                     byte_chunk.extend_from_slice(&index.to_le_bytes());
-                    *byte_position += 3
+                    *byte_position += Bytecode::LOAD_VARIABLE_SIZE
                 },
                 Instruction::DefineFunction(index, body_index) => {
                     byte_chunk.push(Bytecode::DefineFunction as u8);
                     byte_chunk.extend_from_slice(&index.to_le_bytes());
                     byte_chunk.extend_from_slice(&body_index.to_le_bytes());
-                    *byte_position += 5
+                    *byte_position += Bytecode::DEFINE_FUNCTION_SIZE
                 },
                 Instruction::Return => {
                     byte_chunk.push(Bytecode::Return as u8);
-                    *byte_position += 1
+                    *byte_position += Bytecode::RETURN_SIZE
                 },
                 Instruction::Array(count) => {
                     byte_chunk.push(Bytecode::Array as u8);
                     byte_chunk.extend_from_slice(&count.to_le_bytes());
-                    *byte_position += 5
+                    *byte_position += Bytecode::ARRAY_SIZE
                 },
                 Instruction::Jump(index) => {
                     let instruction_byte_length = 3;
                     byte_chunk.push(Bytecode::Jump as u8);
                     byte_chunk.extend_from_slice(&((*byte_position + instruction_byte_length + self.get_byte_distance(&instructions, position + 1, index)) as u16).to_le_bytes());
-                    *byte_position += 3
+                    *byte_position += Bytecode::JUMP_SIZE
                 },
                 Instruction::JumpIfFalse(index) => {
                     let instruction_byte_length = 3;
                     byte_chunk.push(Bytecode::JumpIfFalse as u8);
                     byte_chunk.extend_from_slice(&((*byte_position + instruction_byte_length + self.get_byte_distance(&instructions, position + 1, index)) as u16).to_le_bytes());
-                    *byte_position += 3
+                    *byte_position += Bytecode::JUMP_IF_FALSE_SIZE
                 },
             }
             position += 1
