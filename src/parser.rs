@@ -210,8 +210,8 @@ impl<'source_code> Parser<'source_code> {
         let mut stations = Vec::new();
         stations.push(self.dispatch_node(token)?);
         if self.peek().is_none() || self.peek().transpose()?.unwrap().kind != TokenType::Arrow {
-            return match stations.pop() {
-                Some(station) => Ok(station),
+            return match stations.last() {
+                Some(_) => Ok(Node::Pipeline(stations)),
                 _ => Err(self.error_pusher(start, SyntaxErrorType::NoStationBeforePipeline))
             }
         }

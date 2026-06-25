@@ -17,11 +17,10 @@ impl Emitter {
     pub fn emit(mut self, ast: AST) -> (ConstantsPool, Vec<Chunk>) {
         let mut map: Vec<Chunk> = Vec::new();
         for instructions in ast.nodes {
-            if let ResolvedNode::Pipeline(stations) = instructions {
-                let mut chunk = Chunk { instructions: Vec::new(), arity: 0 };
-                self.create_chunk(stations, &mut chunk);
-                map.push(chunk)
-            }
+            let ResolvedNode::Pipeline(stations) = instructions else { unreachable!() };
+            let mut chunk = Chunk { instructions: Vec::new(), arity: 0 };
+            self.create_chunk(stations, &mut chunk);
+            map.push(chunk)
         }
         (self.constants_pool, map)
     }

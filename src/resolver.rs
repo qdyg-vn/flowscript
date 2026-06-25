@@ -36,10 +36,9 @@ impl Resolver {
                         Ok(SymbolType::Builtin(index)) => resolved_stations.push(ResolvedNode::BuiltinCall {index, arguments: self.solve(arguments, ast)}),
                         Ok(SymbolType::Scope(scope, index, function)) => {
                             let arguments = self.solve(arguments, ast);
-                            if let VariableType::Function(function_index) = function {
-                                let required_variables_type = self.symbol_table.get_arguments(function_index);
-                                self.check_function_arguments(&arguments, required_variables_type)
-                            }
+                            let VariableType::Function(function_index) = function else { self.error_handler.errors.push(Error::TypeError(TypeError { kind: TypeErrorType::NotAFunction(operator) })); continue };
+                            let required_variables_type = self.symbol_table.get_arguments(function_index);
+                            self.check_function_arguments(&arguments, required_variables_type);
                             resolved_stations.push(ResolvedNode::Call { scope, index, arguments })
                         },
                         Err(error) => self.error_handler.errors.push(Error::SemanticError(error))
