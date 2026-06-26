@@ -5,7 +5,7 @@ mod compare;
 mod introspection;
 
 use crate::value::Value;
-use casting::{to_string, to_integer};
+use casting::{to_string, to_integer, to_float, to_boolean};
 use io::print;
 use math::{add, minus, multiply};
 use compare::{equal, less, greater, not_equal};
@@ -34,6 +34,8 @@ pub const BUILTIN_TABLE: &[Builtin] = &[
     Builtin { name: "print", function: BuiltinFunction::IO(print) },
     Builtin { name: "string", function: BuiltinFunction::Casting(to_string) },
     Builtin { name: "integer", function: BuiltinFunction::Casting(to_integer) },
+    Builtin { name: "float", function: BuiltinFunction::Casting(to_float) },
+    Builtin { name: "boolean", function: BuiltinFunction::Casting(to_boolean) },
     Builtin { name: "==", function: BuiltinFunction::Compare(equal) },
     Builtin { name: "<", function: BuiltinFunction::Compare(less) },
     Builtin { name: ">", function: BuiltinFunction::Compare(greater) },

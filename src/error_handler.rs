@@ -180,6 +180,7 @@ impl fmt::Display for RuntimeError {
             RuntimeErrorType::MissingStation(_) => 1,
             RuntimeErrorType::OutOfBounds(_, _) => 2,
             RuntimeErrorType::InsufficientOperands(_) => 3,
+            RuntimeErrorType::ParseError(_, _) => 4,
         };
         writeln!(formatter, "\x1b[31;1m[Error FSCC7{:0>3}]\x1b[0m {}", code, self.kind)
     }
@@ -189,6 +190,7 @@ pub enum RuntimeErrorType {
     MissingStation(u16),
     OutOfBounds(usize, usize),
     InsufficientOperands(String),
+    ParseError(String, String)
 }
 
 impl fmt::Display for RuntimeErrorType {
@@ -197,6 +199,7 @@ impl fmt::Display for RuntimeErrorType {
             RuntimeErrorType::MissingStation(x) => write!(formatter, "There is no station at position {}", x),
             RuntimeErrorType::OutOfBounds(start, end) => write!(formatter, "Stack out of bounds: start {} end {}", start, end),
             RuntimeErrorType::InsufficientOperands(function) => write!(formatter, "{} requires at least one operand", function),
+            RuntimeErrorType::ParseError(value, kind) => write!(formatter, "Cannot convert {} to {}", value, kind),
         }
     }
 }
