@@ -136,6 +136,7 @@ impl<'source_code> Lexer<'source_code> {
             },
             _ => ()
         }
+        while let Some(character) = self.peek(0) && character == b' ' { self.advance(0); }
         if self.peek(0) != Some(b'(') {
             return Ok(Token::new(start, end, TokenType::Variable(value.to_owned())))
         }

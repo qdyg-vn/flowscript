@@ -76,7 +76,7 @@ impl Optimizer {
             Ok(Value::Integer(value)) => ResolvedNode::Literal(LightValue::Integer(value)),
             Ok(Value::String(value)) => ResolvedNode::HeavyLiteral(HeavyValue::String(value)),
             Ok(_) => todo!(),
-            Err(error) => { self.error_handler.errors.push(error); return }
+            Err(error) => { self.error_handler.push_error(error); return }
         }
     }
 

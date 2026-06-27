@@ -36,12 +36,12 @@ impl Resolver {
                         Ok(SymbolType::Builtin(index)) => resolved_stations.push(ResolvedNode::BuiltinCall {index, arguments: self.solve(arguments, ast)}),
                         Ok(SymbolType::Scope(scope, index, function)) => {
                             let arguments = self.solve(arguments, ast);
-                            let VariableType::Function(function_index) = function else { self.error_handler.errors.push(Error::TypeError(TypeError { kind: TypeErrorType::NotAFunction(operator) })); continue };
+                            let VariableType::Function(function_index) = function else { self.error_handler.push_error(TypeError { kind: TypeErrorType::NotAFunction(operator) }); continue };
                             let required_variables_type = self.symbol_table.get_arguments(function_index);
                             self.check_function_arguments(&arguments, required_variables_type);
                             resolved_stations.push(ResolvedNode::Call { scope, index, arguments })
                         },
-                        Err(error) => self.error_handler.errors.push(Error::SemanticError(error))
+                        Err(error) => self.error_handler.push_error(error)
                     }
                 },
                 Node::SoftAssignment(name) => {
@@ -62,7 +62,7 @@ impl Resolver {
                         }
                         Err(SymbolType::Scope(_, index, variable_type)) => {
                             if kind.get_variable_type() != variable_type {
-                                self.error_handler.errors.push(Error::TypeError(TypeError { kind: TypeErrorType::AssignTypeMismatch(kind, variable_type.get_kind()) }))
+                                self.error_handler.push_error(TypeError { kind: TypeErrorType::AssignTypeMismatch(kind, variable_type.get_kind()) })
                             }
                             resolved_stations.push(ResolvedNode::Assignment(index, kind))
                         },
@@ -73,11 +73,11 @@ impl Resolver {
                     match resolved_stations.last() {
                         Some(ResolvedNode::Literal(value)) => {
                             let received_kind = value.get_kind();
-                            if received_kind != kind { self.error_handler.errors.push(Error::TypeError(TypeError { kind: TypeErrorType::AssignTypeMismatch(received_kind, kind) })) }
+                            if received_kind != kind { self.error_handler.push_error(TypeError { kind: TypeErrorType::AssignTypeMismatch(received_kind, kind) }) }
                         },
                         Some(ResolvedNode::HeavyLiteral(value)) => {
                             let received_kind = value.get_kind();
-                            if received_kind != kind { self.error_handler.errors.push(Error::TypeError(TypeError {kind: TypeErrorType::AssignTypeMismatch(received_kind, kind) })) }
+                            if received_kind != kind { self.error_handler.push_error(TypeError {kind: TypeErrorType::AssignTypeMismatch(received_kind, kind) }) }
                         },
                         _ => {}
                     };
@@ -93,7 +93,7 @@ impl Resolver {
                 Node::Variable(name) => {
                     match self.symbol_table.resolve(&name) {
                         Ok(SymbolType::Scope(_, index, variable_type)) => resolved_stations.push(ResolvedNode::Variable(index, variable_type.get_kind())),
-                        Err(error) => self.error_handler.errors.push(Error::SemanticError(error)),
+                        Err(error) => self.error_handler.push_error(error),
                         _ => unreachable!()
                     }
                 },
@@ -118,7 +118,7 @@ impl Resolver {
                                         child_ast.arity += 1;
                                         self.symbol_table.all_arguments.push(VariableType::Dynamic)
                                     },
-                                    Err(SymbolType::Scope(_, _, _)) => self.error_handler.errors.push(Error::SemanticError(SemanticError {kind: SemanticErrorType::DuplicateParameter(name)})),
+                                    Err(SymbolType::Scope(_, _, _)) => self.error_handler.push_error(SemanticError {kind: SemanticErrorType::DuplicateParameter(name)}),
                                     _ => unreachable!()
                                 }
                             }
@@ -128,7 +128,7 @@ impl Resolver {
                                         child_ast.arity += 1;
                                         self.symbol_table.all_arguments.push(kind.get_variable_type())
                                     },
-                                    Err(SymbolType::Scope(_, _, _)) => self.error_handler.errors.push(Error::SemanticError(SemanticError {kind: SemanticErrorType::DuplicateParameter(name)})),
+                                    Err(SymbolType::Scope(_, _, _)) => self.error_handler.push_error(SemanticError {kind: SemanticErrorType::DuplicateParameter(name)}),
                                     _ => unreachable!()
                                 }
                             }
@@ -174,26 +174,26 @@ impl Resolver {
                 ResolvedNode::Literal(value) => {
                     let received_variable_type = value.get_kind().get_variable_type();
                     if required_variable_type != VariableType::Dynamic && received_variable_type != VariableType::Dynamic && received_variable_type != required_variable_type {
-                        self.error_handler.errors.push(Error::TypeError(TypeError {kind: TypeErrorType::TypeMismatch(required_variable_type.get_kind(), received_variable_type.get_kind())}))
+                        self.error_handler.push_error(TypeError {kind: TypeErrorType::TypeMismatch(required_variable_type.get_kind(), received_variable_type.get_kind())})
                     }
                 },
                 ResolvedNode::HeavyLiteral(value) => {
                     let received_variable_type = value.get_kind().get_variable_type();
                     if required_variable_type != VariableType::Dynamic && received_variable_type != VariableType::Dynamic && received_variable_type != required_variable_type {
-                        self.error_handler.errors.push(Error::TypeError(TypeError {kind: TypeErrorType::TypeMismatch(required_variable_type.get_kind(), received_variable_type.get_kind())}))
+                        self.error_handler.push_error(TypeError {kind: TypeErrorType::TypeMismatch(required_variable_type.get_kind(), received_variable_type.get_kind())})
                     }
                 },
                 ResolvedNode::Variable(_, kind) => {
                     let received_variable_type = kind.get_variable_type();
                     if required_variable_type != VariableType::Dynamic && received_variable_type != VariableType::Dynamic && received_variable_type != required_variable_type {
-                        self.error_handler.errors.push(Error::TypeError(TypeError {kind: TypeErrorType::TypeMismatch(required_variable_type.get_kind(), received_variable_type.get_kind())}))
+                        self.error_handler.push_error(TypeError {kind: TypeErrorType::TypeMismatch(required_variable_type.get_kind(), received_variable_type.get_kind())})
                     }
                 }
                 _ => {todo!("Currently under development")}
             }
         }
         if received_arity != required_arity {
-            self.error_handler.errors.push(Error::TypeError(TypeError {kind: TypeErrorType::ArityMismatch(received_arity, required_arity)}))
+            self.error_handler.push_error(TypeError {kind: TypeErrorType::ArityMismatch(received_arity, required_arity)})
         }
     }
 }

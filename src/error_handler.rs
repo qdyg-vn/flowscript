@@ -19,6 +19,10 @@ impl ErrorHandler {
         }
         exit(1)
     }
+
+    pub fn push_error<E>(&mut self, error: E) where E: Into<Error> {
+        self.errors.push(error.into())
+    }
 }
 
 pub enum Error {
@@ -41,6 +45,35 @@ impl fmt::Display for Error {
     }
 }
 
+impl From<LexicalError> for Error {
+    fn from(error: LexicalError) -> Self {
+        Error::LexicalError(error)
+    }
+}
+
+impl From<SyntaxError> for Error {
+    fn from(error: SyntaxError) -> Self {
+        Error::SyntaxError(error)
+    }
+}
+
+impl From<SemanticError> for Error {
+    fn from(error: SemanticError) -> Self {
+        Error::SemanticError(error)
+    }
+}
+
+impl From<RuntimeError> for Error {
+    fn from(error: RuntimeError) -> Self {
+        Error::RuntimeError(error)
+    }
+}
+
+impl From<TypeError> for Error {
+    fn from(error: TypeError) -> Self {
+        Error::TypeError(error)
+    }
+}
 
 pub struct LexicalError {
     pub line: usize,
@@ -114,6 +147,11 @@ impl fmt::Display for SyntaxError {
             SyntaxErrorType::MissingRightParen => 10,
             SyntaxErrorType::MissingRightBrace => 11,
             SyntaxErrorType::MissingRightBracket => 12,
+            SyntaxErrorType::RedundantFunction => 13,
+            SyntaxErrorType::InvalidTypeError => 14,
+            SyntaxErrorType::MissingFunctionBody => 15,
+            SyntaxErrorType::RedundantCondition => 16,
+            SyntaxErrorType::MissingConditionBody => 17,
         };
         writeln!(formatter, "\x1b[31;1m[Error FSCC3{:0>3}]\x1b[0m {}", code, self.kind)?;
         write!(formatter, "\x1b[38;2;143;255;46m  --> Line: {} Column: {}\n\x1b[0m", self.line, self.column)
@@ -133,23 +171,33 @@ pub enum SyntaxErrorType {
     MissingRightParen,
     MissingRightBrace,
     MissingRightBracket,
+    RedundantFunction,
+    InvalidTypeError,
+    MissingFunctionBody,
+    RedundantCondition,
+    MissingConditionBody,
 }
 
 impl fmt::Display for SyntaxErrorType {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match self {
             SyntaxErrorType::UnimplementedToken(token) => write!(formatter, "Unimplemented token: {:?}", token),
-            SyntaxErrorType::MissingFunctionName => write!(formatter, "Function need a name!"),
+            SyntaxErrorType::MissingFunctionName => write!(formatter, "Function needs a name!"),
             SyntaxErrorType::RedundantFunctionDefinition => write!(formatter, "There is one redundant function definition"),
-            SyntaxErrorType::MissingLeftParen => write!(formatter, "Behind operator need a left paren!"),
-            SyntaxErrorType::MissingLeftBrace => write!(formatter, "Behind operator need a left brace!"),
+            SyntaxErrorType::MissingLeftParen => write!(formatter, "Behind operator needs a left paren!"),
+            SyntaxErrorType::MissingLeftBrace => write!(formatter, "Behind function arguments needs a left brace!"),
             SyntaxErrorType::NoStationBeforePipeline => write!(formatter, "There is no station before pipeline!"),
             SyntaxErrorType::NoStationAfterPipeline => write!(formatter, "There is no station after pipeline!"),
             SyntaxErrorType::MissingTypeIdentity => write!(formatter, "Missing type in declaration"),
             SyntaxErrorType::MissingCondition => write!(formatter, "The conditional expression is empty!"),
-            SyntaxErrorType::MissingRightParen => write!(formatter, "Behind function arguments need a right paren!"),
-            SyntaxErrorType::MissingRightBrace => write!(formatter, "Behind function body need a right brace!"),
-            SyntaxErrorType::MissingRightBracket => write!(formatter, "Behind array elements need a right bracket!"),
+            SyntaxErrorType::MissingRightParen => write!(formatter, "Behind function arguments needs a right paren!"),
+            SyntaxErrorType::MissingRightBrace => write!(formatter, "Behind function body needs a right brace!"),
+            SyntaxErrorType::MissingRightBracket => write!(formatter, "Behind array elements needs a right bracket!"),
+            SyntaxErrorType::RedundantFunction => write!(formatter, "There is one redundant function"),
+            SyntaxErrorType::InvalidTypeError => write!(formatter, "Behind ':' needs a valid type!"),
+            SyntaxErrorType::MissingFunctionBody => write!(formatter, "Function needs a body!"),
+            SyntaxErrorType::RedundantCondition => write!(formatter, "There is one redundant condition"),
+            SyntaxErrorType::MissingConditionBody => write!(formatter, "Condition needs a body!"),
         }
     }
 }
