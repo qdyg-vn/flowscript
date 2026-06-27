@@ -8,12 +8,12 @@ pub struct ErrorHandler {
 }
 
 impl ErrorHandler {
-    pub fn fatal(&mut self, error: Error) {
+    pub fn fatal(&mut self, error: Error) -> ! {
         println!("{}", error);
         exit(1)
     }
 
-    pub fn report_exit(&mut self) {
+    pub fn report_exit(&mut self) -> ! {
         for error in &self.errors {
             println!("{}", error)
         }
@@ -110,6 +110,10 @@ impl fmt::Display for SyntaxError {
             SyntaxErrorType::NoStationBeforePipeline => 6,
             SyntaxErrorType::NoStationAfterPipeline => 7,
             SyntaxErrorType::MissingTypeIdentity => 8,
+            SyntaxErrorType::MissingCondition => 9,
+            SyntaxErrorType::MissingRightParen => 10,
+            SyntaxErrorType::MissingRightBrace => 11,
+            SyntaxErrorType::MissingRightBracket => 12,
         };
         writeln!(formatter, "\x1b[31;1m[Error FSCC3{:0>3}]\x1b[0m {}", code, self.kind)?;
         write!(formatter, "\x1b[38;2;143;255;46m  --> Line: {} Column: {}\n\x1b[0m", self.line, self.column)
@@ -125,6 +129,10 @@ pub enum SyntaxErrorType {
     NoStationBeforePipeline,
     NoStationAfterPipeline,
     MissingTypeIdentity,
+    MissingCondition,
+    MissingRightParen,
+    MissingRightBrace,
+    MissingRightBracket,
 }
 
 impl fmt::Display for SyntaxErrorType {
@@ -138,6 +146,10 @@ impl fmt::Display for SyntaxErrorType {
             SyntaxErrorType::NoStationBeforePipeline => write!(formatter, "There is no station before pipeline!"),
             SyntaxErrorType::NoStationAfterPipeline => write!(formatter, "There is no station after pipeline!"),
             SyntaxErrorType::MissingTypeIdentity => write!(formatter, "Missing type in declaration"),
+            SyntaxErrorType::MissingCondition => write!(formatter, "The conditional expression is empty!"),
+            SyntaxErrorType::MissingRightParen => write!(formatter, "Behind function arguments need a right paren!"),
+            SyntaxErrorType::MissingRightBrace => write!(formatter, "Behind function body need a right brace!"),
+            SyntaxErrorType::MissingRightBracket => write!(formatter, "Behind array elements need a right bracket!"),
         }
     }
 }

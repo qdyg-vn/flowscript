@@ -76,14 +76,16 @@ impl<'source_code> Parser<'source_code> {
                 Some(token) => self.dispatch_node(token?)?,
                 None => Node::Literal(LightValue::Nil)
             }))),
-            TokenType::LeftBracket => self.parse_array(),
+            TokenType::LeftBracket => self.parse_array(token.start),
             _ => Err(self.error_pusher(token.start, SyntaxErrorType::UnimplementedToken(token)))
         }
     }
 
-    fn parse_array(&mut self) -> Result<Node, Error> {
+    fn parse_array(&mut self, start: usize) -> Result<Node, Error> {
         let mut arguments = Vec::new();
-        while let Some(argument) = self.advance(1).transpose()? && argument.kind != TokenType::RightBracket {
+        loop {
+            let Some(argument) = self.advance(1).transpose()? else { return Err(self.error_pusher(start, SyntaxErrorType::MissingRightBracket)) };
+            if argument.kind == TokenType::RightBracket { break }
             arguments.push(self.dispatch_node(argument)?);
         }
         Ok(Node::Array(arguments))
@@ -94,7 +96,9 @@ impl<'source_code> Parser<'source_code> {
             return Err(self.error_pusher(start, SyntaxErrorType::MissingLeftParen));
         }
         let mut arguments = Vec::new();
-        while let Some(argument) = self.advance(1).transpose()? && argument.kind != TokenType::RightParen {
+        loop {
+            let Some(argument) = self.advance(1).transpose()? else { return Err(self.error_pusher(start, SyntaxErrorType::MissingRightParen)) };
+            if argument.kind == TokenType::RightParen { break }
             arguments.push(self.dispatch_node(argument)?);
         }
         Ok(Node::Apply {operator, arguments})
@@ -129,7 +133,9 @@ impl<'source_code> Parser<'source_code> {
             return Err(self.error_pusher(start, SyntaxErrorType::MissingLeftParen))
         }
         let mut arguments = Vec::new();
-        while let Some(argument) = self.advance(1).transpose()? && argument.kind != TokenType::RightParen {
+        loop {
+            let Some(argument) = self.advance(1).transpose()? else { return Err(self.error_pusher(self.last_index(), SyntaxErrorType::MissingTypeIdentity)) };
+            if argument.kind == TokenType::RightParen { break }
             arguments.push(match argument.kind {
                 TokenType::Variable(name) => {
                     if let Some(token) = self.peek().transpose()? && token.kind == TokenType::Colon {
@@ -145,7 +151,9 @@ impl<'source_code> Parser<'source_code> {
             return Err(self.error_pusher(start, SyntaxErrorType::MissingLeftBrace))
         }
         let mut body = Vec::new();
-        while let Some(argument) = self.advance(1).transpose()? && argument.kind != TokenType::RightBrace {
+        loop {
+            let Some(argument) = self.advance(1).transpose()? else { return Err(self.error_pusher(start, SyntaxErrorType::MissingRightBrace)) };
+            if argument.kind == TokenType::RightBrace { break }
             body.push(self.parse_pipeline(argument)?);
         };
         Ok(Node::DefineFunction {operator, arguments, body})
@@ -170,6 +178,9 @@ impl<'source_code> Parser<'source_code> {
             body.push(self.parse_pipeline(argument)?);
             self.advance(1);
         };
+        if condition.is_empty() {
+            return Err(self.error_pusher(start, SyntaxErrorType::MissingCondition))
+        }
         branches.push((condition, body));
         while let Some(token) = self.peek().transpose()? && token.kind == TokenType::Else {
             self.advance(1);
@@ -200,6 +211,9 @@ impl<'source_code> Parser<'source_code> {
                 body.push(self.parse_pipeline(argument)?);
                 self.advance(1);
             };
+            if condition.is_empty() {
+                return Err(self.error_pusher(start, SyntaxErrorType::MissingCondition))
+            }
             branches.push((condition, body))
         }
         Ok(Node::Condition { branches, final_branch })
@@ -209,12 +223,6 @@ impl<'source_code> Parser<'source_code> {
         let start = token.start;
         let mut stations = Vec::new();
         stations.push(self.dispatch_node(token)?);
-        if self.peek().is_none() || self.peek().transpose()?.unwrap().kind != TokenType::Arrow {
-            return match stations.last() {
-                Some(_) => Ok(Node::Pipeline(stations)),
-                _ => Err(self.error_pusher(start, SyntaxErrorType::NoStationBeforePipeline))
-            }
-        }
         while let Some(token) = self.peek().transpose()? && token.kind == TokenType::Arrow {
             self.advance(1);
             let Some(token) = self.advance(1).transpose()? else {return Err(self.error_pusher(start, SyntaxErrorType::NoStationAfterPipeline))};

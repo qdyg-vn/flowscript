@@ -86,11 +86,8 @@ impl VirMac {
             Bytecode::CALL => {
                 let scope = u16::from_le_bytes([chunk[*instruction_position + 1], chunk[*instruction_position + 2]]);
                 let index = u16::from_le_bytes([chunk[*instruction_position + 3], chunk[*instruction_position + 4]]);
-                let function_index = match &stack[self.base_pointers[scope as usize] + index as usize] {
-                    LightValue::FunctionPointer(index) => *index,
-                    _ => todo!()
-                };
-                let (functions, arities, lengths) = self.to_function(function_index as usize);
+                let LightValue::FunctionPointer(function_index) = &stack[self.base_pointers[scope as usize] + index as usize] else { unreachable!() };
+                let (functions, arities, lengths) = self.to_function(*function_index as usize);
                 for index in 0..functions.len() {
                     let (function, arity, length) = (&functions[index], arities[index], lengths[index]);
                     let mut function_instruction_position = 0;
@@ -179,10 +176,7 @@ impl VirMac {
     }
 
     fn execute_builtin_function(&mut self, index: u16, stack: &mut [LightValue], stack_position: &mut usize, start: usize, end: usize) {
-        let values = match stack.get(start..end) {
-            Some(argument) => argument,
-            None => { self.error_handler.fatal(Error::RuntimeError(RuntimeError { kind: RuntimeErrorType::OutOfBounds(start, end) })); unreachable!() }
-        };
+        let Some(values) = stack.get(start..end) else { self.error_handler.fatal(Error::RuntimeError(RuntimeError { kind: RuntimeErrorType::OutOfBounds(start, end) })) };
         let mut arguments = Vec::new();
         for argument in values {
             arguments.push(match argument {
