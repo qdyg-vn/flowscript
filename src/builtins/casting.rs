@@ -3,7 +3,7 @@ use crate::value::Value;
 
 pub fn to_string(arguments: &[Value]) -> Result<Value, Error> {
     if arguments.is_empty() {
-        return Err(Error::RuntimeError(RuntimeError {kind: RuntimeErrorType::InsufficientOperands("String".to_string())}))
+        return Err(RuntimeError {kind: RuntimeErrorType::InsufficientOperands("String".to_string())}.into())
     }
     let result = match &arguments[0] {
         Value::Float(float) => float.to_string(),
@@ -18,7 +18,7 @@ pub fn to_string(arguments: &[Value]) -> Result<Value, Error> {
 
 pub fn to_integer(arguments: &[Value]) -> Result<Value, Error> {
     if arguments.is_empty() {
-        return Err(Error::RuntimeError(RuntimeError {kind: RuntimeErrorType::InsufficientOperands("Integer".to_string())}))
+        return Err(RuntimeError {kind: RuntimeErrorType::InsufficientOperands("Integer".to_string())}.into())
     }
     let result = match &arguments[0] {
         Value::Float(float) => *float as i64,
@@ -27,7 +27,7 @@ pub fn to_integer(arguments: &[Value]) -> Result<Value, Error> {
         Value::Nil => 0,
         Value::String(string) => match string.parse() {
             Ok(integer) => integer,
-            Err(_) => return Err(Error::RuntimeError(RuntimeError {kind: RuntimeErrorType::ParseError(string.clone(), "Integer".to_string())}))
+            Err(_) => return Err(RuntimeError {kind: RuntimeErrorType::ParseError(string.clone(), "Integer".to_string())}.into())
         },
         _ => todo!(),
     };
@@ -36,16 +36,16 @@ pub fn to_integer(arguments: &[Value]) -> Result<Value, Error> {
 
 pub fn to_float(arguments: &[Value]) -> Result<Value, Error> {
     if arguments.is_empty() {
-        return Err(Error::RuntimeError(RuntimeError {kind: RuntimeErrorType::InsufficientOperands("Float".to_string())}))
+        return Err(RuntimeError {kind: RuntimeErrorType::InsufficientOperands("Float".to_string())}.into())
     }
     let result = match &arguments[0] {
         Value::Float(float) => *float,
         Value::Integer(integer) => *integer as f64,
-        Value::Boolean(_) => return Err(Error::RuntimeError(RuntimeError {kind: RuntimeErrorType::ParseError("Boolean".to_string(), "Float".to_string())})),
-        Value::Nil => return Err(Error::RuntimeError(RuntimeError {kind: RuntimeErrorType::ParseError("Nil".to_string(), "Float".to_string())})),
+        Value::Boolean(_) => return Err(RuntimeError {kind: RuntimeErrorType::ParseError("Boolean".to_string(), "Float".to_string())}.into()),
+        Value::Nil => return Err(RuntimeError {kind: RuntimeErrorType::ParseError("Nil".to_string(), "Float".to_string())}.into()),
         Value::String(string) => match string.parse() {
             Ok(float) => float,
-            Err(_) => return Err(Error::RuntimeError(RuntimeError {kind: RuntimeErrorType::ParseError(string.clone(), "Float".to_string())}))
+            Err(_) => return Err(RuntimeError {kind: RuntimeErrorType::ParseError(string.clone(), "Float".to_string())}.into())
         },
         _ => todo!(),
     };
@@ -54,7 +54,7 @@ pub fn to_float(arguments: &[Value]) -> Result<Value, Error> {
 
 pub fn to_boolean(arguments: &[Value]) -> Result<Value, Error> {
     if arguments.is_empty() {
-        return Err(Error::RuntimeError(RuntimeError {kind: RuntimeErrorType::InsufficientOperands("Boolean".to_string())}))
+        return Err(RuntimeError {kind: RuntimeErrorType::InsufficientOperands("Boolean".to_string())}.into())
     }
     let result = match &arguments[0] {
         Value::Float(float) => *float != 0.0,
