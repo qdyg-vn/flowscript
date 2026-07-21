@@ -47,7 +47,7 @@ fn run(source_code: Vec<u8>) {
     for item in parser {
         match item {
             Ok(node) => nodes.push(node),
-            Err(error) => error_handler.errors.push(error)
+            Err(error) => error_handler.errors.extend(error)
         }
     }
     if !error_handler.errors.is_empty() { error_handler.report_exit() }

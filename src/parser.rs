@@ -297,7 +297,7 @@ impl<'source_code> Parser<'source_code> {
                         Some(Ok(token)) => if token.kind == TokenType::Colon {
                             let Some(node) = self.parse_assignment(name, &mut errors) else { continue };
                             stations.push(node)
-                        },
+                        } else { stations.push(Node::SoftAssignment(name)) },
                         Some(Err(error)) => { errors.push(error); continue }
                         None => stations.push(Node::SoftAssignment(name))
                     }
@@ -305,7 +305,6 @@ impl<'source_code> Parser<'source_code> {
                 Some(other) => stations.push(other),
                 None => continue,
             };
-            self.advance(1);
         }
         if errors.is_empty() {
             Ok(Node::Pipeline(stations))
