@@ -58,5 +58,6 @@ pub enum ResolvedNode {
 #[derive(Debug)]
 pub struct AST {
     pub nodes: Vec<ResolvedNode>,
-    pub arity: u16,
+    pub arity: u8,
+    pub variables_count: u16,
 }

@@ -18,7 +18,7 @@ impl Emitter {
         let mut map: Vec<Chunk> = Vec::new();
         for instructions in ast.nodes {
             let ResolvedNode::Pipeline(stations) = instructions else { unreachable!() };
-            let mut chunk = Chunk { instructions: Vec::new(), arity: 0 };
+            let mut chunk = Chunk::default();
             self.create_chunk(stations, &mut chunk);
             map.push(chunk)
         }
@@ -52,7 +52,7 @@ impl Emitter {
                     let mut pipelines = Vec::with_capacity(body.nodes.len());
                     for node in body.nodes {
                         let ResolvedNode::Pipeline(pipeline) = node else { unreachable!() };
-                        let mut child_chunk = Chunk { instructions: Vec::with_capacity(pipeline.len()), arity: body.arity };
+                        let mut child_chunk = Chunk { instructions: Vec::with_capacity(pipeline.len()), arity: body.arity, variables_count: body.variables_count };
                         self.create_chunk(pipeline, &mut child_chunk);
                         pipelines.push(child_chunk)
                     }

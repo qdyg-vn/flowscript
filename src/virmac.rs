@@ -25,12 +25,12 @@ impl VirMac {
         }
     }
 
-    pub fn execute(&mut self, map: Vec<Vec<u8>>, total_arity: usize) -> Vec<LightValue> {
+    pub fn execute(&mut self, map: Vec<Vec<u8>>, total_variables: usize) -> Vec<LightValue> {
         let mut stack = vec![LightValue::Nil; 1024];
         for chunk in map {
             self.stations_output.clear();
             let chunk_size = chunk.len();
-            let mut stack_position = total_arity;
+            let mut stack_position = total_variables;
             let mut instruction_position = 0;
             while instruction_position < chunk_size {
                 self.dispatch_instruction(&chunk, &mut instruction_position, &mut stack, &mut stack_position, 0);
@@ -87,12 +87,12 @@ impl VirMac {
                 let scope = u16::from_le_bytes([chunk[*instruction_position + 1], chunk[*instruction_position + 2]]);
                 let index = u16::from_le_bytes([chunk[*instruction_position + 3], chunk[*instruction_position + 4]]);
                 let LightValue::FunctionPointer(function_index) = &stack[self.base_pointers[scope as usize] + index as usize] else { unreachable!() };
-                let (functions, arities, lengths) = self.to_function(*function_index as usize);
+                let (functions, arities, variables_counts, lengths) = self.to_function(*function_index as usize);
                 for index in 0..functions.len() {
-                    let (function, arity, length) = (&functions[index], arities[index], lengths[index]);
+                    let (function, arity, variables_count, length) = (&functions[index], arities[index], variables_counts[index], lengths[index]);
                     let mut function_instruction_position = 0;
-                    let mut child_stack_position = *stack_position;
-                    let child_base_pointer = child_stack_position - arity as usize;
+                    let mut child_stack_position = *stack_position + variables_count as usize;
+                    let child_base_pointer = *stack_position - arity as usize;
                     self.base_pointers.push(child_base_pointer);
                     while function_instruction_position < length {
                         if matches!(function[function_instruction_position], Bytecode::RETURN) {
@@ -214,23 +214,26 @@ impl VirMac {
         }
     }
 
-    fn to_function(&self, index_of_start: usize) -> (Vec<Vec<u8>>, Vec<u16>, Vec<usize>) {
+    fn to_function(&self, index_of_start: usize) -> (Vec<Vec<u8>>, Vec<u8>, Vec<u16>, Vec<usize>) {
         let mut start = self.starts[index_of_start];
         let length = u64::from_le_bytes(self.memory.permanent_space[start..start + 8].try_into().unwrap());
-        let mut functions = Vec::with_capacity(length as usize);
-        let mut arities = Vec::with_capacity(length as usize);
         let mut lengths = Vec::with_capacity(length as usize);
+        let mut arities = Vec::with_capacity(length as usize);
+        let mut variables_counts = Vec::with_capacity(length as usize);
+        let mut functions = Vec::with_capacity(length as usize);
         start += 8;
         for _ in 0..length {
             let length = u64::from_le_bytes(self.memory.permanent_space[start..start + 8].try_into().unwrap());
             lengths.push(length as usize);
-            let arity = u16::from_le_bytes([self.memory.permanent_space[start + 8], self.memory.permanent_space[start + 9]]);
+            let arity = self.memory.permanent_space[start + 8];
             arities.push(arity);
-            let function = self.memory.permanent_space[start + 10..start + 10 + length as usize].to_vec();
+            let variables_count = u16::from_le_bytes([self.memory.permanent_space[start + 9], self.memory.permanent_space[start + 10]]);
+            variables_counts.push(variables_count);
+            let function = self.memory.permanent_space[start + 11..start + 11 + length as usize].to_vec();
             functions.push(function);
-            start += 10 + length as usize
+            start += 11 + length as usize
         }
-        (functions, arities, lengths)
+        (functions, arities, variables_counts, lengths)
     }
 
     fn to_string(&self, index_of_start: usize) -> String {

@@ -53,7 +53,7 @@ fn run(source_code: Vec<u8>) {
     if !error_handler.errors.is_empty() { error_handler.report_exit() }
     let symbol_table = SymbolTable::new();
     let mut resolver = Resolver::new(error_handler, symbol_table);
-    let (error_handler, total_arity, ast) = resolver.resolve(nodes);
+    let (error_handler, total_variables, ast) = resolver.resolve(nodes);
     let mut optimizer = Optimizer::new(error_handler);
     let (ast, error_handler) = optimizer.optimizer(ast);
     let constants_pool = ConstantsPool::default();
@@ -62,5 +62,5 @@ fn run(source_code: Vec<u8>) {
     let mut asm = Assembler::new(memory, constants_pool);
     let (byte_map, starts, constants, memory) = asm.assemble_map(map);
     let mut virmac = VirMac::new(memory, error_handler, constants, starts);
-    virmac.execute(byte_map, total_arity);
+    virmac.execute(byte_map, total_variables);
 }

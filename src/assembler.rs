@@ -42,10 +42,12 @@ impl Assembler {
                     self.memory.permanent_space.extend_from_slice(&body.len().to_le_bytes());
                     for chunk in body {
                         let mut byte_position = 0;
-                        let mut byte_chunk = chunk.arity.to_le_bytes().to_vec();
-                        let arity_length = 2;
+                        let mut byte_chunk = vec![chunk.arity];
+                        byte_chunk.extend_from_slice(&chunk.variables_count.to_le_bytes());
+                        let arity_length = 1;
+                        let variables_count_length = 2;
                         self.assemble_instruction(chunk.instructions, &mut byte_position, &mut byte_chunk);
-                        self.memory.permanent_space.extend_from_slice(&(byte_chunk.len() - arity_length).to_le_bytes());
+                        self.memory.permanent_space.extend_from_slice(&(byte_chunk.len() - arity_length - variables_count_length).to_le_bytes());
                         self.memory.permanent_space.extend_from_slice(&byte_chunk)
                     }
                 },

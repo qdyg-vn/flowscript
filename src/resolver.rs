@@ -1,7 +1,7 @@
-use crate::error_handler::{Error, ErrorHandler, SemanticError, SemanticErrorType, TypeError, TypeErrorType};
+use crate::error_handler::{ErrorHandler, SemanticError, SemanticErrorType, TypeError, TypeErrorType};
 use crate::node::{Node, ResolvedNode, AST};
 use crate::symbol_table::{SymbolTable, SymbolType};
-use crate::value::VariableType;
+use crate::value::{Kind, VariableType};
 
 pub struct Resolver {
     error_handler: ErrorHandler,
@@ -13,7 +13,7 @@ impl Resolver {
     }
 
     pub fn resolve(mut self, nodes: Vec<Node>) -> (ErrorHandler, usize, AST) {
-        let mut ast = AST {nodes: Vec::with_capacity(nodes.len()), arity: 0};
+        let mut ast = AST { nodes: Vec::with_capacity(nodes.len()), arity: 0, variables_count: 0 };
         for node in nodes {
             if let Node::Pipeline(stations) = node {
                 let result = ResolvedNode::Pipeline(self.solve(stations, &mut ast));
@@ -21,7 +21,7 @@ impl Resolver {
             }
         }
         if !self.error_handler.errors.is_empty() { self.error_handler.report_exit() }
-        (self.error_handler, ast.arity as usize, ast)
+        (self.error_handler, ast.variables_count as usize, ast)
     }
 
     fn solve(&mut self, stations: Vec<Node>, ast: &mut AST) -> Vec<ResolvedNode> {
@@ -53,15 +53,16 @@ impl Resolver {
                             value.get_kind()
                         },
                         Some(ResolvedNode::Variable(_, kind)) | Some(ResolvedNode::Assignment(_, kind)) => *kind,
+                        Some(ResolvedNode::BuiltinCall { .. }) => Kind::Dynamic,
                         _ => {todo!()}
                     };
                     match self.symbol_table.add_variable(name, kind.get_variable_type()) {
                         Ok(SymbolType::Scope(_, index, _)) => {
                             resolved_stations.push(ResolvedNode::Assignment(index, kind));
-                            ast.arity += 1
+                            ast.variables_count += 1
                         }
                         Err(SymbolType::Scope(_, index, variable_type)) => {
-                            if kind.get_variable_type() != variable_type {
+                            if kind != Kind::Dynamic && kind.get_variable_type() != variable_type {
                                 self.error_handler.push_error(TypeError { kind: TypeErrorType::AssignTypeMismatch(kind, variable_type.get_kind()) })
                             }
                             resolved_stations.push(ResolvedNode::Assignment(index, kind))
@@ -84,7 +85,7 @@ impl Resolver {
                     match self.symbol_table.add_variable(name, kind.get_variable_type()) {
                         Ok(SymbolType::Scope(_, index, _)) => {
                             resolved_stations.push(ResolvedNode::Assignment(index, kind));
-                            ast.arity += 1
+                            ast.variables_count += 1
                         }
                         Err(SymbolType::Scope(_, index, _)) => resolved_stations.push(ResolvedNode::Assignment(index, kind)),
                         _ => unreachable!()
@@ -100,7 +101,7 @@ impl Resolver {
                 Node::DefineFunction {operator, arguments, body} => {
                     let index = match self.symbol_table.add_variable(operator, VariableType::Function(arguments.len() as u32)) {
                         Ok(SymbolType::Scope(_, index, _)) => {
-                            ast.arity += 1;
+                            ast.variables_count += 1;
                             index
                         },
                         Err(SymbolType::Scope(_, index, _)) => {
@@ -109,7 +110,7 @@ impl Resolver {
                         _ => unreachable!()
                     };
                     self.symbol_table.new_scope();
-                    let mut child_ast = AST {nodes: Vec::with_capacity(arguments.len() + body.len()), arity: 0};
+                    let mut child_ast = AST { nodes: Vec::with_capacity(arguments.len() + body.len()), arity: 0, variables_count: 0 };
                     for argument in arguments {
                         match argument {
                             Node::SoftAssignment(name) => {
