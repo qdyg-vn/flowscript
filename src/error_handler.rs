@@ -1,6 +1,6 @@
 use std::{fmt, process::exit};
 use crate::token::Token;
-use crate::value::{Kind, Value};
+use crate::value::{Kind, ParentKind, Value};
 
 #[derive(Default)]
 pub struct ErrorHandler {
@@ -278,6 +278,8 @@ impl fmt::Display for TypeError {
             TypeErrorType::AssignTypeMismatch(_, _) => 5,
             TypeErrorType::ArityMismatch(_, _) => 6,
             TypeErrorType::NotAFunction(_) => 7,
+            TypeErrorType::ParentKindMismatch(_, _) => 8,
+            TypeErrorType::MissingStation(_) => 9,
         };
         writeln!(formatter, "\x1b[31;1m[Error FSCC8{:0>3}]\x1b[0m {}", code, self.kind)
     }
@@ -291,6 +293,8 @@ pub enum TypeErrorType {
     AssignTypeMismatch(Kind, Kind),
     ArityMismatch(usize, usize),
     NotAFunction(String),
+    ParentKindMismatch(ParentKind, ParentKind),
+    MissingStation(u16),
 }
 
 impl fmt::Display for TypeErrorType {
@@ -301,7 +305,9 @@ impl fmt::Display for TypeErrorType {
             TypeErrorType::InvalidOperand(message) | TypeErrorType::InvalidUnaryOperand(message) => write!(formatter, "{}", message),
             TypeErrorType::AssignTypeMismatch(received_kind, required_kind) => write!(formatter, "Type '{}' is not assignable to type '{}'", received_kind, required_kind),
             TypeErrorType::ArityMismatch(received_arity, required_arity) => write!(formatter, "Function expects {} arguments, but got {}", required_arity, received_arity),
-            TypeErrorType::NotAFunction(name) => write!(formatter, "{} is not a function", name)
+            TypeErrorType::NotAFunction(name) => write!(formatter, "{} is not a function", name),
+            TypeErrorType::ParentKindMismatch(accumulator, x) => write!(formatter, "Expected {} found {}", accumulator, x),
+            TypeErrorType::MissingStation(x) => write!(formatter, "There is no station at position {}", x),
         }
     }
 }

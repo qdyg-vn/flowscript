@@ -1,7 +1,8 @@
-use crate::error_handler::{ErrorHandler, SemanticError, SemanticErrorType, TypeError, TypeErrorType};
+use crate::builtins::Signature;
+use crate::error_handler::{Error, ErrorHandler, SemanticError, SemanticErrorType, TypeError, TypeErrorType};
 use crate::node::{Node, ResolvedNode, AST};
 use crate::symbol_table::{SymbolTable, SymbolType};
-use crate::value::{Kind, VariableType};
+use crate::value::{Kind, ParentKind, VariableType};
 
 pub struct Resolver {
     error_handler: ErrorHandler,
@@ -12,7 +13,7 @@ impl Resolver {
         Self { error_handler, symbol_table }
     }
 
-    pub fn resolve(mut self, nodes: Vec<Node>) -> (ErrorHandler, usize, AST) {
+    pub fn resolve(mut self, nodes: Vec<Node>) -> (ErrorHandler, SymbolTable, usize, AST) {
         let mut ast = AST { nodes: Vec::with_capacity(nodes.len()), arity: 0, variables_count: 0 };
         for node in nodes {
             if let Node::Pipeline(stations) = node {
@@ -21,7 +22,7 @@ impl Resolver {
             }
         }
         if !self.error_handler.errors.is_empty() { self.error_handler.report_exit() }
-        (self.error_handler, ast.variables_count as usize, ast)
+        (self.error_handler, self.symbol_table, ast.variables_count as usize, ast)
     }
 
     fn solve(&mut self, stations: Vec<Node>, ast: &mut AST) -> Vec<ResolvedNode> {
@@ -33,13 +34,11 @@ impl Resolver {
                 Node::RelativeReference(x, y) => resolved_stations.push(ResolvedNode::RelativeReference(x, y)),
                 Node::Apply {operator, arguments} => {
                     match self.symbol_table.resolve(&operator) {
-                        Ok(SymbolType::Builtin(index)) => resolved_stations.push(ResolvedNode::BuiltinCall {index, arguments: self.solve(arguments, ast)}),
+                        Ok(SymbolType::Builtin(index)) => resolved_stations.push(ResolvedNode::BuiltinCall { index, arguments: self.solve(arguments, ast) }),
                         Ok(SymbolType::Scope(scope, index, function)) => {
                             let arguments = self.solve(arguments, ast);
-                            let VariableType::Function(function_index) = function else { self.error_handler.push_error(TypeError { kind: TypeErrorType::NotAFunction(operator) }); continue };
-                            let required_variables_type = self.symbol_table.get_arguments(function_index);
-                            self.check_function_arguments(&arguments, required_variables_type);
-                            resolved_stations.push(ResolvedNode::Call { scope, index, arguments })
+                            let VariableType::Function(signature_index) = function else { self.error_handler.push_error(TypeError { kind: TypeErrorType::NotAFunction(operator) }); continue };
+                            resolved_stations.push(ResolvedNode::Call { scope, index, arguments, signature_index })
                         },
                         Err(error) => self.error_handler.push_error(error)
                     }
@@ -110,7 +109,7 @@ impl Resolver {
                         _ => unreachable!()
                     };
                     self.symbol_table.new_scope();
-                    let mut child_ast = AST { nodes: Vec::with_capacity(arguments.len() + body.len()), arity: 0, variables_count: 0 };
+                    let mut child_ast = AST { nodes: Vec::with_capacity(body.len()), arity: 0, variables_count: 0 };
                     for argument in arguments {
                         match argument {
                             Node::SoftAssignment(name) => {
@@ -137,7 +136,7 @@ impl Resolver {
                         }
                     }
                     let body = self.solve(body, &mut child_ast);
-                    child_ast.nodes.extend(body);
+                    child_ast.nodes = body;
                     self.symbol_table.scopes.pop();
                     resolved_stations.push(ResolvedNode::DefineFunction {index, body: child_ast})
                 },
@@ -164,37 +163,5 @@ impl Resolver {
             }
         }
         resolved_stations
-    }
-
-    fn check_function_arguments(&mut self, arguments: &[ResolvedNode], required_variables_type: Vec<VariableType>) {
-        let received_arity = arguments.len();
-        let required_arity = required_variables_type.len();
-        for index in 0..std::cmp::min(received_arity, required_arity) {
-            let required_variable_type = required_variables_type[index];
-            match &arguments[index] {
-                ResolvedNode::Literal(value) => {
-                    let received_variable_type = value.get_kind().get_variable_type();
-                    if required_variable_type != VariableType::Dynamic && received_variable_type != VariableType::Dynamic && received_variable_type != required_variable_type {
-                        self.error_handler.push_error(TypeError {kind: TypeErrorType::TypeMismatch(required_variable_type.get_kind(), received_variable_type.get_kind())})
-                    }
-                },
-                ResolvedNode::HeavyLiteral(value) => {
-                    let received_variable_type = value.get_kind().get_variable_type();
-                    if required_variable_type != VariableType::Dynamic && received_variable_type != VariableType::Dynamic && received_variable_type != required_variable_type {
-                        self.error_handler.push_error(TypeError {kind: TypeErrorType::TypeMismatch(required_variable_type.get_kind(), received_variable_type.get_kind())})
-                    }
-                },
-                ResolvedNode::Variable(_, kind) => {
-                    let received_variable_type = kind.get_variable_type();
-                    if required_variable_type != VariableType::Dynamic && received_variable_type != VariableType::Dynamic && received_variable_type != required_variable_type {
-                        self.error_handler.push_error(TypeError {kind: TypeErrorType::TypeMismatch(required_variable_type.get_kind(), received_variable_type.get_kind())})
-                    }
-                }
-                _ => {todo!("Currently under development")}
-            }
-        }
-        if received_arity != required_arity {
-            self.error_handler.push_error(TypeError {kind: TypeErrorType::ArityMismatch(received_arity, required_arity)})
-        }
     }
 }

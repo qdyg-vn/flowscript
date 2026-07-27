@@ -30,6 +30,16 @@ impl Kind {
             _ => todo!()
         }
     }
+
+    pub fn get_parent_kind(&self) -> ParentKind {
+        match self {
+            Kind::Boolean => ParentKind::Boolean,
+            Kind::Float => ParentKind::Float,
+            Kind::Integer => ParentKind::Integer,
+            Kind::String => ParentKind::String,
+            _ => todo!()
+        }
+    }
 }
 
 impl fmt::Display for Kind {
@@ -40,6 +50,47 @@ impl fmt::Display for Kind {
             Kind::Integer => write!(f, "integer"),
             Kind::String => write!(f, "string"),
             Kind::Array => write!(f, "array"),
+            _ => todo!()
+        }
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+pub enum ParentKind {
+    Number,
+    String,
+    Boolean,
+    Dynamic,
+    Nil,
+    Float,
+    Integer,
+}
+
+impl PartialEq for ParentKind {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (ParentKind::Boolean, ParentKind::Boolean) => true,
+            (ParentKind::Float, ParentKind::Number | ParentKind::Float) => true,
+            (ParentKind::Integer, ParentKind::Number | ParentKind::Integer) => true,
+            (ParentKind::Number, ParentKind::Float | ParentKind::Integer) => true,
+            (ParentKind::String, ParentKind::String) => true,
+            (ParentKind::Nil, ParentKind::Nil) => true,
+            (ParentKind::Dynamic, _) => true,
+            (_, ParentKind::Dynamic) => true,
+            _ => false
+        }
+    }
+}
+
+impl fmt::Display for ParentKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ParentKind::Number => write!(f, "number"),
+            ParentKind::String => write!(f, "string"),
+            ParentKind::Boolean => write!(f, "boolean"),
+            ParentKind::Nil => write!(f, "nil"),
+            ParentKind::Float => write!(f, "float"),
+            ParentKind::Integer => write!(f, "integer"),
             _ => todo!()
         }
     }
@@ -64,6 +115,16 @@ impl VariableType {
             VariableType::Integer => Kind::Integer,
             VariableType::String => Kind::String,
             VariableType::Dynamic => Kind::Dynamic,
+            _ => todo!()
+        }
+    }
+
+    pub fn get_parent_kind(&self) -> ParentKind {
+        match self {
+            VariableType::Boolean => ParentKind::Boolean,
+            VariableType::Float => ParentKind::Float,
+            VariableType::Integer => ParentKind::Integer,
+            VariableType::String => ParentKind::String,
             _ => todo!()
         }
     }
@@ -106,6 +167,16 @@ impl LightValue {
             _ => todo!()
         }
     }
+
+    pub fn get_parent_kind(&self) -> ParentKind {
+        match self {
+            LightValue::Boolean(_) => ParentKind::Boolean,
+            LightValue::Nil => ParentKind::Nil,
+            LightValue::Float(_) => ParentKind::Float,
+            LightValue::Integer(_) => ParentKind::Integer,
+            _ => todo!()
+        }
+    }
 }
 
 impl Eq for LightValue {}
@@ -136,6 +207,13 @@ impl HeavyValue {
     pub fn get_kind(&self) -> Kind {
         match self {
             HeavyValue::String(_) => Kind::String,
+            _ => todo!()
+        }
+    }
+
+    pub fn get_parent_kind(&self) -> ParentKind {
+        match self {
+            HeavyValue::String(_) => ParentKind::String,
             _ => todo!()
         }
     }

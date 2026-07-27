@@ -15,3 +15,4 @@ pub mod constants_pool;
 pub mod assembler;
 pub mod memory;
 pub mod resolver;
+pub mod type_checker;

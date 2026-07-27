@@ -1,4 +1,4 @@
-use crate::value::{Kind, LightValue, HeavyValue};
+use crate::value::{Kind, LightValue, HeavyValue, ParentKind};
 
 #[derive(Debug)]
 pub enum Node {
@@ -38,6 +38,7 @@ pub enum ResolvedNode {
         scope: u16,
         index: u16,
         arguments: Vec<ResolvedNode>,
+        signature_index: u32,
     },
     Pipeline(Vec<ResolvedNode>),
     RelativeReference(u16, u16),
@@ -56,8 +57,45 @@ pub enum ResolvedNode {
 }
 
 #[derive(Debug)]
+pub enum TypedNode {
+    Literal(LightValue),
+    HeavyLiteral(HeavyValue),
+    BuiltinCall {
+        index: u16,
+        arguments: Vec<TypedNode>,
+        result: ParentKind,
+    },
+    Call {
+        scope: u16,
+        index: u16,
+        arguments: Vec<TypedNode>,
+    },
+    Pipeline(Vec<TypedNode>),
+    RelativeReference(u16, u16, ParentKind),
+    Variable(u16, Kind),
+    Assignment(u16, Kind),
+    DefineFunction {
+        index: u16,
+        body: TypedAST,
+    },
+    Condition {
+        branches: Vec<(Vec<TypedNode>, Vec<TypedNode>)>,
+        final_branch: Vec<TypedNode>,
+    },
+    Return(Box<TypedNode>),
+    Array(Vec<TypedNode>),
+}
+
+#[derive(Debug)]
 pub struct AST {
     pub nodes: Vec<ResolvedNode>,
+    pub arity: u8,
+    pub variables_count: u16,
+}
+
+#[derive(Debug)]
+pub struct TypedAST {
+    pub nodes: Vec<TypedNode>,
     pub arity: u8,
     pub variables_count: u16,
 }

@@ -1,6 +1,6 @@
 use crate::constants_pool::ConstantsPool;
 use crate::instructions::{Chunk, Instruction};
-use crate::node::{ResolvedNode, AST};
+use crate::node::{TypedAST, TypedNode};
 use crate::value::HeavyValue;
 
 pub struct Emitter {
@@ -14,10 +14,10 @@ impl Emitter {
         }
     }
 
-    pub fn emit(mut self, ast: AST) -> (ConstantsPool, Vec<Chunk>) {
+    pub fn emit(mut self, ast: TypedAST) -> (ConstantsPool, Vec<Chunk>) {
         let mut map: Vec<Chunk> = Vec::new();
         for instructions in ast.nodes {
-            let ResolvedNode::Pipeline(stations) = instructions else { unreachable!() };
+            let TypedNode::Pipeline(stations) = instructions else { unreachable!() };
             let mut chunk = Chunk::default();
             self.create_chunk(stations, &mut chunk);
             map.push(chunk)
@@ -25,33 +25,33 @@ impl Emitter {
         (self.constants_pool, map)
     }
 
-    fn create_chunk(&mut self, stations: Vec<ResolvedNode>, chunk: &mut Chunk) {
+    fn create_chunk(&mut self, stations: Vec<TypedNode>, chunk: &mut Chunk) {
         for station in stations {
             match station {
-                ResolvedNode::Literal(value) => {
+                TypedNode::Literal(value) => {
                     let index = self.constants_pool.add_constant(value);
                     chunk.instructions.push(Instruction::Load(index as u32))
                 },
-                ResolvedNode::HeavyLiteral(heavy_value) => {
+                TypedNode::HeavyLiteral(heavy_value) => {
                     let index = self.constants_pool.add_heavy_constant(heavy_value);
                     chunk.instructions.push(Instruction::Load(index as u32))
                 },
-                ResolvedNode::BuiltinCall {index, arguments} => {
+                TypedNode::BuiltinCall {index, arguments, ..} => {
                     let arity = arguments.len() as u16;
                     self.create_chunk(arguments, chunk);
                     chunk.instructions.push(Instruction::BuiltinCall(index, arity))
                 },
-                ResolvedNode::Call {scope, index, arguments} => {
+                TypedNode::Call {scope, index, arguments} => {
                     self.create_chunk(arguments, chunk);
                     chunk.instructions.push(Instruction::Call(scope, index))
                 },
-                ResolvedNode::RelativeReference(x, y) => chunk.instructions.push(Instruction::RelativeReference(x, y)),
-                ResolvedNode::Assignment(index, kind) => chunk.instructions.push(Instruction::Store(index, kind as u8)),
-                ResolvedNode::Variable(index, _) => chunk.instructions.push(Instruction::LoadVariable(index)),
-                ResolvedNode::DefineFunction {index, body} => {
+                TypedNode::RelativeReference(x, y, _) => chunk.instructions.push(Instruction::RelativeReference(x, y)),
+                TypedNode::Assignment(index, kind) => chunk.instructions.push(Instruction::Store(index, kind as u8)),
+                TypedNode::Variable(index, _) => chunk.instructions.push(Instruction::LoadVariable(index)),
+                TypedNode::DefineFunction {index, body} => {
                     let mut pipelines = Vec::with_capacity(body.nodes.len());
                     for node in body.nodes {
-                        let ResolvedNode::Pipeline(pipeline) = node else { unreachable!() };
+                        let TypedNode::Pipeline(pipeline) = node else { unreachable!() };
                         let mut child_chunk = Chunk { instructions: Vec::with_capacity(pipeline.len()), arity: body.arity, variables_count: body.variables_count };
                         self.create_chunk(pipeline, &mut child_chunk);
                         pipelines.push(child_chunk)
@@ -59,13 +59,13 @@ impl Emitter {
                     let body_index = self.constants_pool.add_heavy_constant(HeavyValue::Function(pipelines));
                     chunk.instructions.push(Instruction::DefineFunction(index, body_index as u16));
                 },
-                ResolvedNode::Pipeline(stations) => self.create_chunk(stations, chunk),
-                ResolvedNode::Condition {branches, final_branch} => self.emit_condition(branches, final_branch, chunk),
-                ResolvedNode::Return(value) => {
+                TypedNode::Pipeline(stations) => self.create_chunk(stations, chunk),
+                TypedNode::Condition {branches, final_branch} => self.emit_condition(branches, final_branch, chunk),
+                TypedNode::Return(value) => {
                     self.create_chunk(vec![*value], chunk);
                     chunk.instructions.push(Instruction::Return)
                 },
-                ResolvedNode::Array(elements) => {
+                TypedNode::Array(elements) => {
                     let count = elements.len() as u32;
                     self.create_chunk(elements, chunk);
                     chunk.instructions.push(Instruction::Array(count))
@@ -74,7 +74,7 @@ impl Emitter {
         }
     }
 
-    fn emit_condition(&mut self, branches: Vec<(Vec<ResolvedNode>, Vec<ResolvedNode>)>, final_branch: Vec<ResolvedNode>, chunk: &mut Chunk) {
+    fn emit_condition(&mut self, branches: Vec<(Vec<TypedNode>, Vec<TypedNode>)>, final_branch: Vec<TypedNode>, chunk: &mut Chunk) {
         let mut complete_positions = Vec::with_capacity(branches.len());
         for (condition, body) in branches {
             self.create_chunk(condition, chunk);

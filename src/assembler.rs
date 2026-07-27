@@ -112,13 +112,13 @@ impl Assembler {
                     *byte_position += Bytecode::ARRAY_SIZE
                 },
                 Instruction::Jump(index) => {
-                    let instruction_byte_length = 3;
+                    let instruction_byte_length = Bytecode::JUMP_SIZE;
                     byte_chunk.push(Bytecode::Jump as u8);
                     byte_chunk.extend_from_slice(&((*byte_position + instruction_byte_length + self.get_byte_distance(&instructions, position + 1, index)) as u16).to_le_bytes());
                     *byte_position += Bytecode::JUMP_SIZE
                 },
                 Instruction::JumpIfFalse(index) => {
-                    let instruction_byte_length = 3;
+                    let instruction_byte_length = Bytecode::JUMP_IF_FALSE_SIZE;
                     byte_chunk.push(Bytecode::JumpIfFalse as u8);
                     byte_chunk.extend_from_slice(&((*byte_position + instruction_byte_length + self.get_byte_distance(&instructions, position + 1, index)) as u16).to_le_bytes());
                     *byte_position += Bytecode::JUMP_IF_FALSE_SIZE
