@@ -1,4 +1,4 @@
-use crate::error_handler::{Error, SyntaxError, SyntaxErrorType};
+use crate::error_handler::{Error, SemanticError, SemanticErrorType, SyntaxError, SyntaxErrorType};
 use crate::node::Node;
 use crate::lexer::Lexer;
 use crate::token::{Token, TokenType};
@@ -68,7 +68,13 @@ impl<'source_code> Parser<'source_code> {
             TokenType::Nil => Some(Node::Literal(LightValue::Nil)),
             TokenType::Identifier(identifier) => self.parse_function(token.start, identifier, errors),
             TokenType::String(string) => Some(Node::HeavyLiteral(HeavyValue::String(string))),
-            TokenType::RelativeReference(x, y) => Some(Node::RelativeReference(x, y)),
+            TokenType::RelativeReference(x, y) => {
+                if x <= 0 && y == 0 {
+                    errors.push(SemanticError { kind: SemanticErrorType::NegativeXCoordinate(x) }.into());
+                    return None
+                }
+                Some(Node::RelativeReference(x, y))
+            },
             TokenType::Variable(name) => Some(Node::Variable(name)),
             TokenType::DefineFunction => self.parse_define_function(token.start, errors),
             TokenType::If => self.parse_condition(token.start, errors),
@@ -313,9 +319,9 @@ impl<'source_code> Parser<'source_code> {
         }
     }
 
-    fn error_pusher(&mut self, start: usize, kind: SyntaxErrorType, errors: &mut Vec<Error>) {
+    fn error_pusher(&self, start: usize, kind: SyntaxErrorType, errors: &mut Vec<Error>) {
         let (line, column) = self.lexer.find_line_col(start);
-        errors.push(Error::SyntaxError(SyntaxError { line, column, kind }))
+        errors.push(SyntaxError { line, column, kind }.into())
     }
 
     fn jump(&mut self, errors: &mut Vec<Error>) {
