@@ -176,7 +176,9 @@ impl VirMac {
     }
 
     fn execute_builtin_function(&mut self, index: u16, stack: &mut [LightValue], stack_position: &mut usize, start: usize, end: usize) {
-        let Some(values) = stack.get(start..end) else { self.error_handler.fatal(Error::RuntimeError(RuntimeError { kind: RuntimeErrorType::OutOfBounds(start, end) })) };
+        let Some(values) = stack.get(start..end) else {
+            self.error_handler.fatal(Error::RuntimeError(RuntimeError { kind: RuntimeErrorType::OutOfBounds(start, end) }))
+        };
         let mut arguments = Vec::new();
         for argument in values {
             arguments.push(match argument {
@@ -308,13 +310,15 @@ impl VirMac {
             Value::String(string) => {
                 let index = self.memory.from_space.len();
                 let string_bytes = string.into_bytes();
-                self.memory.push_to_heap(&string_bytes.len().to_le_bytes(), stack);
-                self.memory.push_to_heap(&string_bytes, stack);
+                let string_length_bytes = string_bytes.len().to_le_bytes();
+                self.memory.allocate(string_length_bytes.len() + string_bytes.len(), stack);
+                self.memory.push_to_heap(&string_length_bytes);
+                self.memory.push_to_heap(&string_bytes);
                 LightValue::StringHeapPointer(index as u32)
             },
             Value::Array(array) => {
                 let index = self.memory.from_space.len();
-                self.memory.push_to_heap(&0u64.to_le_bytes(), stack);
+                self.memory.push_to_heap(&0u64.to_le_bytes());
                 for value in array {
                     self.push_into_storage(value, stack);
                 };

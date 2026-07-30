@@ -25,18 +25,23 @@ impl Memory {
         }
     }
 
-    pub fn push_to_heap(&mut self, value: &[u8], stack: &mut [LightValue]) {
-        let size = value.len();
-        if self.allocated_bytes + size >= self.garbage_collect_threshold {
+    pub fn allocate(&mut self, size: usize, stack: &mut [LightValue]) {
+        if self.from_space.len() + size >= self.garbage_collect_threshold {
             self.run_garbage_collection(stack);
-            while self.allocated_bytes + size >= self.garbage_collect_threshold {
-                self.from_space.reserve(self.from_space.len() * 2);
-                self.to_space.reserve(self.to_space.len() * 2);
+            if self.from_space.len() + size >= self.garbage_collect_threshold {
+                let memory_needed = std::cmp::max(self.from_space.capacity() + (self.from_space.capacity() >> 1), (self.from_space.len() + size) * 100 / 75) - self.from_space.capacity();
+                self.from_space.reserve(memory_needed);
+                self.to_space.reserve(memory_needed);
+                self.garbage_collect_threshold = self.from_space.capacity() * 75 / 100
             }
-            self.garbage_collect_threshold = (self.allocated_bytes + size) * 2
         }
-        self.from_space.extend_from_slice(value);
-        self.allocated_bytes += size
+        self.allocated_bytes = self.from_space.len();
+        self.from_space.resize(self.from_space.len() + size, 0);
+    }
+
+    pub fn push_to_heap(&mut self, value: &[u8]) {
+        self.from_space[self.allocated_bytes..self.allocated_bytes + value.len()].copy_from_slice(value);
+        self.allocated_bytes += value.len();
     }
 
     fn run_garbage_collection(&mut self, stack: &mut [LightValue]) {
@@ -72,7 +77,7 @@ impl Memory {
         for pointer in pointers {
             new_pointers.push(self.free_pointer);
             let length = u64::from_le_bytes(self.from_space[pointer..pointer + 8].try_into().unwrap());
-            self.to_space[self.free_pointer..self.free_pointer + 8 + length as usize].copy_from_slice(&self.from_space[pointer..pointer + 8 + length as usize]);
+            self.to_space.extend_from_slice(&self.from_space[pointer..pointer + 8 + length as usize]);
             self.free_pointer += 8 + length as usize;
         };
         std::mem::swap(&mut self.from_space, &mut self.to_space);

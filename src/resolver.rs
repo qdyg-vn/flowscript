@@ -1,8 +1,7 @@
-use crate::builtins::Signature;
-use crate::error_handler::{Error, ErrorHandler, SemanticError, SemanticErrorType, TypeError, TypeErrorType};
+use crate::error_handler::{ErrorHandler, SemanticError, SemanticErrorType, TypeError, TypeErrorType};
 use crate::node::{Node, ResolvedNode, AST};
 use crate::symbol_table::{SymbolTable, SymbolType};
-use crate::value::{Kind, ParentKind, VariableType};
+use crate::value::{Kind, VariableType};
 
 pub struct Resolver {
     error_handler: ErrorHandler,
@@ -37,7 +36,10 @@ impl Resolver {
                         Ok(SymbolType::Builtin(index)) => resolved_stations.push(ResolvedNode::BuiltinCall { index, arguments: self.solve(arguments, ast) }),
                         Ok(SymbolType::Scope(scope, index, function)) => {
                             let arguments = self.solve(arguments, ast);
-                            let VariableType::Function(signature_index) = function else { self.error_handler.push_error(TypeError { kind: TypeErrorType::NotAFunction(operator) }); continue };
+                            let VariableType::Function(signature_index) = function else {
+                                self.error_handler.push_error(TypeError { kind: TypeErrorType::NotAFunction(operator) });
+                                continue
+                            };
                             resolved_stations.push(ResolvedNode::Call { scope, index, arguments, signature_index })
                         },
                         Err(error) => self.error_handler.push_error(error)
@@ -45,12 +47,8 @@ impl Resolver {
                 },
                 Node::SoftAssignment(name) => {
                     let kind = match resolved_stations.last() {
-                        Some(ResolvedNode::Literal(value)) => {
-                            value.get_kind()
-                        },
-                        Some(ResolvedNode::HeavyLiteral(value)) => {
-                            value.get_kind()
-                        },
+                        Some(ResolvedNode::Literal(value)) => value.get_kind(),
+                        Some(ResolvedNode::HeavyLiteral(value)) => value.get_kind(),
                         Some(ResolvedNode::Variable(_, kind)) | Some(ResolvedNode::Assignment(_, kind)) => *kind,
                         Some(ResolvedNode::BuiltinCall { .. }) => Kind::Dynamic,
                         _ => {todo!()}
