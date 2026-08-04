@@ -145,7 +145,7 @@ impl fmt::Display for SyntaxError {
             SyntaxErrorType::MissingTypeIdentity => 8,
             SyntaxErrorType::MissingCondition => 9,
             SyntaxErrorType::MissingRightParen => 10,
-            SyntaxErrorType::MissingRightBrace => 11,
+            SyntaxErrorType::MissingEndKeyword => 11,
             SyntaxErrorType::MissingRightBracket => 12,
             SyntaxErrorType::RedundantFunction => 13,
             SyntaxErrorType::InvalidTypeError => 14,
@@ -153,6 +153,7 @@ impl fmt::Display for SyntaxError {
             SyntaxErrorType::RedundantCondition => 16,
             SyntaxErrorType::MissingConditionBody => 17,
             SyntaxErrorType::MissingType(_) => 18,
+            SyntaxErrorType::MissingDoKeyword => 19,
         };
         writeln!(formatter, "\x1b[31;1m[Error FSCC3{:0>3}]\x1b[0m {}", code, self.kind)?;
         write!(formatter, "\x1b[38;2;143;255;46m  --> Line: {} Column: {}\n\x1b[0m", self.line, self.column)
@@ -170,7 +171,7 @@ pub enum SyntaxErrorType {
     MissingTypeIdentity,
     MissingCondition,
     MissingRightParen,
-    MissingRightBrace,
+    MissingEndKeyword,
     MissingRightBracket,
     RedundantFunction,
     InvalidTypeError,
@@ -178,6 +179,7 @@ pub enum SyntaxErrorType {
     RedundantCondition,
     MissingConditionBody,
     MissingType(String),
+    MissingDoKeyword,
 }
 
 impl fmt::Display for SyntaxErrorType {
@@ -187,19 +189,20 @@ impl fmt::Display for SyntaxErrorType {
             SyntaxErrorType::MissingFunctionName => write!(formatter, "Function needs a name!"),
             SyntaxErrorType::RedundantFunctionDefinition => write!(formatter, "There is one redundant function definition"),
             SyntaxErrorType::MissingLeftParen => write!(formatter, "Behind operator needs a left paren!"),
-            SyntaxErrorType::MissingLeftBrace => write!(formatter, "Behind function arguments needs a left brace!"),
+            SyntaxErrorType::MissingLeftBrace => write!(formatter, "Behind condition needs a left brace!"),
             SyntaxErrorType::NoStationBeforePipeline => write!(formatter, "There is no station before pipeline!"),
             SyntaxErrorType::NoStationAfterPipeline => write!(formatter, "There is no station after pipeline!"),
             SyntaxErrorType::MissingTypeIdentity => write!(formatter, "Missing type in declaration"),
             SyntaxErrorType::MissingCondition => write!(formatter, "The conditional expression is empty!"),
             SyntaxErrorType::MissingRightParen => write!(formatter, "Behind function arguments needs a right paren!"),
-            SyntaxErrorType::MissingRightBrace => write!(formatter, "Behind function body needs a right brace!"),
+            SyntaxErrorType::MissingEndKeyword => write!(formatter, "Missing 'end' after function body!"),
             SyntaxErrorType::MissingRightBracket => write!(formatter, "Behind array elements needs a right bracket!"),
             SyntaxErrorType::RedundantFunction => write!(formatter, "There is one redundant function"),
             SyntaxErrorType::InvalidTypeError => write!(formatter, "Behind ':' needs a valid type!"),
             SyntaxErrorType::MissingFunctionBody => write!(formatter, "Function needs a body!"),
             SyntaxErrorType::RedundantCondition => write!(formatter, "There is one redundant condition"),
             SyntaxErrorType::MissingConditionBody => write!(formatter, "Condition needs a body!"),
+            SyntaxErrorType::MissingDoKeyword => write!(formatter, "Missing 'do' after function arguments!"),
             SyntaxErrorType::MissingType(name) => write!(formatter, "Missing type for parameter '{}'", name),
         }
     }
@@ -284,8 +287,7 @@ impl fmt::Display for TypeError {
             TypeErrorType::AssignTypeMismatch(_, _) => 5,
             TypeErrorType::ArityMismatch(_, _) => 6,
             TypeErrorType::NotAFunction(_) => 7,
-            TypeErrorType::ParentKindMismatch(_, _) => 8,
-            TypeErrorType::MissingStation(_) => 9,
+            TypeErrorType::MissingStation(_) => 8,
         };
         writeln!(formatter, "\x1b[31;1m[Error FSCC8{:0>3}]\x1b[0m {}", code, self.kind)
     }
@@ -299,7 +301,6 @@ pub enum TypeErrorType {
     AssignTypeMismatch(Kind, Kind),
     ArityMismatch(usize, usize),
     NotAFunction(String),
-    ParentKindMismatch(Kind, Kind),
     MissingStation(u16),
 }
 
@@ -312,7 +313,6 @@ impl fmt::Display for TypeErrorType {
             TypeErrorType::AssignTypeMismatch(received_kind, required_kind) => write!(formatter, "Type '{}' is not assignable to type '{}'", received_kind, required_kind),
             TypeErrorType::ArityMismatch(received_arity, required_arity) => write!(formatter, "Function expects {} arguments, but got {}", required_arity, received_arity),
             TypeErrorType::NotAFunction(name) => write!(formatter, "{} is not a function", name),
-            TypeErrorType::ParentKindMismatch(accumulator, x) => write!(formatter, "Expected {} found {}", accumulator, x),
             TypeErrorType::MissingStation(x) => write!(formatter, "There is no station at position {}", x),
         }
     }

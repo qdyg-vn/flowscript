@@ -195,7 +195,7 @@ impl<'source_code> Parser<'source_code> {
         match self.peek() {
             Some(Ok(token)) => if token.kind != TokenType::Do {
                 if token.kind != TokenType::End { self.advance(1); }
-                self.error_pusher(start, SyntaxErrorType::MissingLeftBrace, errors)
+                self.error_pusher(start, SyntaxErrorType::MissingDoKeyword, errors)
             } else { self.advance(1); },
             Some(Err(error)) => errors.push(error),
             None => self.error_pusher(start, SyntaxErrorType::MissingFunctionBody, errors),
@@ -209,7 +209,7 @@ impl<'source_code> Parser<'source_code> {
                     Err(body_errors) => errors.extend(body_errors)
                 },
                 Some(Err(error)) => errors.push(error),
-                None => { self.error_pusher(start, SyntaxErrorType::MissingRightBrace, errors); return None },
+                None => { self.error_pusher(start, SyntaxErrorType::MissingEndKeyword, errors); return None },
             };
         };
         Some(Node::DefineFunction { operator, parameters, body, result })

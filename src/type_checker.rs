@@ -125,7 +125,7 @@ impl TypeChecker {
                     for argument_kind in &arguments_parent_kind {
                         if *argument_kind != signature.arguments[0] {
                             signature_mismatch_count += 1;
-                            signature_errors.push(TypeError { kind: TypeErrorType::ParentKindMismatch(signature.arguments[0], *argument_kind) }.into());
+                            signature_errors.push(TypeError { kind: TypeErrorType::TypeMismatch(signature.arguments[0], *argument_kind) }.into());
                         }
                     }
                 }
@@ -139,7 +139,7 @@ impl TypeChecker {
                         let required_kind = signature.arguments[index];
                         if argument_kind != required_kind {
                             signature_mismatch_count += 1;
-                            signature_errors.push(TypeError { kind: TypeErrorType::ParentKindMismatch(required_kind, argument_kind) }.into());
+                            signature_errors.push(TypeError { kind: TypeErrorType::TypeMismatch(required_kind, argument_kind) }.into());
                         }
                     }
                 }
@@ -214,12 +214,12 @@ impl TypeChecker {
                 },
                 TypedNode::RelativeReference(_, _, kind) => {
                     if required_variable_type != *kind {
-                        self.error_handler.push_error(TypeError {kind: TypeErrorType::ParentKindMismatch(required_variable_type, *kind)})
+                        self.error_handler.push_error(TypeError {kind: TypeErrorType::TypeMismatch(required_variable_type, *kind)})
                     }
                 },
                 TypedNode::BuiltinCall { result, .. } => {
                     if required_variable_type != *result {
-                        self.error_handler.push_error(TypeError {kind: TypeErrorType::ParentKindMismatch(required_variable_type, *result)})
+                        self.error_handler.push_error(TypeError {kind: TypeErrorType::TypeMismatch(required_variable_type, *result)})
                     }
                 },
                 _ => {todo!("Currently under development")}
