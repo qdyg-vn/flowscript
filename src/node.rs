@@ -1,4 +1,4 @@
-use crate::value::{Kind, LightValue, HeavyValue, ParentKind};
+use crate::value::{Kind, LightValue, HeavyValue};
 
 #[derive(Debug)]
 pub enum Node {
@@ -15,8 +15,9 @@ pub enum Node {
     Assignment(String, Kind),
     DefineFunction {
         operator: String,
-        arguments: Vec<Node>,
+        parameters: Vec<Node>,
         body: Vec<Node>,
+        result: Kind,
     },
     Condition {
         branches: Vec<(Vec<Node>, Vec<Node>)>,
@@ -42,8 +43,9 @@ pub enum ResolvedNode {
     },
     Pipeline(Vec<ResolvedNode>),
     RelativeReference(u16, u16),
-    Variable(u16, Kind),
-    Assignment(u16, Kind),
+    Variable(u16, u32),
+    SoftAssignment(u16, u32),
+    Assignment(u16, u32, Kind),
     DefineFunction {
         index: u16,
         body: AST,
@@ -63,15 +65,16 @@ pub enum TypedNode {
     BuiltinCall {
         index: u16,
         arguments: Vec<TypedNode>,
-        result: ParentKind,
+        result: Kind,
     },
     Call {
         scope: u16,
         index: u16,
         arguments: Vec<TypedNode>,
+        result: Kind,
     },
     Pipeline(Vec<TypedNode>),
-    RelativeReference(u16, u16, ParentKind),
+    RelativeReference(u16, u16, Kind),
     Variable(u16, Kind),
     Assignment(u16, Kind),
     DefineFunction {
@@ -91,6 +94,7 @@ pub struct AST {
     pub nodes: Vec<ResolvedNode>,
     pub arity: u8,
     pub variables_count: u16,
+    pub define_function_count: u16,
 }
 
 #[derive(Debug)]

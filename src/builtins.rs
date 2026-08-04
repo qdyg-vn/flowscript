@@ -4,7 +4,7 @@ mod math;
 mod compare;
 mod introspection;
 
-use crate::value::{ParentKind, Value};
+use crate::value::{Kind, Value};
 use casting::{to_string, to_integer, to_float, to_boolean};
 use io::print;
 use math::{add, minus, multiply};
@@ -25,102 +25,110 @@ pub enum BuiltinFunction {
 pub struct Builtin {
     pub name: &'static str,
     pub function: BuiltinFunction,
+    pub have_instruction: bool,
     pub types: &'static [Signature],
 }
 
 #[derive(Debug)]
 pub struct Signature {
-    pub arguments: &'static [ParentKind],
-    pub result: ParentKind,
+    pub arguments: &'static [Kind],
+    pub result: Kind,
     pub min_arity: u8,
     pub infinite_arity: bool,
 }
 
 pub const BUILTIN_TABLE: &[Builtin] = &[
-    Builtin { name: "+", function: BuiltinFunction::Math(add),
+    Builtin { name: "+", function: BuiltinFunction::Math(add), have_instruction: true,
         types: &[
-            Signature { arguments: &[ParentKind::Number], result: ParentKind::Number, min_arity: 1, infinite_arity: true },
-            Signature { arguments: &[ParentKind::String], result: ParentKind::String, min_arity: 2, infinite_arity: true },
+            Signature { arguments: &[Kind::Integer], result: Kind::Integer, min_arity: 1, infinite_arity: true },
+            Signature { arguments: &[Kind::Float], result: Kind::Float, min_arity: 1, infinite_arity: true },
+            Signature { arguments: &[Kind::String], result: Kind::String, min_arity: 2, infinite_arity: true },
         ]
     },
-    Builtin { name: "-", function: BuiltinFunction::Math(minus),
+    Builtin { name: "-", function: BuiltinFunction::Math(minus), have_instruction: true,
         types: &[
-            Signature { arguments: &[ParentKind::Number], result: ParentKind::Number, min_arity: 1, infinite_arity: true },
-            Signature { arguments: &[ParentKind::String], result: ParentKind::String, min_arity: 2, infinite_arity: true },
+            Signature { arguments: &[Kind::Integer], result: Kind::Integer, min_arity: 1, infinite_arity: true },
+            Signature { arguments: &[Kind::Float], result: Kind::Float, min_arity: 1, infinite_arity: true },
         ]
     },
-    Builtin { name: "*", function: BuiltinFunction::Math(multiply),
+    Builtin { name: "*", function: BuiltinFunction::Math(multiply), have_instruction: true,
         types: &[
-            Signature { arguments: &[ParentKind::Number], result: ParentKind::Number, min_arity: 1, infinite_arity: true },
-            Signature { arguments: &[ParentKind::String], result: ParentKind::String, min_arity: 2, infinite_arity: true },
+            Signature { arguments: &[Kind::Integer], result: Kind::Integer, min_arity: 1, infinite_arity: true },
+            Signature { arguments: &[Kind::Float], result: Kind::Float, min_arity: 1, infinite_arity: true },
         ]
     },
-    Builtin { name: "print", function: BuiltinFunction::IO(print),
+    Builtin { name: "print", function: BuiltinFunction::IO(print), have_instruction: false,
         types: &[
-            Signature { arguments: &[ParentKind::Dynamic], result: ParentKind::Nil, min_arity: 0, infinite_arity: true },
+            Signature { arguments: &[Kind::All], result: Kind::Nil, min_arity: 0, infinite_arity: true },
         ]
     },
-    Builtin { name: "to_string", function: BuiltinFunction::Casting(to_string),
+    Builtin { name: "to_string", function: BuiltinFunction::Casting(to_string), have_instruction: false,
         types: &[
-            Signature { arguments: &[ParentKind::Number], result: ParentKind::String, min_arity: 1, infinite_arity: false },
-            Signature { arguments: &[ParentKind::String], result: ParentKind::String, min_arity: 1, infinite_arity: false },
-            Signature { arguments: &[ParentKind::Boolean], result: ParentKind::String, min_arity: 1, infinite_arity: false },
-            Signature { arguments: &[ParentKind::Nil], result: ParentKind::String, min_arity: 1, infinite_arity: false },
+            Signature { arguments: &[Kind::Integer], result: Kind::String, min_arity: 1, infinite_arity: false },
+            Signature { arguments: &[Kind::Float], result: Kind::String, min_arity: 1, infinite_arity: false },
+            Signature { arguments: &[Kind::String], result: Kind::String, min_arity: 1, infinite_arity: false },
+            Signature { arguments: &[Kind::Boolean], result: Kind::String, min_arity: 1, infinite_arity: false },
+            Signature { arguments: &[Kind::Nil], result: Kind::String, min_arity: 1, infinite_arity: false },
         ]
     },
-    Builtin { name: "to_integer", function: BuiltinFunction::Casting(to_integer),
+    Builtin { name: "to_integer", function: BuiltinFunction::Casting(to_integer), have_instruction: false,
         types: &[
-            Signature { arguments: &[ParentKind::Number], result: ParentKind::Integer, min_arity: 1, infinite_arity: false },
-            Signature { arguments: &[ParentKind::String], result: ParentKind::Integer, min_arity: 1, infinite_arity: false },
-            Signature { arguments: &[ParentKind::Boolean], result: ParentKind::Integer, min_arity: 1, infinite_arity: false },
+            Signature { arguments: &[Kind::Integer], result: Kind::Integer, min_arity: 1, infinite_arity: false },
+            Signature { arguments: &[Kind::Float], result: Kind::Integer, min_arity: 1, infinite_arity: false },
+            Signature { arguments: &[Kind::String], result: Kind::Integer, min_arity: 1, infinite_arity: false },
+            Signature { arguments: &[Kind::Boolean], result: Kind::Integer, min_arity: 1, infinite_arity: false },
         ]
     },
-    Builtin { name: "to_float", function: BuiltinFunction::Casting(to_float),
+    Builtin { name: "to_float", function: BuiltinFunction::Casting(to_float), have_instruction: false,
         types: &[
-            Signature { arguments: &[ParentKind::Number], result: ParentKind::Float, min_arity: 1, infinite_arity: false },
-            Signature { arguments: &[ParentKind::String], result: ParentKind::Float, min_arity: 1, infinite_arity: false },
-            Signature { arguments: &[ParentKind::Boolean], result: ParentKind::Float, min_arity: 1, infinite_arity: false },
+            Signature { arguments: &[Kind::Integer], result: Kind::Float, min_arity: 1, infinite_arity: false },
+            Signature { arguments: &[Kind::Float], result: Kind::Float, min_arity: 1, infinite_arity: false },
+            Signature { arguments: &[Kind::String], result: Kind::Float, min_arity: 1, infinite_arity: false },
+            Signature { arguments: &[Kind::Boolean], result: Kind::Float, min_arity: 1, infinite_arity: false },
         ]
     },
-    Builtin { name: "to_boolean", function: BuiltinFunction::Casting(to_boolean),
+    Builtin { name: "to_boolean", function: BuiltinFunction::Casting(to_boolean), have_instruction: false,
         types: &[
-            Signature { arguments: &[ParentKind::Number], result: ParentKind::Boolean, min_arity: 1, infinite_arity: false },
-            Signature { arguments: &[ParentKind::String], result: ParentKind::Boolean, min_arity: 1, infinite_arity: false },
-            Signature { arguments: &[ParentKind::Boolean], result: ParentKind::Boolean, min_arity: 1, infinite_arity: false },
-            Signature { arguments: &[ParentKind::Nil], result: ParentKind::Boolean, min_arity: 1, infinite_arity: false },
+            Signature { arguments: &[Kind::Integer], result: Kind::Boolean, min_arity: 1, infinite_arity: false },
+            Signature { arguments: &[Kind::Float], result: Kind::Boolean, min_arity: 1, infinite_arity: false },
+            Signature { arguments: &[Kind::String], result: Kind::Boolean, min_arity: 1, infinite_arity: false },
+            Signature { arguments: &[Kind::Boolean], result: Kind::Boolean, min_arity: 1, infinite_arity: false },
+            Signature { arguments: &[Kind::Nil], result: Kind::Boolean, min_arity: 1, infinite_arity: false },
         ]
     },
-    Builtin { name: "==", function: BuiltinFunction::Compare(equal),
+    Builtin { name: "==", function: BuiltinFunction::Compare(equal), have_instruction: true,
         types: &[
-            Signature { arguments: &[ParentKind::Number], result: ParentKind::Boolean, min_arity: 2, infinite_arity: true },
-            Signature { arguments: &[ParentKind::String], result: ParentKind::Boolean, min_arity: 2, infinite_arity: true },
-            Signature { arguments: &[ParentKind::Boolean], result: ParentKind::Boolean, min_arity: 2, infinite_arity: true },
+            Signature { arguments: &[Kind::Integer], result: Kind::Boolean, min_arity: 2, infinite_arity: true },
+            Signature { arguments: &[Kind::Float], result: Kind::Boolean, min_arity: 2, infinite_arity: true },
+            Signature { arguments: &[Kind::String], result: Kind::Boolean, min_arity: 2, infinite_arity: true },
+            Signature { arguments: &[Kind::Boolean], result: Kind::Boolean, min_arity: 2, infinite_arity: true },
         ]
     },
-    Builtin { name: "<", function: BuiltinFunction::Compare(less),
+    Builtin { name: "<", function: BuiltinFunction::Compare(less), have_instruction: true,
         types: &[
-            Signature { arguments: &[ParentKind::Number], result: ParentKind::Boolean, min_arity: 2, infinite_arity: true },
-            Signature { arguments: &[ParentKind::String], result: ParentKind::Boolean, min_arity: 2, infinite_arity: true },
-            Signature { arguments: &[ParentKind::Boolean], result: ParentKind::Boolean, min_arity: 2, infinite_arity: true },
+            Signature { arguments: &[Kind::Integer], result: Kind::Boolean, min_arity: 2, infinite_arity: true },
+            Signature { arguments: &[Kind::Float], result: Kind::Boolean, min_arity: 2, infinite_arity: true },
+            Signature { arguments: &[Kind::String], result: Kind::Boolean, min_arity: 2, infinite_arity: true },
         ]
     },
-    Builtin { name: ">", function: BuiltinFunction::Compare(greater),
+    Builtin { name: ">", function: BuiltinFunction::Compare(greater), have_instruction: true,
         types: &[
-            Signature { arguments: &[ParentKind::Number], result: ParentKind::Boolean, min_arity: 2, infinite_arity: true },
-            Signature { arguments: &[ParentKind::String], result: ParentKind::Boolean, min_arity: 2, infinite_arity: true },
-            Signature { arguments: &[ParentKind::Boolean], result: ParentKind::Boolean, min_arity: 2, infinite_arity: true },
+            Signature { arguments: &[Kind::Integer], result: Kind::Boolean, min_arity: 2, infinite_arity: true },
+            Signature { arguments: &[Kind::Float], result: Kind::Boolean, min_arity: 2, infinite_arity: true },
+            Signature { arguments: &[Kind::String], result: Kind::Boolean, min_arity: 2, infinite_arity: true },
         ]
     },
-    Builtin { name: "!=", function: BuiltinFunction::Compare(not_equal),
+    Builtin { name: "!=", function: BuiltinFunction::Compare(not_equal), have_instruction: true,
         types: &[
-            Signature { arguments: &[ParentKind::Number], result: ParentKind::Boolean, min_arity: 2, infinite_arity: true },
-            Signature { arguments: &[ParentKind::String], result: ParentKind::Boolean, min_arity: 2, infinite_arity: true },
-            Signature { arguments: &[ParentKind::Boolean], result: ParentKind::Boolean, min_arity: 2, infinite_arity: true },
+            Signature { arguments: &[Kind::Integer], result: Kind::Boolean, min_arity: 2, infinite_arity: true },
+            Signature { arguments: &[Kind::Float], result: Kind::Boolean, min_arity: 2, infinite_arity: true },
+            Signature { arguments: &[Kind::String], result: Kind::Boolean, min_arity: 2, infinite_arity: true },
+            Signature { arguments: &[Kind::Boolean], result: Kind::Boolean, min_arity: 2, infinite_arity: true },
         ]
     },
-    Builtin { name: "length", function: BuiltinFunction::Introspection(length),
+    Builtin { name: "length", function: BuiltinFunction::Introspection(length), have_instruction: false,
         types: &[
-            Signature { arguments: &[ParentKind::String], result: ParentKind::Integer, min_arity: 1, infinite_arity: false },
+            Signature { arguments: &[Kind::String], result: Kind::Integer, min_arity: 1, infinite_arity: false },
         ]
     },
 ];

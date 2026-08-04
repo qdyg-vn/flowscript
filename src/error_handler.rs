@@ -1,6 +1,6 @@
 use std::{fmt, process::exit};
 use crate::token::Token;
-use crate::value::{Kind, ParentKind, Value};
+use crate::value::{Kind, Value};
 
 #[derive(Default)]
 pub struct ErrorHandler {
@@ -152,6 +152,7 @@ impl fmt::Display for SyntaxError {
             SyntaxErrorType::MissingFunctionBody => 15,
             SyntaxErrorType::RedundantCondition => 16,
             SyntaxErrorType::MissingConditionBody => 17,
+            SyntaxErrorType::MissingType(_) => 18,
         };
         writeln!(formatter, "\x1b[31;1m[Error FSCC3{:0>3}]\x1b[0m {}", code, self.kind)?;
         write!(formatter, "\x1b[38;2;143;255;46m  --> Line: {} Column: {}\n\x1b[0m", self.line, self.column)
@@ -176,6 +177,7 @@ pub enum SyntaxErrorType {
     MissingFunctionBody,
     RedundantCondition,
     MissingConditionBody,
+    MissingType(String),
 }
 
 impl fmt::Display for SyntaxErrorType {
@@ -198,6 +200,7 @@ impl fmt::Display for SyntaxErrorType {
             SyntaxErrorType::MissingFunctionBody => write!(formatter, "Function needs a body!"),
             SyntaxErrorType::RedundantCondition => write!(formatter, "There is one redundant condition"),
             SyntaxErrorType::MissingConditionBody => write!(formatter, "Condition needs a body!"),
+            SyntaxErrorType::MissingType(name) => write!(formatter, "Missing type for parameter '{}'", name),
         }
     }
 }
@@ -296,7 +299,7 @@ pub enum TypeErrorType {
     AssignTypeMismatch(Kind, Kind),
     ArityMismatch(usize, usize),
     NotAFunction(String),
-    ParentKindMismatch(ParentKind, ParentKind),
+    ParentKindMismatch(Kind, Kind),
     MissingStation(u16),
 }
 

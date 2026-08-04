@@ -41,14 +41,14 @@ impl Emitter {
                     self.create_chunk(arguments, chunk);
                     chunk.instructions.push(Instruction::BuiltinCall(index, arity))
                 },
-                TypedNode::Call {scope, index, arguments} => {
+                TypedNode::Call {scope, index, arguments, ..} => {
                     self.create_chunk(arguments, chunk);
                     chunk.instructions.push(Instruction::Call(scope, index))
                 },
                 TypedNode::RelativeReference(x, y, _) => chunk.instructions.push(Instruction::RelativeReference(x, y)),
                 TypedNode::Assignment(index, kind) => chunk.instructions.push(Instruction::Store(index, kind as u8)),
                 TypedNode::Variable(index, _) => chunk.instructions.push(Instruction::LoadVariable(index)),
-                TypedNode::DefineFunction {index, body} => {
+                TypedNode::DefineFunction { index, body } => {
                     let mut pipelines = Vec::with_capacity(body.nodes.len());
                     for node in body.nodes {
                         let TypedNode::Pipeline(pipeline) = node else { unreachable!() };

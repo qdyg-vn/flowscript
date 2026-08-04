@@ -212,7 +212,7 @@ impl<'source_code> Parser<'source_code> {
                 None => { self.error_pusher(start, SyntaxErrorType::MissingRightBrace, errors); return None },
             };
         };
-        Some(Node::DefineFunction { operator, arguments: parameters, body, result })
+        Some(Node::DefineFunction { operator, parameters, body, result })
     }
 
     fn parse_condition_expression(&mut self, start: usize, errors: &mut Vec<Error>) -> Vec<Node> {

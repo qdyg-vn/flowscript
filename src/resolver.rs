@@ -1,7 +1,7 @@
 use crate::error_handler::{ErrorHandler, SemanticError, SemanticErrorType, TypeError, TypeErrorType};
 use crate::node::{Node, ResolvedNode, AST};
 use crate::symbol_table::{SymbolTable, SymbolType};
-use crate::value::{Kind, VariableType};
+use crate::value::Kind;
 
 pub struct Resolver {
     error_handler: ErrorHandler,
@@ -13,7 +13,7 @@ impl Resolver {
     }
 
     pub fn resolve(mut self, nodes: Vec<Node>) -> (ErrorHandler, SymbolTable, usize, AST) {
-        let mut ast = AST { nodes: Vec::with_capacity(nodes.len()), arity: 0, variables_count: 0 };
+        let mut ast = AST { nodes: Vec::with_capacity(nodes.len()), arity: 0, variables_count: 0, define_function_count: 0 };
         for node in nodes {
             if let Node::Pipeline(stations) = node {
                 let result = ResolvedNode::Pipeline(self.solve(stations, &mut ast));
@@ -34,99 +34,62 @@ impl Resolver {
                 Node::Apply {operator, arguments} => {
                     match self.symbol_table.resolve(&operator) {
                         Ok(SymbolType::Builtin(index)) => resolved_stations.push(ResolvedNode::BuiltinCall { index, arguments: self.solve(arguments, ast) }),
-                        Ok(SymbolType::Scope(scope, index, function)) => {
+                        Ok(SymbolType::FunctionScope(scope, index, signature_index)) => {
                             let arguments = self.solve(arguments, ast);
-                            let VariableType::Function(signature_index) = function else {
-                                self.error_handler.push_error(TypeError { kind: TypeErrorType::NotAFunction(operator) });
-                                continue
-                            };
                             resolved_stations.push(ResolvedNode::Call { scope, index, arguments, signature_index })
                         },
+                        Ok(SymbolType::VariableScope(_, _, _)) => self.error_handler.push_error(TypeError { kind: TypeErrorType::NotAFunction(operator) }),
                         Err(error) => self.error_handler.push_error(error)
                     }
                 },
                 Node::SoftAssignment(name) => {
-                    let kind = match resolved_stations.last() {
-                        Some(ResolvedNode::Literal(value)) => value.get_kind(),
-                        Some(ResolvedNode::HeavyLiteral(value)) => value.get_kind(),
-                        Some(ResolvedNode::Variable(_, kind)) | Some(ResolvedNode::Assignment(_, kind)) => *kind,
-                        Some(ResolvedNode::BuiltinCall { .. }) => Kind::Dynamic,
-                        _ => {todo!()}
-                    };
-                    match self.symbol_table.add_variable(name, kind.get_variable_type()) {
-                        Ok(SymbolType::Scope(_, index, _)) => {
-                            resolved_stations.push(ResolvedNode::Assignment(index, kind));
+                    match self.symbol_table.add_variable(name, Kind::Undefined) {
+                        Ok(SymbolType::VariableScope(_, index, variable_index)) => {
+                            resolved_stations.push(ResolvedNode::SoftAssignment(index, variable_index));
                             ast.variables_count += 1
                         }
-                        Err(SymbolType::Scope(_, index, variable_type)) => {
-                            if kind != Kind::Dynamic && kind.get_variable_type() != variable_type {
-                                self.error_handler.push_error(TypeError { kind: TypeErrorType::AssignTypeMismatch(kind, variable_type.get_kind()) })
-                            }
-                            resolved_stations.push(ResolvedNode::Assignment(index, kind))
-                        },
+                        Err(SymbolType::VariableScope(_, index, variable_index)) => resolved_stations.push(ResolvedNode::SoftAssignment(index, variable_index)),
                         _ => unreachable!()
                     }
                 },
                 Node::Assignment(name, kind) => {
-                    match resolved_stations.last() {
-                        Some(ResolvedNode::Literal(value)) => {
-                            let received_kind = value.get_kind();
-                            if received_kind != kind { self.error_handler.push_error(TypeError { kind: TypeErrorType::AssignTypeMismatch(received_kind, kind) }) }
-                        },
-                        Some(ResolvedNode::HeavyLiteral(value)) => {
-                            let received_kind = value.get_kind();
-                            if received_kind != kind { self.error_handler.push_error(TypeError {kind: TypeErrorType::AssignTypeMismatch(received_kind, kind) }) }
-                        },
-                        _ => {}
-                    };
-                    match self.symbol_table.add_variable(name, kind.get_variable_type()) {
-                        Ok(SymbolType::Scope(_, index, _)) => {
-                            resolved_stations.push(ResolvedNode::Assignment(index, kind));
+                    match self.symbol_table.add_variable(name, kind) {
+                        Ok(SymbolType::VariableScope(_, index, variable_index)) => {
+                            resolved_stations.push(ResolvedNode::Assignment(index, variable_index, kind));
                             ast.variables_count += 1
                         }
-                        Err(SymbolType::Scope(_, index, _)) => resolved_stations.push(ResolvedNode::Assignment(index, kind)),
+                        Err(SymbolType::VariableScope(_, index, variable_index)) => resolved_stations.push(ResolvedNode::Assignment(index, variable_index, kind)),
                         _ => unreachable!()
                     }
-                },
+                }
                 Node::Variable(name) => {
                     match self.symbol_table.resolve(&name) {
-                        Ok(SymbolType::Scope(_, index, variable_type)) => resolved_stations.push(ResolvedNode::Variable(index, variable_type.get_kind())),
+                        Ok(SymbolType::VariableScope(_, index, variable_index)) => resolved_stations.push(ResolvedNode::Variable(index, variable_index)),
                         Err(error) => self.error_handler.push_error(error),
                         _ => unreachable!()
                     }
                 },
-                Node::DefineFunction {operator, arguments, body} => {
-                    let index = match self.symbol_table.add_variable(operator, VariableType::Function(arguments.len() as u32)) {
-                        Ok(SymbolType::Scope(_, index, _)) => {
+                Node::DefineFunction { operator, parameters, body, result } => {
+                    let index = match self.symbol_table.add_function(operator, parameters.len() as u32, result) {
+                        Ok(SymbolType::FunctionScope(_, index, _)) => {
                             ast.variables_count += 1;
                             index
                         },
-                        Err(SymbolType::Scope(_, index, _)) => {
-                            index
-                        },
+                        Err(SymbolType::FunctionScope(_, index, _)) => index,
                         _ => unreachable!()
                     };
+                    ast.define_function_count += 1;
                     self.symbol_table.new_scope();
-                    let mut child_ast = AST { nodes: Vec::with_capacity(body.len()), arity: 0, variables_count: 0 };
-                    for argument in arguments {
-                        match argument {
-                            Node::SoftAssignment(name) => {
-                                match self.symbol_table.add_variable(name.clone(), VariableType::Dynamic) {
-                                    Ok(SymbolType::Scope(_, _, _)) => {
-                                        child_ast.arity += 1;
-                                        self.symbol_table.all_arguments.push(VariableType::Dynamic)
-                                    },
-                                    Err(SymbolType::Scope(_, _, _)) => self.error_handler.push_error(SemanticError {kind: SemanticErrorType::DuplicateParameter(name)}),
-                                    _ => unreachable!()
-                                }
-                            }
+                    let mut child_ast = AST { nodes: Vec::with_capacity(body.len()), arity: 0, variables_count: 0, define_function_count: 0 };
+                    for parameter in parameters {
+                        match parameter {
                             Node::Assignment(name, kind) => {
-                                match self.symbol_table.add_variable(name.clone(), kind.get_variable_type()) {
-                                    Ok(SymbolType::Scope(_, _, _)) => {
+                                match self.symbol_table.add_variable(name.clone(), kind) {
+                                    Ok(SymbolType::VariableScope(_, _, _)) => {
                                         child_ast.arity += 1;
-                                        self.symbol_table.all_arguments.push(kind.get_variable_type())
+                                        self.symbol_table.all_parameters.push(kind)
                                     },
-                                    Err(SymbolType::Scope(_, _, _)) => self.error_handler.push_error(SemanticError {kind: SemanticErrorType::DuplicateParameter(name)}),
+                                    Err(SymbolType::VariableScope(_, _, _)) => self.error_handler.push_error(SemanticError {kind: SemanticErrorType::DuplicateParameter(name)}),
                                     _ => unreachable!()
                                 }
                             }
@@ -135,8 +98,8 @@ impl Resolver {
                     }
                     let body = self.solve(body, &mut child_ast);
                     child_ast.nodes = body;
-                    self.symbol_table.scopes.pop();
-                    resolved_stations.push(ResolvedNode::DefineFunction {index, body: child_ast})
+                    self.symbol_table.pop_scope();
+                    resolved_stations.push(ResolvedNode::DefineFunction { index, body: child_ast })
                 },
                 Node::Pipeline(stations) => {
                     let stations = self.solve(stations, ast);

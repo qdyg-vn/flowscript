@@ -1,7 +1,7 @@
 use crate::builtins::Signature;
 use crate::error_handler::{Error, ErrorHandler, TypeError, TypeErrorType};
 use crate::node::{ResolvedNode, TypedAST, TypedNode, AST};
-use crate::value::{ParentKind, VariableType};
+use crate::value::Kind;
 use crate::builtins::get_types;
 use crate::symbol_table::SymbolTable;
 
@@ -33,16 +33,16 @@ impl TypeChecker {
             ResolvedNode::HeavyLiteral(value) => Ok(TypedNode::HeavyLiteral(value.clone())),
             ResolvedNode::BuiltinCall { index, arguments } => {
                 let types = get_types(index);
-                match self.find_result_parent_kind(&arguments, types, typed_stations) {
+                match self.find_result_kind(&arguments, types, typed_stations) {
                     Ok(result_kind) => Ok(TypedNode::BuiltinCall { index, arguments: arguments.into_iter().map(|argument| self.check(argument, typed_stations)).collect::<Result<Vec<TypedNode>, Vec<Error>>>()?, result: result_kind}),
                     Err(errors) => Err(errors),
                 }
             },
             ResolvedNode::Call { scope, index, arguments, signature_index } => {
                 let typed_arguments = arguments.into_iter().map(|argument| self.check(argument, typed_stations)).collect::<Result<Vec<TypedNode>, Vec<Error>>>()?;
-                let required_variables_type = self.symbol_table.get_arguments(signature_index);
+                let required_variables_type = self.symbol_table.get_parameters(signature_index);
                 self.check_function_arguments(&typed_arguments, required_variables_type);
-                Ok(TypedNode::Call { scope, index, arguments: typed_arguments })
+                Ok(TypedNode::Call { scope, index, arguments: typed_arguments, result: self.symbol_table.get_result(signature_index) })
             },
             ResolvedNode::Pipeline(stations) => {
                 let mut typed_stations = Vec::with_capacity(stations.len());
@@ -56,13 +56,40 @@ impl TypeChecker {
                     return Err(vec![TypeError{ kind: TypeErrorType::MissingStation(x) }.into()])
                 }
                 let station = &typed_stations[typed_stations.len() - x as usize];
-                Ok(TypedNode::RelativeReference(x, y, self.find_typed_node_parent_kind(station)))
+                Ok(TypedNode::RelativeReference(x, y, self.find_typed_node_kind(station)))
             },
-            ResolvedNode::Variable(index, kind) => Ok(TypedNode::Variable(index, kind)),
-            ResolvedNode::Assignment(index, kind) => Ok(TypedNode::Assignment(index, kind)),
+            ResolvedNode::Variable(index, variable_index) => {
+                let kind = self.symbol_table.all_variable[variable_index as usize];
+                Ok(TypedNode::Variable(index, kind))
+            },
+            ResolvedNode::SoftAssignment(index, variable_index) => {
+                let received_kind = match typed_stations.last() {
+                    Some(TypedNode::Literal(value)) => value.get_kind(),
+                    Some(TypedNode::HeavyLiteral(value)) => value.get_kind(),
+                    Some(TypedNode::DefineFunction { .. }) => Kind::Nil,
+                    Some(TypedNode::Call { result, .. }) => *result,
+                    Some(TypedNode::Assignment(_, kind)) => *kind,
+                    _ => todo!()
+                };
+                self.symbol_table.all_variable[variable_index as usize] = received_kind;
+                Ok(TypedNode::Assignment(index, received_kind))
+            },
+            ResolvedNode::Assignment(index, variable_index, kind) => {
+                let received_kind = match typed_stations.last() {
+                    Some(TypedNode::Literal(value)) => value.get_kind(),
+                    Some(TypedNode::HeavyLiteral(value)) => value.get_kind(),
+                    Some(TypedNode::DefineFunction { .. }) => Kind::Nil,
+                    Some(TypedNode::Call { result, .. }) => *result,
+                    Some(TypedNode::Variable(_, kind)) | Some(TypedNode::Assignment(_, kind)) => *kind,
+                    _ => todo!()
+                };
+                if received_kind != kind { self.error_handler.push_error(TypeError { kind: TypeErrorType::AssignTypeMismatch(received_kind, kind) }) }
+                self.symbol_table.all_variable[variable_index as usize] = kind;
+                Ok(TypedNode::Assignment(index, kind))
+            },
             ResolvedNode::DefineFunction { index, body } => {
                 let mut child_typed_stations = Vec::with_capacity(body.nodes.len());
-                Ok(TypedNode::DefineFunction { index, body: TypedAST { nodes: body.nodes.into_iter().map(|node| self.check(node, &mut child_typed_stations)).collect::<Result<Vec<TypedNode>, Vec<Error>>>()?, arity: body.arity, variables_count: body.variables_count } })
+                Ok(TypedNode::DefineFunction { index, body: TypedAST { nodes: body.nodes.into_iter().map(|node| self.check(node, &mut child_typed_stations)).collect::<Result<Vec<TypedNode>, Vec<Error>>>()?, arity: body.arity, variables_count: body.variables_count }})
             },
             ResolvedNode::Condition { branches, final_branch } => {
                 let mut typed_branches = Vec::with_capacity(branches.len());
@@ -76,11 +103,11 @@ impl TypeChecker {
         }
     }
 
-    fn find_result_parent_kind(&self, arguments: &[ResolvedNode], types: &[Signature], typed_station: &[TypedNode]) -> Result<ParentKind, Vec<Error>> {
+    fn find_result_kind(&self, arguments: &[ResolvedNode], types: &[Signature], typed_station: &[TypedNode]) -> Result<Kind, Vec<Error>> {
         let mut arguments_parent_kind = Vec::with_capacity(arguments.len());
         let mut errors = Vec::with_capacity(arguments.len());
         for argument in arguments {
-            match self.find_resolved_node_parent_kind(argument, typed_station) {
+            match self.find_resolved_node_kind(argument, typed_station) {
                 Ok(received_kind) => arguments_parent_kind.push(received_kind),
                 Err(error) => errors.extend(error),
             }
@@ -128,70 +155,73 @@ impl TypeChecker {
         Err(errors)
     }
 
-    fn find_typed_node_parent_kind(&self, node: &TypedNode) -> ParentKind {
+    fn find_typed_node_kind(&self, node: &TypedNode) -> Kind {
         match node {
-            TypedNode::Literal(value) => value.get_parent_kind(),
-            TypedNode::HeavyLiteral(value) => value.get_parent_kind(),
-            TypedNode::Variable(_, kind) | TypedNode::Assignment(_, kind) => kind.get_parent_kind(),
+            TypedNode::Literal(value) => value.get_kind(),
+            TypedNode::HeavyLiteral(value) => value.get_kind(),
+            TypedNode::Variable(_, kind) | TypedNode::Assignment(_, kind) => *kind,
             TypedNode::BuiltinCall {result, ..} => *result,
             TypedNode::RelativeReference(_, _, parent_kind) => *parent_kind,
             _ => {todo!("Currently under development")}
         }
     }
 
-    fn find_resolved_node_parent_kind(&self, node: &ResolvedNode, typed_station: &[TypedNode]) -> Result<ParentKind, Vec<Error>> {
+    fn find_resolved_node_kind(&self, node: &ResolvedNode, typed_station: &[TypedNode]) -> Result<Kind, Vec<Error>> {
         match node {
-            ResolvedNode::Literal(value) => Ok(value.get_parent_kind()),
-            ResolvedNode::HeavyLiteral(value) => Ok(value.get_parent_kind()),
-            ResolvedNode::Variable(_, kind) | ResolvedNode::Assignment(_, kind) => Ok(kind.get_parent_kind()),
+            ResolvedNode::Literal(value) => Ok(value.get_kind()),
+            ResolvedNode::HeavyLiteral(value) => Ok(value.get_kind()),
+            ResolvedNode::Variable(_, variable_index) | ResolvedNode::SoftAssignment(_, variable_index) => {
+                let kind = self.symbol_table.all_variable[*variable_index as usize];
+                Ok(kind)
+            },
+            ResolvedNode::Assignment(_, _, kind) => Ok(*kind),
             ResolvedNode::BuiltinCall { index, arguments } => {
                 let types = get_types(*index);
-                self.find_result_parent_kind(arguments, types, typed_station)
+                self.find_result_kind(arguments, types, typed_station)
             },
             ResolvedNode::RelativeReference(x, y) => {
                 if typed_station.len() < *x as usize {
                     return Err(vec![TypeError{ kind: TypeErrorType::MissingStation(*x) }.into()]) }
                 let station = &typed_station[typed_station.len() - *x as usize];
-                Ok(self.find_typed_node_parent_kind(station))
+                Ok(self.find_typed_node_kind(station))
             },
             _ => {todo!("Currently under development")}
         }
     }
 
-    fn check_function_arguments(&mut self, arguments: &[TypedNode], required_variables_type: Vec<VariableType>) {
+    fn check_function_arguments(&mut self, arguments: &[TypedNode], required_variables_type: Vec<Kind>) {
         let received_arity = arguments.len();
         let required_arity = required_variables_type.len();
         for index in 0..std::cmp::min(received_arity, required_arity) {
             let required_variable_type = required_variables_type[index];
             match &arguments[index] {
                 TypedNode::Literal(value) => {
-                    let received_variable_type = value.get_kind().get_variable_type();
-                    if required_variable_type != VariableType::Dynamic && received_variable_type != VariableType::Dynamic && received_variable_type != required_variable_type {
-                        self.error_handler.push_error(TypeError {kind: TypeErrorType::TypeMismatch(required_variable_type.get_kind(), received_variable_type.get_kind())})
+                    let received_variable_type = value.get_kind();
+                    if received_variable_type != required_variable_type {
+                        self.error_handler.push_error(TypeError {kind: TypeErrorType::TypeMismatch(required_variable_type, received_variable_type)})
                     }
                 },
                 TypedNode::HeavyLiteral(value) => {
-                    let received_variable_type = value.get_kind().get_variable_type();
-                    if required_variable_type != VariableType::Dynamic && received_variable_type != VariableType::Dynamic && received_variable_type != required_variable_type {
-                        self.error_handler.push_error(TypeError {kind: TypeErrorType::TypeMismatch(required_variable_type.get_kind(), received_variable_type.get_kind())})
+                    let received_variable_type = value.get_kind();
+                    if received_variable_type != required_variable_type {
+                        self.error_handler.push_error(TypeError {kind: TypeErrorType::TypeMismatch(required_variable_type, received_variable_type)})
                     }
                 },
                 TypedNode::Variable(_, kind) => {
-                    let received_variable_type = kind.get_variable_type();
-                    if required_variable_type != VariableType::Dynamic && received_variable_type != VariableType::Dynamic && received_variable_type != required_variable_type {
-                        self.error_handler.push_error(TypeError {kind: TypeErrorType::TypeMismatch(required_variable_type.get_kind(), received_variable_type.get_kind())})
+                    if *kind != required_variable_type {
+                        self.error_handler.push_error(TypeError {kind: TypeErrorType::TypeMismatch(required_variable_type, *kind)})
                     }
                 },
-                TypedNode::RelativeReference(_, _, parent_kind) => {
-                    if required_variable_type != VariableType::Dynamic && required_variable_type.get_parent_kind() != *parent_kind {
-                        self.error_handler.push_error(TypeError {kind: TypeErrorType::ParentKindMismatch(required_variable_type.get_parent_kind(), *parent_kind)})
+                TypedNode::RelativeReference(_, _, kind) => {
+                    if required_variable_type != *kind {
+                        self.error_handler.push_error(TypeError {kind: TypeErrorType::ParentKindMismatch(required_variable_type, *kind)})
                     }
                 },
                 TypedNode::BuiltinCall { result, .. } => {
-                    if required_variable_type != VariableType::Dynamic && required_variable_type.get_parent_kind() != *result {
-                        self.error_handler.push_error(TypeError {kind: TypeErrorType::ParentKindMismatch(required_variable_type.get_parent_kind(), *result)})
+                    if required_variable_type != *result {
+                        self.error_handler.push_error(TypeError {kind: TypeErrorType::ParentKindMismatch(required_variable_type, *result)})
                     }
-                }
+                },
                 _ => {todo!("Currently under development")}
             }
         }
