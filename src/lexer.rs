@@ -130,6 +130,8 @@ impl<'source_code> Lexer<'source_code> {
             "true" => return Ok(Token::new(start, end, TokenType::Boolean(true))),
             "false" => return Ok(Token::new(start, end, TokenType::Boolean(false))),
             "nil" => return Ok(Token::new(start, end, TokenType::Nil)),
+            "do" => return Ok(Token::new(start, end, TokenType::Do)),
+            "end" => return Ok(Token::new(start, end, TokenType::End)),
             "boolean" | "integer" | "float" | "string" | "array" => return Ok(Token::new(start, end, TokenType::Kind(value.to_owned()))),
             _ => ()
         }

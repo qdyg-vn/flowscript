@@ -8,7 +8,7 @@ macro = identifier, '!';
 
 identifier = ( letter | '_' | '+' | '-' | '*' | '/' | '>' | '<' | '=' | '?' | '!' ), { letter | '_' | '+' | '-' | '*' | '/' | '>' | '<' | '=' | '?' | '!' | digit }, ( letter | '_' | '+' | '-' | '*' | '/' | '>' | '<' | '=' | '?' | digit );
 
-define_function = 'fun', variable, '(', [ variable, { ',', variable } ], ')', '{', stations, '}';
+define_function = 'fun', variable, '(', [ variable, { ',', variable } ], ')', 'do', stations, 'end';
 
 condition = 'if', '(', function, ')', '{', stations, '}';
 

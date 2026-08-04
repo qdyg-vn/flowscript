@@ -153,27 +153,48 @@ impl<'source_code> Parser<'source_code> {
             Some(Err(error)) => errors.push(error),
             None => self.error_pusher(start, SyntaxErrorType::RedundantFunctionDefinition, errors),
         }
-        let mut arguments = Vec::new();
+        let mut parameters = Vec::new();
         loop {
             match self.advance(1) {
                 Some(Ok(Token { kind: TokenType::RightParen, .. })) => break,
-                Some(Ok(argument)) => arguments.push(match argument.kind {
-                    TokenType::Variable(name) => {
+                Some(Ok(argument)) => match argument.kind {
+                    TokenType::Variable(name) => { // Because in a lexer when it encounters a function argument, it converts it into a variable
                         if let Some(Ok(token)) = self.peek() && token.kind == TokenType::Colon {
-                            self.parse_assignment(name, errors)?
+                            parameters.push(self.parse_assignment(name, errors)?)
                         } else {
-                            Node::SoftAssignment(name) // Because in a lexer when it encounters a function argument, it converts it into a variable
+                            self.error_pusher(self.last_index(), SyntaxErrorType::MissingType(name), errors)
                         }
                     },
                     _ => todo!()
-                }),
+                },
                 Some(Err(error)) => errors.push(error),
                 None => { self.error_pusher(self.last_index(), SyntaxErrorType::MissingTypeIdentity, errors); return None }
             }
         };
+        let mut result = Kind::Nil;
+        if let Some(Ok(Token { kind, .. })) = self.peek() && kind == TokenType::Colon {
+            self.advance(1);
+            match self.peek() {
+                Some(Ok(Token { kind: TokenType::Kind(kind), .. })) => {
+                    let result_kind = match kind.as_str() {
+                        "boolean" => Kind::Boolean,
+                        "float" => Kind::Float,
+                        "integer" => Kind::Integer,
+                        "string" => Kind::String,
+                        "array" => Kind::Array,
+                        _ => unreachable!(),
+                    };
+                    result = result_kind;
+                    self.advance(1);
+                },
+                Some(Ok(_)) => { self.error_pusher(self.last_index(), SyntaxErrorType::InvalidTypeError, errors) },
+                Some(Err(error)) => { errors.push(error) },
+                None => { self.error_pusher(self.last_index(), SyntaxErrorType::InvalidTypeError, errors); return None },
+            }
+        }
         match self.peek() {
-            Some(Ok(token)) => if token.kind != TokenType::LeftBrace {
-                if token.kind != TokenType::RightBrace { self.advance(1); }
+            Some(Ok(token)) => if token.kind != TokenType::Do {
+                if token.kind != TokenType::End { self.advance(1); }
                 self.error_pusher(start, SyntaxErrorType::MissingLeftBrace, errors)
             } else { self.advance(1); },
             Some(Err(error)) => errors.push(error),
@@ -182,7 +203,7 @@ impl<'source_code> Parser<'source_code> {
         let mut body = Vec::new();
         loop {
             match self.advance(1) {
-                Some(Ok(Token { kind: TokenType::RightBrace, .. })) => break,
+                Some(Ok(Token { kind: TokenType::End, .. })) => break,
                 Some(Ok(argument)) => match self.parse_pipeline(argument) {
                     Ok(pipeline) => body.push(pipeline),
                     Err(body_errors) => errors.extend(body_errors)
@@ -191,7 +212,7 @@ impl<'source_code> Parser<'source_code> {
                 None => { self.error_pusher(start, SyntaxErrorType::MissingRightBrace, errors); return None },
             };
         };
-        Some(Node::DefineFunction {operator, arguments, body})
+        Some(Node::DefineFunction { operator, arguments: parameters, body, result })
     }
 
     fn parse_condition_expression(&mut self, start: usize, errors: &mut Vec<Error>) -> Vec<Node> {

@@ -41,4 +41,6 @@ pub enum TokenType {
     RightBracket,
     Colon,
     Kind(String),
+    Do,
+    End,
 }
