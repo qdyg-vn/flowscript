@@ -9,7 +9,7 @@ pub fn to_string(arguments: &[Value]) -> Result<Value, Error> {
         Value::Float(float) => float.to_string(),
         Value::Integer(integer) => integer.to_string(),
         Value::Boolean(boolean) => boolean.to_string(),
-        Value::Nil => "Nil".to_string(),
+        Value::Nil => String::new(),
         Value::String(_) => return Ok(arguments[0].clone()),
         _ => todo!(),
     };

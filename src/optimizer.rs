@@ -1,4 +1,4 @@
-use crate::node::{TypedNode, TypedAST};
+use crate::node::{ResolvedNode, AST};
 use crate::builtins::{get_builtin, BuiltinFunction};
 use crate::value::{LightValue, HeavyValue, Value};
 use crate::error_handler::ErrorHandler;
@@ -12,38 +12,38 @@ impl Optimizer {
         Self { error_handler }
     }
 
-    pub fn optimizer(mut self, mut ast: TypedAST) -> (TypedAST, ErrorHandler) {
+    pub fn optimizer(mut self, mut ast: AST) -> (AST, ErrorHandler) {
         for pipeline in &mut ast.nodes {
-            let TypedNode::Pipeline(stations) = pipeline else {unreachable!()};
+            let ResolvedNode::Pipeline(stations) = pipeline else {unreachable!()};
             self.optimize(stations);
         }
         (ast, self.error_handler)
     }
 
-    fn optimize(&mut self, stations: &mut Vec<TypedNode>) {
+    fn optimize(&mut self, stations: &mut Vec<ResolvedNode>) {
         for station in stations {
             match station {
-                TypedNode::BuiltinCall { .. } => self.builtin_node(station),
-                TypedNode::DefineFunction { body: TypedAST { nodes, .. }, .. } => {
+                ResolvedNode::BuiltinCall { .. } => self.builtin_node(station),
+                ResolvedNode::DefineFunction { body: AST { nodes, .. }, .. } => {
                     for node in nodes {
-                        let TypedNode::Pipeline(pipeline) = node else { unreachable!() };
-                        if let Some(index) = pipeline.iter().position(|node| matches!(node, TypedNode::Return(_))) {
+                        let ResolvedNode::Pipeline(pipeline) = node else { unreachable!() };
+                        if let Some(index) = pipeline.iter().position(|node| matches!(node, ResolvedNode::Return(_))) {
                             pipeline.truncate(index + 1);
                         }
                         self.optimize(pipeline)
                     }
                 },
-                TypedNode::Call { arguments, .. } => self.optimize(arguments),
-                TypedNode::Pipeline(station) => self.optimize(station),
-                TypedNode::Condition { .. } => self.condition_node(station),
-                TypedNode::Array(arguments) => self.optimize(arguments),
+                ResolvedNode::Call { arguments, .. } => self.optimize(arguments),
+                ResolvedNode::Pipeline(station) => self.optimize(station),
+                ResolvedNode::Condition { .. } => self.condition_node(station),
+                ResolvedNode::Array(arguments) => self.optimize(arguments),
                 _ => {}
             }
         }
     }
 
-    fn builtin_node(&mut self, station: &mut TypedNode) {
-        let TypedNode::BuiltinCall { index, arguments: argument_nodes, .. } = station else { unreachable!() };
+    fn builtin_node(&mut self, station: &mut ResolvedNode) {
+        let ResolvedNode::BuiltinCall { index, arguments: argument_nodes } = station else { unreachable!() };
         let builtin = get_builtin(*index);
         let function = match builtin.function {
             BuiltinFunction::Math(function) | BuiltinFunction::Compare(function) | BuiltinFunction::Casting(function) | BuiltinFunction::Introspection(function) => function,
@@ -53,16 +53,16 @@ impl Optimizer {
         let mut only_have_literal_node = true;
         for argument in argument_nodes {
             arguments.push(match argument {
-                TypedNode::Literal(LightValue::Float(value)) => Value::Float(*value),
-                TypedNode::Literal(LightValue::Integer(value)) => Value::Integer(*value),
-                TypedNode::HeavyLiteral(HeavyValue::String(value)) => Value::String(value.clone()),
-                TypedNode::Condition { .. } => { self.condition_node(argument); only_have_literal_node = false; continue }
-                TypedNode::BuiltinCall { .. } => {
+                ResolvedNode::Literal(LightValue::Float(value)) => Value::Float(*value),
+                ResolvedNode::Literal(LightValue::Integer(value)) => Value::Integer(*value),
+                ResolvedNode::HeavyLiteral(HeavyValue::String(value)) => Value::String(value.clone()),
+                ResolvedNode::Condition { .. } => { self.condition_node(argument); only_have_literal_node = false; continue }
+                ResolvedNode::BuiltinCall { .. } => {
                     self.builtin_node(argument);
                     match argument {
-                        TypedNode::Literal(LightValue::Float(value)) => Value::Float(*value),
-                        TypedNode::Literal(LightValue::Integer(value)) => Value::Integer(*value),
-                        TypedNode::HeavyLiteral(HeavyValue::String(value)) => Value::String(value.clone()),
+                        ResolvedNode::Literal(LightValue::Float(value)) => Value::Float(*value),
+                        ResolvedNode::Literal(LightValue::Integer(value)) => Value::Integer(*value),
+                        ResolvedNode::HeavyLiteral(HeavyValue::String(value)) => Value::String(value.clone()),
                         _ => { only_have_literal_node = false; continue }
                     }
                 }
@@ -71,17 +71,17 @@ impl Optimizer {
         }
         if !only_have_literal_node { return }
         *station = match function(&arguments) {
-            Ok(Value::Boolean(value)) => TypedNode::Literal(LightValue::Boolean(value)),
-            Ok(Value::Float(value)) => TypedNode::Literal(LightValue::Float(value)),
-            Ok(Value::Integer(value)) => TypedNode::Literal(LightValue::Integer(value)),
-            Ok(Value::String(value)) => TypedNode::HeavyLiteral(HeavyValue::String(value)),
+            Ok(Value::Boolean(value)) => ResolvedNode::Literal(LightValue::Boolean(value)),
+            Ok(Value::Float(value)) => ResolvedNode::Literal(LightValue::Float(value)),
+            Ok(Value::Integer(value)) => ResolvedNode::Literal(LightValue::Integer(value)),
+            Ok(Value::String(value)) => ResolvedNode::HeavyLiteral(HeavyValue::String(value)),
             Ok(_) => todo!(),
             Err(error) => { self.error_handler.push_error(error); return }
         }
     }
 
-    fn condition_node(&mut self, station: &mut TypedNode) {
-        let TypedNode::Condition { branches, final_branch } = station else { unreachable!() };
+    fn condition_node(&mut self, station: &mut ResolvedNode) {
+        let ResolvedNode::Condition { branches, final_branch } = station else { unreachable!() };
         for (condition, body) in branches.iter_mut() {
             self.optimize(condition);
             self.optimize(body);
@@ -90,7 +90,7 @@ impl Optimizer {
         branches.retain(|(condition, _)| {
             if have_condition_always_true { return false }
             match condition.last().unwrap() {
-                TypedNode::Literal(LightValue::Boolean(boolean)) => {
+                ResolvedNode::Literal(LightValue::Boolean(boolean)) => {
                     if *boolean { have_condition_always_true = true }
                     *boolean
                 }

@@ -8,7 +8,7 @@ use crate::value::{Kind, Value};
 use casting::{to_string, to_integer, to_float, to_boolean};
 use io::print;
 use math::{add, minus, multiply};
-use compare::{equal, less, greater, not_equal};
+use compare::{equal, lower_than, greater_than, lower_than_or_equal, greater_than_or_equal, not_equal};
 use introspection::length;
 use crate::error_handler::Error;
 
@@ -109,14 +109,28 @@ pub const BUILTIN_TABLE: &[Builtin] = &[
             Signature { arguments: &[Kind::Boolean], result: Kind::Boolean, min_arity: 2, infinite_arity: true },
         ]
     },
-    Builtin { name: "<", function: BuiltinFunction::Compare(less), have_instruction: true,
+    Builtin { name: "<", function: BuiltinFunction::Compare(lower_than), have_instruction: true,
         types: &[
             Signature { arguments: &[Kind::Integer], result: Kind::Boolean, min_arity: 2, infinite_arity: true },
             Signature { arguments: &[Kind::Float], result: Kind::Boolean, min_arity: 2, infinite_arity: true },
             Signature { arguments: &[Kind::String], result: Kind::Boolean, min_arity: 2, infinite_arity: true },
         ]
     },
-    Builtin { name: ">", function: BuiltinFunction::Compare(greater), have_instruction: true,
+    Builtin { name: ">", function: BuiltinFunction::Compare(greater_than), have_instruction: true,
+        types: &[
+            Signature { arguments: &[Kind::Integer], result: Kind::Boolean, min_arity: 2, infinite_arity: true },
+            Signature { arguments: &[Kind::Float], result: Kind::Boolean, min_arity: 2, infinite_arity: true },
+            Signature { arguments: &[Kind::String], result: Kind::Boolean, min_arity: 2, infinite_arity: true },
+        ]
+    },
+    Builtin { name: "<=", function: BuiltinFunction::Compare(lower_than_or_equal), have_instruction: true,
+        types: &[
+            Signature { arguments: &[Kind::Integer], result: Kind::Boolean, min_arity: 2, infinite_arity: true },
+            Signature { arguments: &[Kind::Float], result: Kind::Boolean, min_arity: 2, infinite_arity: true },
+            Signature { arguments: &[Kind::String], result: Kind::Boolean, min_arity: 2, infinite_arity: true },
+        ]
+    },
+    Builtin { name: ">=", function: BuiltinFunction::Compare(greater_than_or_equal), have_instruction: true,
         types: &[
             Signature { arguments: &[Kind::Integer], result: Kind::Boolean, min_arity: 2, infinite_arity: true },
             Signature { arguments: &[Kind::Float], result: Kind::Boolean, min_arity: 2, infinite_arity: true },

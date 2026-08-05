@@ -55,10 +55,10 @@ fn run(source_code: Vec<u8>) {
     let symbol_table = SymbolTable::new();
     let mut resolver = Resolver::new(error_handler, symbol_table);
     let (error_handler, symbol_table, total_variables, ast) = resolver.resolve(nodes);
+    let mut optimizer = Optimizer::new(error_handler);
+    let (ast, error_handler) = optimizer.optimizer(ast);
     let mut type_checker = TypeChecker::new(error_handler, symbol_table);
     let (error_handler, typed_ast) = type_checker.checker(ast);
-    let mut optimizer = Optimizer::new(error_handler);
-    let (typed_ast, error_handler) = optimizer.optimizer(typed_ast);
     let constants_pool = ConstantsPool::default();
     let mut emitter = Emitter::new(constants_pool);
     let (constants_pool, map) = emitter.emit(typed_ast);
