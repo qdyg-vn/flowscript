@@ -1,6 +1,6 @@
 use crate::builtins::{get_builtin, BuiltinFunction};
 use crate::instructions::Bytecode;
-use crate::value::{LightValue, Value};
+use crate::value::{get_kind, LightValue, Value, Kind};
 use crate::error_handler::{ErrorHandler, Error, RuntimeError, RuntimeErrorType};
 use crate::memory::Memory;
 
@@ -47,33 +47,33 @@ impl VirMac {
                 stack[*stack_position] = self.constants_pool[index as usize];
                 self.stations_output.push(self.constants_pool[index as usize]);
                 *stack_position += 1;
-                *instruction_position += Bytecode::LOAD_SIZE
+                *instruction_position += Bytecode::LOAD_SIZE;
             },
             Bytecode::LOAD_VARIABLE => {
                 let index = u16::from_le_bytes([chunk[*instruction_position + 1], chunk[*instruction_position + 2]]);
                 stack[*stack_position] = stack[base_pointer + index as usize];
                 self.stations_output.push(stack[*stack_position]);
                 *stack_position += 1;
-                *instruction_position += Bytecode::LOAD_VARIABLE_SIZE
+                *instruction_position += Bytecode::LOAD_VARIABLE_SIZE;
             }
             Bytecode::JUMP => {
                 let position = u16::from_le_bytes([chunk[*instruction_position + 1], chunk[*instruction_position + 2]]);
-                *instruction_position = position as usize
+                *instruction_position = position as usize;
             },
             Bytecode::JUMP_IF_FALSE => {
                 let position = u16::from_le_bytes([chunk[*instruction_position + 1], chunk[*instruction_position + 2]]);
                 if stack[*stack_position - 1] == LightValue::Boolean(false) {
-                    *instruction_position = position as usize
+                    *instruction_position = position as usize;
                 } else {
-                    *instruction_position += Bytecode::JUMP_IF_FALSE_SIZE
+                    *instruction_position += Bytecode::JUMP_IF_FALSE_SIZE;
                 };
-                *stack_position -= 1
+                *stack_position -= 1;
             }
             Bytecode::STORE => {
                 let index = u16::from_le_bytes([chunk[*instruction_position + 1], chunk[*instruction_position + 2]]);
                 self.stations_output.push(stack[*stack_position - 1]);
                 stack[base_pointer + index as usize] = stack[*stack_position - 1];
-                *instruction_position += Bytecode::STORE_SIZE
+                *instruction_position += Bytecode::STORE_SIZE;
             }
             Bytecode::BUILTIN_CALL => {
                 let index = u16::from_le_bytes([chunk[*instruction_position + 1], chunk[*instruction_position + 2]]);
@@ -81,7 +81,7 @@ impl VirMac {
                 let start = *stack_position - arity as usize;
                 let end = *stack_position;
                 self.execute_builtin_function(index, stack, stack_position, start, end);
-                *instruction_position += Bytecode::BUILTIN_CALL_SIZE
+                *instruction_position += Bytecode::BUILTIN_CALL_SIZE;
             }
             Bytecode::CALL => {
                 let scope = u16::from_le_bytes([chunk[*instruction_position + 1], chunk[*instruction_position + 2]]);
@@ -103,7 +103,7 @@ impl VirMac {
                         self.dispatch_instruction(function, &mut function_instruction_position, stack, &mut child_stack_position, child_base_pointer);
                     };
                 }
-                *instruction_position += Bytecode::CALL_SIZE
+                *instruction_position += Bytecode::CALL_SIZE;
             },
             Bytecode::RELATIVE_REFERENCE => {
                 let x = u16::from_le_bytes([chunk[*instruction_position + 1], chunk[*instruction_position + 2]]);
@@ -122,13 +122,13 @@ impl VirMac {
             }
             Bytecode::RETURN => {
                 stack.swap(base_pointer, *stack_position - 1);
-                *instruction_position += Bytecode::RETURN_SIZE
+                *instruction_position += Bytecode::RETURN_SIZE;
             },
             Bytecode::DEFINE_FUNCTION => {
                 let index = u16::from_le_bytes([chunk[*instruction_position + 1], chunk[*instruction_position + 2]]);
                 let body_index = u16::from_le_bytes([chunk[*instruction_position + 3], chunk[*instruction_position + 4]]);
                 stack[base_pointer + index as usize] = self.constants_pool[body_index as usize];
-                *instruction_position += Bytecode::DEFINE_FUNCTION_SIZE
+                *instruction_position += Bytecode::DEFINE_FUNCTION_SIZE;
             }
             Bytecode::ARRAY => {
                 let count = u32::from_le_bytes(chunk[*instruction_position + 1..=*instruction_position + 4].try_into().unwrap());
@@ -138,27 +138,27 @@ impl VirMac {
                     match value {
                         LightValue::Boolean(boolean) => {
                             array.push(LightValue::BOOLEAN);
-                            array.push(*boolean as u8)
+                            array.push(*boolean as u8);
                         },
                         LightValue::Nil => {
                             array.push(LightValue::NIL);
-                            array.push(0)
+                            array.push(0);
                         },
                         LightValue::Float(float) => {
                             array.push(LightValue::FLOAT);
-                            array.extend_from_slice(&float.to_le_bytes())
+                            array.extend_from_slice(&float.to_le_bytes());
                         },
                         LightValue::Integer(integer) => {
                             array.push(LightValue::INTEGER);
-                            array.extend_from_slice(&integer.to_le_bytes())
+                            array.extend_from_slice(&integer.to_le_bytes());
                         },
                         LightValue::StringPointer(index) => {
-                            array.push(LightValue::STRINGPOINTER);
-                            array.extend_from_slice(&index.to_le_bytes())
+                            array.push(LightValue::STRING_POINTER);
+                            array.extend_from_slice(&index.to_le_bytes());
                         },
                         LightValue::ArrayPointer(index) => {
-                            array.push(LightValue::ARRAYPOINTER);
-                            array.extend_from_slice(&index.to_le_bytes())
+                            array.push(LightValue::ARRAY_POINTER);
+                            array.extend_from_slice(&index.to_le_bytes());
                         },
                         _ => unreachable!()
                     }
@@ -169,7 +169,147 @@ impl VirMac {
                 stack[start] = LightValue::ArrayPointer(index as u32);
                 *stack_position = start + 1;
                 self.stations_output.push(stack[*stack_position - 1]);
-                *instruction_position += Bytecode::ARRAY_SIZE
+                *instruction_position += Bytecode::ARRAY_SIZE;
+            },
+            Bytecode::ADD => {
+                let arity = u16::from_le_bytes([chunk[*instruction_position + 1], chunk[*instruction_position + 2]]) as usize;
+                let kind = get_kind(chunk[*instruction_position + 3]);
+                let start = *stack_position - arity;
+                let (first, rest) = stack[start..*stack_position].split_first().unwrap();
+                stack[start] = match kind {
+                    Kind::Integer => {
+                        rest.iter().fold(*first, |accumulator, x| {
+                            match (&accumulator, x) {
+                                (LightValue::Integer(a), LightValue::Integer(b)) => LightValue::Integer(a + b),
+                                _ => unreachable!()
+                            }
+                        })
+                    },
+                    Kind::Float => {
+                        rest.iter().fold(*first, |accumulator, x| {
+                            match (&accumulator, x) {
+                                (LightValue::Float(a), LightValue::Float(b)) => LightValue::Float(a + b),
+                                _ => unreachable!()
+                            }
+                        })
+                    },
+                    _ => unreachable!()
+                };
+                *stack_position = start + 1;
+                *instruction_position += Bytecode::ADD_SIZE;
+            },
+            Bytecode::MINUS => {
+                let arity = u16::from_le_bytes([chunk[*instruction_position + 1], chunk[*instruction_position + 2]]) as usize;
+                let kind = get_kind(chunk[*instruction_position + 3]);
+                let start = *stack_position - arity;
+                let (first, rest) = stack[start..*stack_position].split_first().unwrap();
+                stack[start] = match kind {
+                    Kind::Integer => {
+                        rest.iter().fold(*first, |accumulator, x| {
+                            match (&accumulator, x) {
+                                (LightValue::Integer(a), LightValue::Integer(b)) => LightValue::Integer(a - b),
+                                _ => unreachable!()
+                            }
+                        })
+                    },
+                    Kind::Float => {
+                        rest.iter().fold(*first, |accumulator, x| {
+                            match (&accumulator, x) {
+                                (LightValue::Float(a), LightValue::Float(b)) => LightValue::Float(a - b),
+                                _ => unreachable!()
+                            }
+                        })
+                    },
+                    _ => unreachable!()
+                };
+                *stack_position = start + 1;
+                *instruction_position += Bytecode::MINUS_SIZE;
+            },
+            Bytecode::MULTIPLY => {
+                let arity = u16::from_le_bytes([chunk[*instruction_position + 1], chunk[*instruction_position + 2]]) as usize;
+                let kind = get_kind(chunk[*instruction_position + 3]);
+                let start = *stack_position - arity;
+                let (first, rest) = stack[start..*stack_position].split_first().unwrap();
+                stack[start] = match kind {
+                    Kind::Integer => {
+                        rest.iter().fold(*first, |accumulator, x| {
+                            match (&accumulator, x) {
+                                (LightValue::Integer(a), LightValue::Integer(b)) => LightValue::Integer(a * b),
+                                _ => unreachable!()
+                            }
+                        })
+                    },
+                    Kind::Float => {
+                        rest.iter().fold(*first, |accumulator, x| {
+                            match (&accumulator, x) {
+                                (LightValue::Float(a), LightValue::Float(b)) => LightValue::Float(a * b),
+                                _ => unreachable!()
+                            }
+                        })
+                    },
+                    _ => unreachable!()
+                };
+                *stack_position = start + 1;
+                *instruction_position += Bytecode::MULTIPLY_SIZE;
+            },
+            Bytecode::EQUAL => {
+                let arity = u16::from_le_bytes([chunk[*instruction_position + 1], chunk[*instruction_position + 2]]) as usize;
+                let kind = get_kind(chunk[*instruction_position + 3]);
+                let start = *stack_position - arity;
+                let (first, rest) = stack[start..*stack_position].split_first().unwrap();
+                stack[start] = LightValue::Boolean(match (kind, first) {
+                    (Kind::Integer, LightValue::Integer(first_value)) => {
+                        rest.iter().all(|x| {
+                            match x {
+                                LightValue::Integer(a) => a == first_value,
+                                _ => unreachable!()
+                            }
+                        })
+                    },
+                    (Kind::Float, LightValue::Float(first_value)) => {
+                        rest.iter().all(|x| {
+                            match x {
+                                LightValue::Float(a) => a == first_value,
+                                _ => unreachable!()
+                            }
+                        })
+                    },
+                    _ => unreachable!()
+                });
+                *stack_position = start + 1;
+                *instruction_position += Bytecode::EQUAL_SIZE;
+            },
+            Bytecode::LESS_THAN => {
+                let arity = u16::from_le_bytes([chunk[*instruction_position + 1], chunk[*instruction_position + 2]]) as usize;
+                let kind = get_kind(chunk[*instruction_position + 3]);
+                let start = *stack_position - arity;
+                let (first, rest) = stack[start..*stack_position].split_first().unwrap();
+                stack[start] = LightValue::Boolean(match (kind, first) {
+                    (Kind::Integer, LightValue::Integer(first_value)) => {
+                        rest.iter().all(|x| {
+                            match x {
+                                LightValue::Integer(a) => first_value < a,
+                                _ => unreachable!()
+                            }
+                        })
+                    },
+                    (Kind::Float, LightValue::Float(first_value)) => {
+                        rest.iter().all(|x| {
+                            match x {
+                                LightValue::Float(a) => first_value < a,
+                                _ => unreachable!()
+                            }
+                        })
+                    },
+                    _ => unreachable!()
+                });
+                *stack_position = start + 1;
+                *instruction_position += Bytecode::LESS_THAN_SIZE;
+            },
+            Bytecode::NOT => {
+                let LightValue::Boolean(boolean) = stack[*stack_position - 1] else { unreachable!() };
+                stack[*stack_position - 1] = LightValue::Boolean(!boolean);
+                *instruction_position += Bytecode::NOT_SIZE;
             },
             _ => unreachable!()
         }
@@ -197,7 +337,7 @@ impl VirMac {
                 LightValue::ArrayPointer(index) => Value::Array(self.to_array(*index as usize)),
                 LightValue::ArrayHeapPointer(index) => Value::Array(self.to_heap_array(*index as usize)),
                 LightValue::FunctionPointer(_) | LightValue::ClosurePointer(_) => unreachable!(),
-            })
+            });
         }
         let builtin = get_builtin(index);
         match builtin.function {
@@ -233,7 +373,7 @@ impl VirMac {
             variables_counts.push(variables_count);
             let function = self.memory.permanent_space[start + 11..start + 11 + length as usize].to_vec();
             functions.push(function);
-            start += 11 + length as usize
+            start += 11 + length as usize;
         }
         (functions, arities, variables_counts, lengths)
     }
@@ -283,20 +423,20 @@ impl VirMac {
                     start += LightValue::INTEGER_SIZE;
                     integer
                 },
-                LightValue::STRINGPOINTER => {
+                LightValue::STRING_POINTER => {
                     let index = u32::from_le_bytes(space[start + 1..=start + 4].try_into().unwrap());
                     let string = self.to_string(index as usize);
-                    start += LightValue::STRINGPOINTER_SIZE;
+                    start += LightValue::STRING_POINTER_SIZE;
                     Value::String(string)
                 },
-                LightValue::ARRAYPOINTER => {
+                LightValue::ARRAY_POINTER => {
                     let index = u32::from_le_bytes(space[start + 1..=start + 4].try_into().unwrap());
                     let array = self.to_array(index as usize);
-                    start += LightValue::ARRAYPOINTER_SIZE;
+                    start += LightValue::ARRAY_POINTER_SIZE;
                     Value::Array(array)
                 },
                 _ => unreachable!()
-            })
+            });
         }
         array
     }

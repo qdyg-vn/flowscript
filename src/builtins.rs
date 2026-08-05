@@ -59,7 +59,12 @@ pub const BUILTIN_TABLE: &[Builtin] = &[
     },
     Builtin { name: "print", function: BuiltinFunction::IO(print), have_instruction: false,
         types: &[
-            Signature { arguments: &[Kind::All], result: Kind::Nil, min_arity: 0, infinite_arity: true },
+            Signature { arguments: &[Kind::Integer], result: Kind::Nil, min_arity: 0, infinite_arity: true },
+            Signature { arguments: &[Kind::Float], result: Kind::Nil, min_arity: 0, infinite_arity: true },
+            Signature { arguments: &[Kind::String], result: Kind::Nil, min_arity: 0, infinite_arity: true },
+            Signature { arguments: &[Kind::Boolean], result: Kind::Nil, min_arity: 0, infinite_arity: true },
+            Signature { arguments: &[Kind::Nil], result: Kind::Nil, min_arity: 0, infinite_arity: true },
+            Signature { arguments: &[Kind::Array], result: Kind::Nil, min_arity: 0, infinite_arity: true },
         ]
     },
     Builtin { name: "to_string", function: BuiltinFunction::Casting(to_string), have_instruction: false,

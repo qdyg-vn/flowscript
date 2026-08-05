@@ -1,5 +1,7 @@
+use crate::value::Kind;
+
 #[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Bytecode {
     Call, // u16: scope, u16: offset from base pointer
     BuiltinCall, // u16: index in builtin table, u16: arity
@@ -12,34 +14,52 @@ pub enum Bytecode {
     Store, // u16: offset from base pointer, u8: kind
     Array, // u32: length
     DefineFunction, // u16: offset from base pointer, u16: index of body in constant pool
+    Not,
+    Add, // u16: arity
+    Minus, // u16: arity
+    Multiply, // u16: arity
+    Equal, // u16: arity
+    LessThan, // u16: arity
 }
 
 impl Bytecode {
-    pub const CALL: u8 = Bytecode::Call as u8;
+    pub const CALL: u8 = Self::Call as u8;
     pub const CALL_SIZE: usize = 1 + 2 + 2;
-    pub const BUILTIN_CALL: u8 = Bytecode::BuiltinCall as u8;
+    pub const BUILTIN_CALL: u8 = Self::BuiltinCall as u8;
     pub const BUILTIN_CALL_SIZE: usize = 1 + 2 + 2;
-    pub const LOAD: u8 = Bytecode::Load as u8;
+    pub const LOAD: u8 = Self::Load as u8;
     pub const LOAD_SIZE: usize = 1 + 4;
-    pub const LOAD_VARIABLE: u8 = Bytecode::LoadVariable as u8;
+    pub const LOAD_VARIABLE: u8 = Self::LoadVariable as u8;
     pub const LOAD_VARIABLE_SIZE: usize = 1 + 2;
-    pub const JUMP: u8 = Bytecode::Jump as u8;
+    pub const JUMP: u8 = Self::Jump as u8;
     pub const JUMP_SIZE: usize = 1 + 2;
-    pub const JUMP_IF_FALSE: u8 = Bytecode::JumpIfFalse as u8;
+    pub const JUMP_IF_FALSE: u8 = Self::JumpIfFalse as u8;
     pub const JUMP_IF_FALSE_SIZE: usize = 1 + 2;
-    pub const RELATIVE_REFERENCE: u8 = Bytecode::RelativeReference as u8;
+    pub const RELATIVE_REFERENCE: u8 = Self::RelativeReference as u8;
     pub const RELATIVE_REFERENCE_SIZE: usize = 1 + 2 + 2;
-    pub const RETURN: u8 = Bytecode::Return as u8;
+    pub const RETURN: u8 = Self::Return as u8;
     pub const RETURN_SIZE: usize = 1;
-    pub const STORE: u8 = Bytecode::Store as u8;
+    pub const STORE: u8 = Self::Store as u8;
     pub const STORE_SIZE: usize = 1 + 2 + 1;
-    pub const ARRAY: u8 = Bytecode::Array as u8;
+    pub const ARRAY: u8 = Self::Array as u8;
     pub const ARRAY_SIZE: usize = 1 + 4;
-    pub const DEFINE_FUNCTION: u8 = Bytecode::DefineFunction as u8;
+    pub const DEFINE_FUNCTION: u8 = Self::DefineFunction as u8;
     pub const DEFINE_FUNCTION_SIZE: usize = 1 + 2 + 2;
+    pub const NOT: u8 = Self::Not as u8;
+    pub const NOT_SIZE: usize = 1;
+    pub const ADD: u8 = Self::Add as u8;
+    pub const ADD_SIZE: usize = 1 + 2 + 1;
+    pub const MINUS: u8 = Self::Minus as u8;
+    pub const MINUS_SIZE: usize = 1 + 2 + 1;
+    pub const MULTIPLY: u8 = Self::Multiply as u8;
+    pub const MULTIPLY_SIZE: usize = 1 + 2 + 1;
+    pub const EQUAL: u8 = Self::Equal as u8;
+    pub const EQUAL_SIZE: usize = 1 + 2 + 1;
+    pub const LESS_THAN: u8 = Self::LessThan as u8;
+    pub const LESS_THAN_SIZE: usize = 1 + 2 + 1;
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum Instruction {
     Call(u16, u16),
     BuiltinCall(u16, u16),
@@ -52,9 +72,15 @@ pub enum Instruction {
     Store(u16, u8),
     Array(u32),
     DefineFunction(u16, u16),
+    Not,
+    Add(u16, Kind),
+    Minus(u16, Kind),
+    Multiply(u16, Kind),
+    Equal(u16, Kind),
+    LessThan(u16, Kind),
 }
 
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, Default, Eq, PartialEq)]
 pub struct Chunk {
     pub instructions: Vec<Instruction>,
     pub arity: u8,

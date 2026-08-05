@@ -123,6 +123,40 @@ impl Assembler {
                     byte_chunk.extend_from_slice(&((*byte_position + instruction_byte_length + self.get_byte_distance(&instructions, position + 1, index)) as u16).to_le_bytes());
                     *byte_position += Bytecode::JUMP_IF_FALSE_SIZE
                 },
+                Instruction::Not => {
+                    byte_chunk.push(Bytecode::Not as u8);
+                    *byte_position += Bytecode::NOT_SIZE
+                },
+                Instruction::Add(arity, kind) => {
+                    byte_chunk.push(Bytecode::Add as u8);
+                    byte_chunk.extend_from_slice(&arity.to_le_bytes());
+                    byte_chunk.push(kind as u8);
+                    *byte_position += Bytecode::ADD_SIZE
+                },
+                Instruction::Minus(arity, kind) => {
+                    byte_chunk.push(Bytecode::Minus as u8);
+                    byte_chunk.extend_from_slice(&arity.to_le_bytes());
+                    byte_chunk.push(kind as u8);
+                    *byte_position += Bytecode::MINUS_SIZE
+                },
+                Instruction::Multiply(arity, kind) => {
+                    byte_chunk.push(Bytecode::Multiply as u8);
+                    byte_chunk.extend_from_slice(&arity.to_le_bytes());
+                    byte_chunk.push(kind as u8);
+                    *byte_position += Bytecode::MULTIPLY_SIZE
+                },
+                Instruction::Equal(arity, kind) => {
+                    byte_chunk.push(Bytecode::Equal as u8);
+                    byte_chunk.extend_from_slice(&arity.to_le_bytes());
+                    byte_chunk.push(kind as u8);
+                    *byte_position += Bytecode::EQUAL_SIZE
+                },
+                Instruction::LessThan(arity, kind) => {
+                    byte_chunk.push(Bytecode::LessThan as u8);
+                    byte_chunk.extend_from_slice(&arity.to_le_bytes());
+                    byte_chunk.push(kind as u8);
+                    *byte_position += Bytecode::LESS_THAN_SIZE
+                },
             }
             position += 1
         }
@@ -143,6 +177,12 @@ impl Assembler {
                 Instruction::Store(_, _) => distance += Bytecode::STORE_SIZE,
                 Instruction::Array(_) => distance += Bytecode::ARRAY_SIZE,
                 Instruction::DefineFunction(_, _) => distance += Bytecode::DEFINE_FUNCTION_SIZE,
+                Instruction::Not => distance += Bytecode::NOT_SIZE,
+                Instruction::Add(_, _) => distance += Bytecode::ADD_SIZE,
+                Instruction::Minus(_, _) => distance += Bytecode::MINUS_SIZE,
+                Instruction::Multiply(_, _) => distance += Bytecode::MULTIPLY_SIZE,
+                Instruction::Equal(_, _) => distance += Bytecode::EQUAL_SIZE,
+                Instruction::LessThan(_, _) => distance += Bytecode::LESS_THAN_SIZE,
             }
             position += 1
         }

@@ -87,6 +87,15 @@ pub enum TypedNode {
     },
     Return(Box<TypedNode>),
     Array(Vec<TypedNode>),
+    Add(Vec<TypedNode>, Kind, Kind),
+    Minus(Vec<TypedNode>, Kind, Kind),
+    Multiply(Vec<TypedNode>, Kind, Kind),
+    Equal(Vec<TypedNode>, Kind, Kind),
+    LessThan(Vec<TypedNode>, Kind, Kind),
+    GreaterThan(Vec<TypedNode>, Kind, Kind),
+    LessThanOrEqual(Vec<TypedNode>, Kind, Kind),
+    GreaterThanOrEqual(Vec<TypedNode>, Kind, Kind),
+    NotEqual(Vec<TypedNode>, Kind, Kind),
 }
 
 #[derive(Debug)]

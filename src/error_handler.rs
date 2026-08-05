@@ -36,42 +36,42 @@ pub enum Error {
 impl fmt::Display for Error {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Error::LexicalError(error) => write!(formatter, "{}", error),
-            Error::SyntaxError(error) => write!(formatter, "{}", error),
-            Error::SemanticError(error) => write!(formatter, "{}", error),
-            Error::RuntimeError(error) => write!(formatter, "{}", error),
-            Error::TypeError(error) => write!(formatter, "{}", error),
+            Self::LexicalError(error) => write!(formatter, "{}", error),
+            Self::SyntaxError(error) => write!(formatter, "{}", error),
+            Self::SemanticError(error) => write!(formatter, "{}", error),
+            Self::RuntimeError(error) => write!(formatter, "{}", error),
+            Self::TypeError(error) => write!(formatter, "{}", error),
         }
     }
 }
 
 impl From<LexicalError> for Error {
     fn from(error: LexicalError) -> Self {
-        Error::LexicalError(error)
+        Self::LexicalError(error)
     }
 }
 
 impl From<SyntaxError> for Error {
     fn from(error: SyntaxError) -> Self {
-        Error::SyntaxError(error)
+        Self::SyntaxError(error)
     }
 }
 
 impl From<SemanticError> for Error {
     fn from(error: SemanticError) -> Self {
-        Error::SemanticError(error)
+        Self::SemanticError(error)
     }
 }
 
 impl From<RuntimeError> for Error {
     fn from(error: RuntimeError) -> Self {
-        Error::RuntimeError(error)
+        Self::RuntimeError(error)
     }
 }
 
 impl From<TypeError> for Error {
     fn from(error: TypeError) -> Self {
-        Error::TypeError(error)
+        Self::TypeError(error)
     }
 }
 
@@ -107,19 +107,19 @@ pub enum LexicalErrorType {
 impl fmt::Display for LexicalErrorType {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            LexicalErrorType::InvalidCharacter(character) => {
+            Self::InvalidCharacter(character) => {
                 write!(formatter, "Invalid character: {}", character)
             }
-            LexicalErrorType::DecimalPoints(number) => {
+            Self::DecimalPoints(number) => {
                 write!(formatter, "Multiple decimal points: {}", number)
             }
-            LexicalErrorType::MissingClosingQuote(string) => {
+            Self::MissingClosingQuote(string) => {
                 write!(formatter, "Missing closing quote: {}", string)
             }
-            LexicalErrorType::MultipleUnderscores(string) => {
+            Self::MultipleUnderscores(string) => {
                 write!(formatter, "A relative reference can only have one underscore: {}", string)
             }
-            LexicalErrorType::FloatRelativeReferences(string) => {
+            Self::FloatRelativeReferences(string) => {
                 write!(formatter, "Relative references cannot have x or y as floats: {}", string)
             }
         }
@@ -185,25 +185,25 @@ pub enum SyntaxErrorType {
 impl fmt::Display for SyntaxErrorType {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            SyntaxErrorType::UnimplementedToken(token) => write!(formatter, "Unimplemented token: {:?}", token),
-            SyntaxErrorType::MissingFunctionName => write!(formatter, "Function needs a name!"),
-            SyntaxErrorType::RedundantFunctionDefinition => write!(formatter, "There is one redundant function definition"),
-            SyntaxErrorType::MissingLeftParen => write!(formatter, "Behind operator needs a left paren!"),
-            SyntaxErrorType::MissingLeftBrace => write!(formatter, "Behind condition needs a left brace!"),
-            SyntaxErrorType::NoStationBeforePipeline => write!(formatter, "There is no station before pipeline!"),
-            SyntaxErrorType::NoStationAfterPipeline => write!(formatter, "There is no station after pipeline!"),
-            SyntaxErrorType::MissingTypeIdentity => write!(formatter, "Missing type in declaration"),
-            SyntaxErrorType::MissingCondition => write!(formatter, "The conditional expression is empty!"),
-            SyntaxErrorType::MissingRightParen => write!(formatter, "Behind function arguments needs a right paren!"),
-            SyntaxErrorType::MissingEndKeyword => write!(formatter, "Missing 'end' after function body!"),
-            SyntaxErrorType::MissingRightBracket => write!(formatter, "Behind array elements needs a right bracket!"),
-            SyntaxErrorType::RedundantFunction => write!(formatter, "There is one redundant function"),
-            SyntaxErrorType::InvalidTypeError => write!(formatter, "Behind ':' needs a valid type!"),
-            SyntaxErrorType::MissingFunctionBody => write!(formatter, "Function needs a body!"),
-            SyntaxErrorType::RedundantCondition => write!(formatter, "There is one redundant condition"),
-            SyntaxErrorType::MissingConditionBody => write!(formatter, "Condition needs a body!"),
-            SyntaxErrorType::MissingDoKeyword => write!(formatter, "Missing 'do' after function arguments!"),
-            SyntaxErrorType::MissingType(name) => write!(formatter, "Missing type for parameter '{}'", name),
+            Self::UnimplementedToken(token) => write!(formatter, "Unimplemented token: {:?}", token),
+            Self::MissingFunctionName => write!(formatter, "Function needs a name!"),
+            Self::RedundantFunctionDefinition => write!(formatter, "There is one redundant function definition"),
+            Self::MissingLeftParen => write!(formatter, "Behind operator needs a left paren!"),
+            Self::MissingLeftBrace => write!(formatter, "Behind condition needs a left brace!"),
+            Self::NoStationBeforePipeline => write!(formatter, "There is no station before pipeline!"),
+            Self::NoStationAfterPipeline => write!(formatter, "There is no station after pipeline!"),
+            Self::MissingTypeIdentity => write!(formatter, "Missing type in declaration"),
+            Self::MissingCondition => write!(formatter, "The conditional expression is empty!"),
+            Self::MissingRightParen => write!(formatter, "Behind function arguments needs a right paren!"),
+            Self::MissingEndKeyword => write!(formatter, "Missing 'end' after function body!"),
+            Self::MissingRightBracket => write!(formatter, "Behind array elements needs a right bracket!"),
+            Self::RedundantFunction => write!(formatter, "There is one redundant function"),
+            Self::InvalidTypeError => write!(formatter, "Behind ':' needs a valid type!"),
+            Self::MissingFunctionBody => write!(formatter, "Function needs a body!"),
+            Self::RedundantCondition => write!(formatter, "There is one redundant condition"),
+            Self::MissingConditionBody => write!(formatter, "Condition needs a body!"),
+            Self::MissingDoKeyword => write!(formatter, "Missing 'do' after function arguments!"),
+            Self::MissingType(name) => write!(formatter, "Missing type for parameter '{}'", name),
         }
     }
 }
@@ -232,9 +232,9 @@ pub enum SemanticErrorType {
 impl fmt::Display for SemanticErrorType {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            SemanticErrorType::UndefinedIdentifier(name) => write!(formatter, "Cannot find {} in symbol table", name),
-            SemanticErrorType::DuplicateParameter(name) => write!(formatter, "Identifier '{}' is bound more than once", name),
-            SemanticErrorType::NegativeXCoordinate(x) => write!(formatter, "x must be positive when y is zero: {}", x),
+            Self::UndefinedIdentifier(name) => write!(formatter, "Cannot find {} in symbol table", name),
+            Self::DuplicateParameter(name) => write!(formatter, "Identifier '{}' is bound more than once", name),
+            Self::NegativeXCoordinate(x) => write!(formatter, "x must be positive when y is zero: {}", x),
         }
     }
 }
@@ -265,10 +265,10 @@ pub enum RuntimeErrorType {
 impl fmt::Display for RuntimeErrorType {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            RuntimeErrorType::MissingStation(x) => write!(formatter, "There is no station at position {}", x),
-            RuntimeErrorType::OutOfBounds(start, end) => write!(formatter, "Stack out of bounds: start {} end {}", start, end),
-            RuntimeErrorType::InsufficientOperands(function) => write!(formatter, "{} requires at least one operand", function),
-            RuntimeErrorType::ParseError(value, kind) => write!(formatter, "Cannot convert {} to {}", value, kind),
+            Self::MissingStation(x) => write!(formatter, "There is no station at position {}", x),
+            Self::OutOfBounds(start, end) => write!(formatter, "Stack out of bounds: start {} end {}", start, end),
+            Self::InsufficientOperands(function) => write!(formatter, "{} requires at least one operand", function),
+            Self::ParseError(value, kind) => write!(formatter, "Cannot convert {} to {}", value, kind),
         }
     }
 }
@@ -307,13 +307,13 @@ pub enum TypeErrorType {
 impl fmt::Display for TypeErrorType {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            TypeErrorType::NotSequence(station) => write!(formatter, "{} is not a sequence", station),
-            TypeErrorType::TypeMismatch(accumulator, x) => write!(formatter, "Expected {} found {}", accumulator, x),
-            TypeErrorType::InvalidOperand(message) | TypeErrorType::InvalidUnaryOperand(message) => write!(formatter, "{}", message),
-            TypeErrorType::AssignTypeMismatch(received_kind, required_kind) => write!(formatter, "Type '{}' is not assignable to type '{}'", received_kind, required_kind),
-            TypeErrorType::ArityMismatch(received_arity, required_arity) => write!(formatter, "Function expects {} arguments, but got {}", required_arity, received_arity),
-            TypeErrorType::NotAFunction(name) => write!(formatter, "{} is not a function", name),
-            TypeErrorType::MissingStation(x) => write!(formatter, "There is no station at position {}", x),
+            Self::NotSequence(station) => write!(formatter, "{} is not a sequence", station),
+            Self::TypeMismatch(accumulator, x) => write!(formatter, "Expected {} found {}", accumulator, x),
+            Self::InvalidOperand(message) | TypeErrorType::InvalidUnaryOperand(message) => write!(formatter, "{}", message),
+            Self::AssignTypeMismatch(received_kind, required_kind) => write!(formatter, "Type '{}' is not assignable to type '{}'", received_kind, required_kind),
+            Self::ArityMismatch(received_arity, required_arity) => write!(formatter, "Function expects {} arguments, but got {}", required_arity, received_arity),
+            Self::NotAFunction(name) => write!(formatter, "{} is not a function", name),
+            Self::MissingStation(x) => write!(formatter, "There is no station at position {}", x),
         }
     }
 }

@@ -5,7 +5,7 @@ use std::rc::Rc;
 use crate::instructions::Chunk;
 
 #[repr(u8)]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum Kind {
     Boolean,
     Float,
@@ -14,43 +14,38 @@ pub enum Kind {
     Array,
     Nil,
     Undefined,
-    All,
 }
 
 impl Kind {
-    pub const BOOLEAN: u8 = Kind::Boolean as u8;
-    pub const FLOAT: u8 = Kind::Float as u8;
-    pub const INTEGER: u8 = Kind::Integer as u8;
-    pub const STRING: u8 = Kind::String as u8;
-    pub const ARRAY: u8 = Kind::Array as u8;
+    pub const BOOLEAN: u8 = Self::Boolean as u8;
+    pub const FLOAT: u8 = Self::Float as u8;
+    pub const INTEGER: u8 = Self::Integer as u8;
+    pub const STRING: u8 = Self::String as u8;
+    pub const ARRAY: u8 = Self::Array as u8;
 }
 
-impl PartialEq for Kind {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Kind::Boolean, Kind::Boolean) => true,
-            (Kind::Float, Kind::Float) => true,
-            (Kind::Integer, Kind::Integer) => true,
-            (Kind::String, Kind::String) => true,
-            (Kind::Nil, Kind::Nil) => true,
-            (Kind::All, _) => true,
-            (_, Kind::All) => true,
-            _ => false
-        }
+
+pub fn get_kind(kind: u8) -> Kind {
+    match kind {
+        Kind::BOOLEAN => Kind::Boolean,
+        Kind::FLOAT => Kind::Float,
+        Kind::INTEGER => Kind::Integer,
+        Kind::STRING => Kind::String,
+        Kind::ARRAY => Kind::Array,
+        _ => unreachable!()
     }
 }
 
 impl fmt::Display for Kind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Kind::Boolean => write!(f, "boolean"),
-            Kind::Float => write!(f, "float"),
-            Kind::Integer => write!(f, "integer"),
-            Kind::String => write!(f, "string"),
-            Kind::Array => write!(f, "array"),
-            Kind::Nil => write!(f, "nil"),
-            Kind::Undefined => write!(f, "undefined"),
-            _ => todo!()
+            Self::Boolean => write!(f, "boolean"),
+            Self::Float => write!(f, "float"),
+            Self::Integer => write!(f, "integer"),
+            Self::String => write!(f, "string"),
+            Self::Array => write!(f, "array"),
+            Self::Nil => write!(f, "nil"),
+            _ => unreachable!()
         }
     }
 }
@@ -78,17 +73,17 @@ impl LightValue {
     pub const FLOAT_SIZE: usize = 1 + 8;
     pub const INTEGER: u8 = 3;
     pub const INTEGER_SIZE: usize = 1 + 8;  
-    pub const STRINGPOINTER: u8 = 4;
-    pub const STRINGPOINTER_SIZE: usize = 1 + 4;
-    pub const FUNCTIONPOINTER: u8 = 5;
-    pub const FUNCTIONPOINTER_SIZE: usize = 1 + 4;
-    pub const ARRAYPOINTER: u8 = 6;
-    pub const ARRAYPOINTER_SIZE: usize = 1 + 4;
+    pub const STRING_POINTER: u8 = 4;
+    pub const STRING_POINTER_SIZE: usize = 1 + 4;
+    pub const FUNCTION_POINTER: u8 = 5;
+    pub const FUNCTION_POINTER_SIZE: usize = 1 + 4;
+    pub const ARRAY_POINTER: u8 = 6;
+    pub const ARRAY_POINTER_SIZE: usize = 1 + 4;
     pub fn get_kind(&self) -> Kind {
         match self {
-            LightValue::Boolean(_) => Kind::Boolean,
-            LightValue::Integer(_) => Kind::Integer,
-            LightValue::Float(_) => Kind::Float,
+            Self::Boolean(_) => Kind::Boolean,
+            Self::Integer(_) => Kind::Integer,
+            Self::Float(_) => Kind::Float,
             _ => todo!()
         }
     }
@@ -99,12 +94,12 @@ impl Eq for LightValue {}
 impl Hash for LightValue {
     fn hash<H: Hasher>(&self, state: &mut H) {
         match self {
-            LightValue::Boolean(boolean) => boolean.hash(state),
-            LightValue::Integer(integer) => integer.hash(state),
-            LightValue::Float(float) => float.to_bits().hash(state),
-            LightValue::StringPointer(string) => string.hash(state),
-            LightValue::Nil => 0.hash(state),
-            LightValue::FunctionPointer(function) => function.hash(state),
+            Self::Boolean(boolean) => boolean.hash(state),
+            Self::Integer(integer) => integer.hash(state),
+            Self::Float(float) => float.to_bits().hash(state),
+            Self::StringPointer(string) => string.hash(state),
+            Self::Nil => 0.hash(state),
+            Self::FunctionPointer(function) => function.hash(state),
             _ => unreachable!(),
         }
     }
@@ -121,7 +116,7 @@ pub enum HeavyValue {
 impl HeavyValue {
     pub fn get_kind(&self) -> Kind {
         match self {
-            HeavyValue::String(_) => Kind::String,
+            Self::String(_) => Kind::String,
             _ => todo!()
         }
     }
@@ -132,7 +127,7 @@ impl Eq for HeavyValue {}
 impl Hash for HeavyValue {
     fn hash<H: Hasher>(&self, state: &mut H) {
         match self {
-            HeavyValue::String(string) => string.hash(state),
+            Self::String(string) => string.hash(state),
             _ => unreachable!(),
         }
     }
@@ -152,10 +147,10 @@ pub enum Value {
 impl Value {
     pub fn get_kind(&self) -> Kind {
         match self {
-            Value::Boolean(_) => Kind::Boolean,
-            Value::Float(_) => Kind::Float,
-            Value::Integer(_) => Kind::Integer,
-            Value::String(_) => Kind::String,
+            Self::Boolean(_) => Kind::Boolean,
+            Self::Float(_) => Kind::Float,
+            Self::Integer(_) => Kind::Integer,
+            Self::String(_) => Kind::String,
             _ => todo!()
         }
     }
@@ -164,12 +159,12 @@ impl Value {
 impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Value::Boolean(boolean) => write!(f, "{}", boolean),
-            Value::Nil => write!(f, "Nil"),
-            Value::Float(float) => write!(f, "{}", float),
-            Value::Integer(integer) => write!(f, "{}", integer),
-            Value::String(string) => write!(f, "{}", string),
-            Value::Array(elements) => {
+            Self::Boolean(boolean) => write!(f, "{}", boolean),
+            Self::Nil => write!(f, "Nil"),
+            Self::Float(float) => write!(f, "{}", float),
+            Self::Integer(integer) => write!(f, "{}", integer),
+            Self::String(string) => write!(f, "{}", string),
+            Self::Array(elements) => {
                 write!(f, "[")?;
                 for (index, element) in elements.iter().enumerate() {
                     if index > 0 {

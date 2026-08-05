@@ -69,7 +69,7 @@ impl<'source_code> Parser<'source_code> {
             TokenType::Identifier(identifier) => self.parse_function(token.start, identifier, errors),
             TokenType::String(string) => Some(Node::HeavyLiteral(HeavyValue::String(string))),
             TokenType::RelativeReference(x, y) => {
-                if x <= 0 && y == 0 {
+                if x == 0 && y == 0 {
                     errors.push(SemanticError { kind: SemanticErrorType::NegativeXCoordinate(x) }.into());
                     return None
                 }

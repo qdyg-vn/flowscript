@@ -33,7 +33,7 @@ impl Emitter {
                     chunk.instructions.push(Instruction::Load(index as u32))
                 },
                 TypedNode::HeavyLiteral(heavy_value) => {
-                    let index = self.constants_pool.add_heavy_constant(heavy_value);
+                    let index = self.constants_pool.add_heavy_constant(&heavy_value);
                     chunk.instructions.push(Instruction::Load(index as u32))
                 },
                 TypedNode::BuiltinCall {index, arguments, ..} => {
@@ -56,7 +56,7 @@ impl Emitter {
                         self.create_chunk(pipeline, &mut child_chunk);
                         pipelines.push(child_chunk)
                     }
-                    let body_index = self.constants_pool.add_heavy_constant(HeavyValue::Function(pipelines));
+                    let body_index = self.constants_pool.add_heavy_constant(&HeavyValue::Function(pipelines));
                     chunk.instructions.push(Instruction::DefineFunction(index, body_index as u16));
                 },
                 TypedNode::Pipeline(stations) => self.create_chunk(stations, chunk),
@@ -70,6 +70,56 @@ impl Emitter {
                     self.create_chunk(elements, chunk);
                     chunk.instructions.push(Instruction::Array(count))
                 },
+                TypedNode::Add(arguments, kind, _) => {
+                    let arity = arguments.len() as u16;
+                    self.create_chunk(arguments, chunk);
+                    chunk.instructions.push(Instruction::Add(arity, kind))
+                }
+                TypedNode::Minus(arguments, kind, _) => {
+                    let arity = arguments.len() as u16;
+                    self.create_chunk(arguments, chunk);
+                    chunk.instructions.push(Instruction::Minus(arity, kind))
+                }
+                TypedNode::Multiply(arguments, kind, _) => {
+                    let arity = arguments.len() as u16;
+                    self.create_chunk(arguments, chunk);
+                    chunk.instructions.push(Instruction::Multiply(arity, kind))
+                }
+                TypedNode::Equal(arguments, kind, _) => {
+                    let arity = arguments.len() as u16;
+                    self.create_chunk(arguments, chunk);
+                    chunk.instructions.push(Instruction::Equal(arity, kind))
+                },
+                TypedNode::LessThan(arguments, kind, _) => {
+                    let arity = arguments.len() as u16;
+                    self.create_chunk(arguments, chunk);
+                    chunk.instructions.push(Instruction::LessThan(arity, kind))
+                },
+                TypedNode::GreaterThan(mut arguments, kind, _) => {
+                    arguments.reverse();
+                    let arity = arguments.len() as u16;
+                    self.create_chunk(arguments, chunk);
+                    chunk.instructions.push(Instruction::LessThan(arity, kind))
+                },
+                TypedNode::LessThanOrEqual(mut arguments, kind, _) => {
+                    arguments.reverse();
+                    let arity = arguments.len() as u16;
+                    self.create_chunk(arguments, chunk);
+                    chunk.instructions.push(Instruction::LessThan(arity, kind));
+                    chunk.instructions.push(Instruction::Not);
+                },
+                TypedNode::GreaterThanOrEqual(arguments, kind, _) => {
+                    let arity = arguments.len() as u16;
+                    self.create_chunk(arguments, chunk);
+                    chunk.instructions.push(Instruction::LessThan(arity, kind));
+                    chunk.instructions.push(Instruction::Not);
+                },
+                TypedNode::NotEqual(arguments, kind, _) => {
+                    let arity = arguments.len() as u16;
+                    self.create_chunk(arguments, chunk);
+                    chunk.instructions.push(Instruction::Equal(arity, kind));
+                    chunk.instructions.push(Instruction::Not);
+                }
             }
         }
     }

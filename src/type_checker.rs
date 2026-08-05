@@ -1,4 +1,4 @@
-use crate::builtins::Signature;
+use crate::builtins::{get_builtin, Signature};
 use crate::error_handler::{Error, ErrorHandler, TypeError, TypeErrorType};
 use crate::node::{ResolvedNode, TypedAST, TypedNode, AST};
 use crate::value::Kind;
@@ -34,7 +34,11 @@ impl TypeChecker {
             ResolvedNode::BuiltinCall { index, arguments } => {
                 let types = get_types(index);
                 match self.find_result_kind(&arguments, types, typed_stations) {
-                    Ok(result_kind) => Ok(TypedNode::BuiltinCall { index, arguments: arguments.into_iter().map(|argument| self.check(argument, typed_stations)).collect::<Result<Vec<TypedNode>, Vec<Error>>>()?, result: result_kind}),
+                    Ok(result_kind) => {
+                        let mut node = TypedNode::BuiltinCall { index, arguments: arguments.into_iter().map(|argument| self.check(argument, typed_stations)).collect::<Result<Vec<TypedNode>, Vec<Error>>>()?, result: result_kind };
+                        self.rewrite_builtin_function(&mut node);
+                        Ok(node)
+                    },
                     Err(errors) => Err(errors),
                 }
             },
@@ -64,32 +68,24 @@ impl TypeChecker {
             },
             ResolvedNode::SoftAssignment(index, variable_index) => {
                 let received_kind = match typed_stations.last() {
-                    Some(TypedNode::Literal(value)) => value.get_kind(),
-                    Some(TypedNode::HeavyLiteral(value)) => value.get_kind(),
-                    Some(TypedNode::DefineFunction { .. }) => Kind::Nil,
-                    Some(TypedNode::Call { result, .. }) => *result,
-                    Some(TypedNode::Assignment(_, kind)) => *kind,
-                    _ => todo!()
+                    Some(typed_node) => self.find_typed_node_kind(typed_node),
+                    None => { unreachable!() }
                 };
                 self.symbol_table.all_variable[variable_index as usize] = received_kind;
                 Ok(TypedNode::Assignment(index, received_kind))
             },
             ResolvedNode::Assignment(index, variable_index, kind) => {
                 let received_kind = match typed_stations.last() {
-                    Some(TypedNode::Literal(value)) => value.get_kind(),
-                    Some(TypedNode::HeavyLiteral(value)) => value.get_kind(),
-                    Some(TypedNode::DefineFunction { .. }) => Kind::Nil,
-                    Some(TypedNode::Call { result, .. }) => *result,
-                    Some(TypedNode::Variable(_, kind)) | Some(TypedNode::Assignment(_, kind)) => *kind,
-                    _ => todo!()
+                    Some(typed_node) => self.find_typed_node_kind(typed_node),
+                    None => { unreachable!() }
                 };
                 if received_kind != kind { self.error_handler.push_error(TypeError { kind: TypeErrorType::AssignTypeMismatch(received_kind, kind) }) }
                 self.symbol_table.all_variable[variable_index as usize] = kind;
                 Ok(TypedNode::Assignment(index, kind))
             },
             ResolvedNode::DefineFunction { index, body } => {
-                let mut child_typed_stations = Vec::with_capacity(body.nodes.len());
-                Ok(TypedNode::DefineFunction { index, body: TypedAST { nodes: body.nodes.into_iter().map(|node| self.check(node, &mut child_typed_stations)).collect::<Result<Vec<TypedNode>, Vec<Error>>>()?, arity: body.arity, variables_count: body.variables_count }})
+                let child_typed_stations = Vec::with_capacity(body.nodes.len());
+                Ok(TypedNode::DefineFunction { index, body: TypedAST { nodes: body.nodes.into_iter().map(|node| self.check(node, &child_typed_stations)).collect::<Result<Vec<TypedNode>, Vec<Error>>>()?, arity: body.arity, variables_count: body.variables_count }})
             },
             ResolvedNode::Condition { branches, final_branch } => {
                 let mut typed_branches = Vec::with_capacity(branches.len());
@@ -160,8 +156,14 @@ impl TypeChecker {
             TypedNode::Literal(value) => value.get_kind(),
             TypedNode::HeavyLiteral(value) => value.get_kind(),
             TypedNode::Variable(_, kind) | TypedNode::Assignment(_, kind) => *kind,
-            TypedNode::BuiltinCall {result, ..} => *result,
+            TypedNode::BuiltinCall { result, ..} => *result,
             TypedNode::RelativeReference(_, _, parent_kind) => *parent_kind,
+            TypedNode::Add(_, _, result) | TypedNode::Minus(_, _, result)
+            | TypedNode::Multiply(_, _, result) | TypedNode::Equal(_, _, result)
+            | TypedNode::LessThan(_, _, result) | TypedNode::GreaterThan(_, _, result)
+            | TypedNode::LessThanOrEqual(_, _, result) | TypedNode::GreaterThanOrEqual(_, _, result)
+            | TypedNode::NotEqual(_, _, result) => *result,
+            TypedNode::Array(_) => Kind::Array,
             _ => {todo!("Currently under development")}
         }
     }
@@ -217,7 +219,7 @@ impl TypeChecker {
                         self.error_handler.push_error(TypeError {kind: TypeErrorType::TypeMismatch(required_variable_type, *kind)})
                     }
                 },
-                TypedNode::BuiltinCall { result, .. } => {
+                TypedNode::BuiltinCall { result: result, .. } => {
                     if required_variable_type != *result {
                         self.error_handler.push_error(TypeError {kind: TypeErrorType::TypeMismatch(required_variable_type, *result)})
                     }
@@ -227,6 +229,25 @@ impl TypeChecker {
         }
         if received_arity != required_arity {
             self.error_handler.push_error(TypeError {kind: TypeErrorType::ArityMismatch(received_arity, required_arity)})
+        }
+    }
+
+    fn rewrite_builtin_function(&self, builtin_function: &mut TypedNode) {
+        let TypedNode::BuiltinCall { index, arguments, result } = builtin_function else { unreachable!() };
+        let kind = self.find_typed_node_kind(&arguments[0]);
+        let function = get_builtin(*index);
+        if !function.have_instruction { return; }
+        match function.name {
+            "+" => { *builtin_function = TypedNode::Add(std::mem::take(arguments), kind, *result) },
+            "-" => { *builtin_function = TypedNode::Minus(std::mem::take(arguments), kind, *result) },
+            "*" => { *builtin_function = TypedNode::Multiply(std::mem::take(arguments), kind, *result) },
+            ">" => { *builtin_function = TypedNode::GreaterThan(std::mem::take(arguments), kind, *result) },
+            "==" => { *builtin_function = TypedNode::Equal(std::mem::take(arguments), kind, *result) },
+            "<" => { *builtin_function = TypedNode::LessThan(std::mem::take(arguments), kind, *result) },
+            "<=" => { *builtin_function = TypedNode::LessThanOrEqual(std::mem::take(arguments), kind, *result) },
+            ">=" => { *builtin_function = TypedNode::GreaterThanOrEqual(std::mem::take(arguments), kind, *result) },
+            "!=" => { *builtin_function = TypedNode::NotEqual(std::mem::take(arguments), kind, *result) },
+            _ => { unreachable!() }
         }
     }
 }
