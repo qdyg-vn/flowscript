@@ -314,6 +314,11 @@ impl VirMac {
                 stack[*stack_position - 1] = LightValue::Boolean(!boolean);
                 *instruction_position += Bytecode::NOT_SIZE;
             },
+            Bytecode::REVERSE => {
+                let arity = u16::from_le_bytes([chunk[*instruction_position + 1], chunk[*instruction_position + 2]]) as usize;
+                stack[*stack_position - arity..*stack_position].reverse();
+                *instruction_position += Bytecode::REVERSE_SIZE;
+            },
             _ => unreachable!()
         }
     }

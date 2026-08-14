@@ -131,6 +131,11 @@ impl Assembler {
                     byte_chunk.push(Bytecode::Not as u8);
                     *byte_position += Bytecode::NOT_SIZE
                 },
+                Instruction::Reverse(arity) => {
+                    byte_chunk.push(Bytecode::Reverse as u8);
+                    byte_chunk.extend_from_slice(&arity.to_le_bytes());
+                    *byte_position += Bytecode::REVERSE_SIZE
+                },
                 Instruction::Add(arity, kind) => {
                     byte_chunk.push(Bytecode::Add as u8);
                     byte_chunk.extend_from_slice(&arity.to_le_bytes());
@@ -181,6 +186,7 @@ impl Assembler {
                 Instruction::Store(_, _) => distance += Bytecode::STORE_SIZE,
                 Instruction::Array(_) => distance += Bytecode::ARRAY_SIZE,
                 Instruction::Not => distance += Bytecode::NOT_SIZE,
+                Instruction::Reverse(_) => distance += Bytecode::REVERSE_SIZE,
                 Instruction::Add(_, _) => distance += Bytecode::ADD_SIZE,
                 Instruction::Minus(_, _) => distance += Bytecode::MINUS_SIZE,
                 Instruction::Multiply(_, _) => distance += Bytecode::MULTIPLY_SIZE,

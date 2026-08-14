@@ -14,6 +14,7 @@ pub enum Bytecode {
     Store, // u16: offset from base pointer, u8: kind
     Array, // u32: length
     Not,
+    Reverse,
     Add, // u16: arity, u8: kind
     Minus, // u16: arity, u8: kind
     Multiply, // u16: arity, u8: kind
@@ -44,6 +45,8 @@ impl Bytecode {
     pub const ARRAY_SIZE: usize = 1 + 4;
     pub const NOT: u8 = Self::Not as u8;
     pub const NOT_SIZE: usize = 1;
+    pub const REVERSE: u8 = Self::Reverse as u8;
+    pub const REVERSE_SIZE: usize = 1 + 2;
     pub const ADD: u8 = Self::Add as u8;
     pub const ADD_SIZE: usize = 1 + 2 + 1;
     pub const MINUS: u8 = Self::Minus as u8;
@@ -69,6 +72,7 @@ pub enum Instruction {
     Store(u16, u8),
     Array(u32),
     Not,
+    Reverse(u16),
     Add(u16, Kind),
     Minus(u16, Kind),
     Multiply(u16, Kind),

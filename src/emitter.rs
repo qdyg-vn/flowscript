@@ -93,16 +93,16 @@ impl Emitter {
                     self.create_chunk(arguments, chunk);
                     chunk.instructions.push(Instruction::LessThan(arity, kind))
                 },
-                TypedNode::GreaterThan(mut arguments, kind, _) => {
-                    arguments.reverse();
+                TypedNode::GreaterThan(arguments, kind, _) => {
                     let arity = arguments.len() as u16;
                     self.create_chunk(arguments, chunk);
+                    chunk.instructions.push(Instruction::Reverse(arity));
                     chunk.instructions.push(Instruction::LessThan(arity, kind))
                 },
-                TypedNode::LessThanOrEqual(mut arguments, kind, _) => {
-                    arguments.reverse();
+                TypedNode::LessThanOrEqual(arguments, kind, _) => {
                     let arity = arguments.len() as u16;
                     self.create_chunk(arguments, chunk);
+                    chunk.instructions.push(Instruction::Reverse(arity));
                     chunk.instructions.push(Instruction::LessThan(arity, kind));
                     chunk.instructions.push(Instruction::Not);
                 },
