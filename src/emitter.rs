@@ -1,6 +1,6 @@
 use crate::constants_pool::ConstantsPool;
 use crate::instructions::{Chunk, Instruction};
-use crate::node::{TypedAST, TypedNode};
+use crate::node::{ConditionBranch, TypedAST, TypedNode};
 
 pub struct Emitter {
     constants_pool: ConstantsPool,
@@ -122,13 +122,13 @@ impl Emitter {
         }
     }
 
-    fn emit_condition(&mut self, branches: Vec<(Vec<TypedNode>, Vec<TypedNode>)>, final_branch: Vec<TypedNode>, chunk: &mut Chunk) {
+    fn emit_condition(&mut self, branches: Vec<ConditionBranch<TypedNode>>, final_branch: Vec<TypedNode>, chunk: &mut Chunk) {
         let mut complete_positions = Vec::with_capacity(branches.len());
-        for (condition, body) in branches {
-            self.create_chunk(condition, chunk);
+        for branch in branches {
+            self.create_chunk(branch.condition, chunk);
             let branch_position = chunk.instructions.len();
             chunk.instructions.push(Instruction::JumpIfFalse(0));
-            self.create_chunk(body, chunk);
+            self.create_chunk(branch.body, chunk);
             complete_positions.push(chunk.instructions.len());
             chunk.instructions.push(Instruction::Jump(0));
             let next_branch = chunk.instructions.len();

@@ -82,14 +82,14 @@ impl Optimizer {
 
     fn condition_node(&mut self, station: &mut ResolvedNode) {
         let ResolvedNode::Condition { branches, final_branch } = station else { unreachable!() };
-        for (condition, body) in branches.iter_mut() {
-            self.optimize(condition);
-            self.optimize(body);
+        for branch in branches.iter_mut() {
+            self.optimize(&mut branch.condition);
+            self.optimize(&mut branch.body);
         }
         let mut have_condition_always_true = false;
-        branches.retain(|(condition, _)| {
+        branches.retain(|branch| {
             if have_condition_always_true { return false }
-            match condition.last().unwrap() {
+            match branch.condition.last().unwrap() {
                 ResolvedNode::Literal(LightValue::Boolean(boolean)) => {
                     if *boolean { have_condition_always_true = true }
                     *boolean

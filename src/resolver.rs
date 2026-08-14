@@ -1,5 +1,5 @@
 use crate::error_handler::{ErrorHandler, SemanticError, SemanticErrorType, TypeError, TypeErrorType};
-use crate::node::{Node, ResolvedNode, AST};
+use crate::node::{Node, ResolvedNode, AST, ConditionBranch};
 use crate::symbol_table::{SymbolTable, SymbolType};
 use crate::value::Kind;
 
@@ -46,7 +46,7 @@ impl Resolver {
                 }
                 Node::Condition { branches, final_branch } => {
                     for branch in branches {
-                        { self.push_signature_to_symbol_table(&branch.1, ast); }
+                        { self.push_signature_to_symbol_table(&branch.body, ast); }
                     }
                     { self.push_signature_to_symbol_table(final_branch, ast); }
                 }
@@ -137,7 +137,7 @@ impl Resolver {
                 Node::Condition {branches, final_branch} => {
                     let mut resolved_branches = Vec::with_capacity(branches.len());
                     for branch in branches {
-                        resolved_branches.push((self.solve(branch.0, ast), self.solve(branch.1, ast)))
+                        resolved_branches.push(ConditionBranch { condition: self.solve(branch.condition, ast), body: self.solve(branch.body, ast) })
                     }
                     let final_branch = self.solve(final_branch, ast);
                     resolved_stations.push(ResolvedNode::Condition {branches: resolved_branches, final_branch})

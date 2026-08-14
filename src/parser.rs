@@ -1,5 +1,5 @@
 use crate::error_handler::{Error, SemanticError, SemanticErrorType, SyntaxError, SyntaxErrorType};
-use crate::node::Node;
+use crate::node::{ConditionBranch, Node};
 use crate::lexer::Lexer;
 use crate::token::{Token, TokenType};
 use crate::value::{Kind, LightValue, HeavyValue};
@@ -265,13 +265,13 @@ impl<'source_code> Parser<'source_code> {
     }
 
     fn parse_condition(&mut self, start: usize, errors: &mut Vec<Error>) -> Option<Node> {
-        let mut branches: Vec<(Vec<Node>, Vec<Node>)> = Vec::new();
+        let mut branches = Vec::new();
         let condition = self.parse_condition_expression(start, errors);
         let body = self.parse_condition_body(start, errors);
         if condition.is_empty() {
             self.error_pusher(start, SyntaxErrorType::MissingCondition, errors)
         }
-        branches.push((condition, body));
+        branches.push(ConditionBranch { condition, body });
         while let Some(result) = self.peek() {
             match result {
                 Ok(Token { kind: TokenType::Else, .. }) => {}
@@ -294,7 +294,7 @@ impl<'source_code> Parser<'source_code> {
             if condition.is_empty() {
                 self.error_pusher(start, SyntaxErrorType::MissingCondition, errors)
             }
-            branches.push((condition, body));
+            branches.push(ConditionBranch { condition, body });
         }
         Some(Node::Condition { branches, final_branch: vec![] })
     }

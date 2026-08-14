@@ -1,6 +1,6 @@
 use crate::builtins::{get_builtin, Signature};
 use crate::error_handler::{Error, ErrorHandler, TypeError, TypeErrorType};
-use crate::node::{ResolvedNode, TypedAST, TypedNode, AST};
+use crate::node::{ResolvedNode, TypedAST, TypedNode, AST, ConditionBranch};
 use crate::value::Kind;
 use crate::builtins::get_types;
 use crate::symbol_table::SymbolTable;
@@ -90,7 +90,7 @@ impl TypeChecker {
             ResolvedNode::Condition { branches, final_branch } => {
                 let mut typed_branches = Vec::with_capacity(branches.len());
                 for branch in branches {
-                    typed_branches.push((branch.0.into_iter().map(|condition| self.check(condition, typed_stations)).collect::<Result<Vec<TypedNode>, Vec<Error>>>()?, branch.1.into_iter().map(|body| self.check(body, typed_stations)).collect::<Result<Vec<TypedNode>, Vec<Error>>>()?))
+                    typed_branches.push(ConditionBranch { condition: branch.condition.into_iter().map(|condition| self.check(condition, typed_stations)).collect::<Result<Vec<TypedNode>, Vec<Error>>>()?, body: branch.body.into_iter().map(|body| self.check(body, typed_stations)).collect::<Result<Vec<TypedNode>, Vec<Error>>>()? })
                 };
                 Ok(TypedNode::Condition { branches: typed_branches, final_branch: final_branch.into_iter().map(|body| self.check(body, typed_stations)).collect::<Result<Vec<TypedNode>, Vec<Error>>>()? } )
             },

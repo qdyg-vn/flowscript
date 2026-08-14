@@ -1,6 +1,12 @@
 use crate::value::{Kind, LightValue, HeavyValue};
 
 #[derive(Debug)]
+pub struct ConditionBranch<N> {
+    pub condition: Vec<N>,
+    pub body: Vec<N>
+}
+
+#[derive(Debug)]
 pub enum Node {
     Literal(LightValue),
     HeavyLiteral(HeavyValue),
@@ -20,7 +26,7 @@ pub enum Node {
         result: Kind,
     },
     Condition {
-        branches: Vec<(Vec<Node>, Vec<Node>)>,
+        branches: Vec<ConditionBranch<Node>>,
         final_branch: Vec<Node>,
     },
     Return(Box<Node>),
@@ -49,7 +55,7 @@ pub enum ResolvedNode {
         body: AST,
     },
     Condition {
-        branches: Vec<(Vec<ResolvedNode>, Vec<ResolvedNode>)>,
+        branches: Vec<ConditionBranch<ResolvedNode>>,
         final_branch: Vec<ResolvedNode>,
     },
     Return(Box<ResolvedNode>),
@@ -79,7 +85,7 @@ pub enum TypedNode {
         body: TypedAST,
     },
     Condition {
-        branches: Vec<(Vec<TypedNode>, Vec<TypedNode>)>,
+        branches: Vec<ConditionBranch<TypedNode>>,
         final_branch: Vec<TypedNode>,
     },
     Return(Box<TypedNode>),
