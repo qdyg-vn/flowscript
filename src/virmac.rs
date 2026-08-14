@@ -4,24 +4,35 @@ use crate::value::{get_kind, LightValue, Value, Kind};
 use crate::error_handler::{ErrorHandler, Error, RuntimeError, RuntimeErrorType};
 use crate::memory::Memory;
 
+#[derive(Debug)]
+pub struct VMConfig {
+    pub memory: Memory,
+    pub constants_pool: Vec<LightValue>,
+    pub heavy_constant_starts: Vec<usize>,
+    pub function_starts: Vec<usize>,
+}
+
+#[derive(Default)]
 pub struct VirMac {
     stations_output: Vec<LightValue>,
     base_pointers: Vec<usize>,
     memory: Memory,
     constants_pool: Vec<LightValue>,
-    starts : Vec<usize>,
+    heavy_constant_starts: Vec<usize>,
+    function_starts: Vec<usize>,
     error_handler: ErrorHandler,
 }
 
 impl VirMac {
-    pub fn new(memory: Memory, error_handler: ErrorHandler, constants_pool: Vec<LightValue>, starts: Vec<usize>) -> Self {
+    pub fn new(config: VMConfig, error_handler: ErrorHandler) -> Self {
         Self {
-            stations_output: Vec::new(),
             base_pointers: vec![0],
-            memory,
-            constants_pool,
-            starts,
+            memory: config.memory,
+            constants_pool: config.constants_pool,
+            heavy_constant_starts: config.heavy_constant_starts,
+            function_starts: config.function_starts,
             error_handler,
+            ..Self::default()
         }
     }
 
@@ -84,10 +95,8 @@ impl VirMac {
                 *instruction_position += Bytecode::BUILTIN_CALL_SIZE;
             }
             Bytecode::CALL => {
-                let scope = u16::from_le_bytes([chunk[*instruction_position + 1], chunk[*instruction_position + 2]]);
-                let index = u16::from_le_bytes([chunk[*instruction_position + 3], chunk[*instruction_position + 4]]);
-                let LightValue::FunctionPointer(function_index) = &stack[self.base_pointers[scope as usize] + index as usize] else { unreachable!() };
-                let (functions, arities, variables_counts, lengths) = self.to_function(*function_index as usize);
+                let function_index = u16::from_le_bytes([chunk[*instruction_position + 1], chunk[*instruction_position + 2]]);
+                let (functions, arities, variables_counts, lengths) = self.to_function(function_index as usize);
                 for index in 0..functions.len() {
                     let (function, arity, variables_count, length) = (&functions[index], arities[index], variables_counts[index], lengths[index]);
                     let mut function_instruction_position = 0;
@@ -124,12 +133,6 @@ impl VirMac {
                 stack.swap(base_pointer, *stack_position - 1);
                 *instruction_position += Bytecode::RETURN_SIZE;
             },
-            Bytecode::DEFINE_FUNCTION => {
-                let index = u16::from_le_bytes([chunk[*instruction_position + 1], chunk[*instruction_position + 2]]);
-                let body_index = u16::from_le_bytes([chunk[*instruction_position + 3], chunk[*instruction_position + 4]]);
-                stack[base_pointer + index as usize] = self.constants_pool[body_index as usize];
-                *instruction_position += Bytecode::DEFINE_FUNCTION_SIZE;
-            }
             Bytecode::ARRAY => {
                 let count = u32::from_le_bytes(chunk[*instruction_position + 1..=*instruction_position + 4].try_into().unwrap());
                 let start = *stack_position - count as usize;
@@ -336,7 +339,6 @@ impl VirMac {
                 },
                 LightValue::ArrayPointer(index) => Value::Array(self.to_array(*index as usize)),
                 LightValue::ArrayHeapPointer(index) => Value::Array(self.to_heap_array(*index as usize)),
-                LightValue::FunctionPointer(_) | LightValue::ClosurePointer(_) => unreachable!(),
             });
         }
         let builtin = get_builtin(index);
@@ -357,21 +359,21 @@ impl VirMac {
     }
 
     fn to_function(&self, index_of_start: usize) -> (Vec<Vec<u8>>, Vec<u8>, Vec<u16>, Vec<usize>) {
-        let mut start = self.starts[index_of_start];
-        let length = u64::from_le_bytes(self.memory.permanent_space[start..start + 8].try_into().unwrap());
+        let mut start = self.function_starts[index_of_start];
+        let length = u64::from_le_bytes(self.memory.functions[start..start + 8].try_into().unwrap());
         let mut lengths = Vec::with_capacity(length as usize);
         let mut arities = Vec::with_capacity(length as usize);
         let mut variables_counts = Vec::with_capacity(length as usize);
         let mut functions = Vec::with_capacity(length as usize);
         start += 8;
         for _ in 0..length {
-            let length = u64::from_le_bytes(self.memory.permanent_space[start..start + 8].try_into().unwrap());
+            let length = u64::from_le_bytes(self.memory.functions[start..start + 8].try_into().unwrap());
             lengths.push(length as usize);
-            let arity = self.memory.permanent_space[start + 8];
+            let arity = self.memory.functions[start + 8];
             arities.push(arity);
-            let variables_count = u16::from_le_bytes([self.memory.permanent_space[start + 9], self.memory.permanent_space[start + 10]]);
+            let variables_count = u16::from_le_bytes([self.memory.functions[start + 9], self.memory.functions[start + 10]]);
             variables_counts.push(variables_count);
-            let function = self.memory.permanent_space[start + 11..start + 11 + length as usize].to_vec();
+            let function = self.memory.functions[start + 11..start + 11 + length as usize].to_vec();
             functions.push(function);
             start += 11 + length as usize;
         }
@@ -379,7 +381,7 @@ impl VirMac {
     }
 
     fn to_string(&self, index_of_start: usize) -> String {
-        let start = self.starts[index_of_start];
+        let start = self.heavy_constant_starts[index_of_start];
         let length = u64::from_le_bytes(self.memory.permanent_space[start..start + 8].try_into().unwrap());
         String::from_utf8(self.memory.permanent_space[start + 8..start + 8 + length as usize].to_vec()).unwrap()
     }

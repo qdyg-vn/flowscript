@@ -42,11 +42,11 @@ impl TypeChecker {
                     Err(errors) => Err(errors),
                 }
             },
-            ResolvedNode::Call { scope, index, arguments, signature_index } => {
+            ResolvedNode::Call { arguments, signature_index } => {
                 let typed_arguments = arguments.into_iter().map(|argument| self.check(argument, typed_stations)).collect::<Result<Vec<TypedNode>, Vec<Error>>>()?;
                 let required_variables_type = self.symbol_table.get_parameters(signature_index);
                 self.check_function_arguments(&typed_arguments, required_variables_type);
-                Ok(TypedNode::Call { scope, index, arguments: typed_arguments, result: self.symbol_table.get_result(signature_index) })
+                Ok(TypedNode::Call { signature_index, arguments: typed_arguments, result: self.symbol_table.get_result(signature_index) })
             },
             ResolvedNode::Pipeline(stations) => {
                 let mut typed_stations = Vec::with_capacity(stations.len());
@@ -83,9 +83,9 @@ impl TypeChecker {
                 self.symbol_table.all_variable[variable_index as usize] = kind;
                 Ok(TypedNode::Assignment(index, kind))
             },
-            ResolvedNode::DefineFunction { index, body } => {
+            ResolvedNode::DefineFunction { signature_index, body } => {
                 let child_typed_stations = Vec::with_capacity(body.nodes.len());
-                Ok(TypedNode::DefineFunction { index, body: TypedAST { nodes: body.nodes.into_iter().map(|node| self.check(node, &child_typed_stations)).collect::<Result<Vec<TypedNode>, Vec<Error>>>()?, arity: body.arity, variables_count: body.variables_count }})
+                Ok(TypedNode::DefineFunction { signature_index, body: TypedAST { nodes: body.nodes.into_iter().map(|node| self.check(node, &child_typed_stations)).collect::<Result<Vec<TypedNode>, Vec<Error>>>()?, arity: body.arity, variables_count: body.variables_count }})
             },
             ResolvedNode::Condition { branches, final_branch } => {
                 let mut typed_branches = Vec::with_capacity(branches.len());
@@ -156,7 +156,7 @@ impl TypeChecker {
             TypedNode::Literal(value) => value.get_kind(),
             TypedNode::HeavyLiteral(value) => value.get_kind(),
             TypedNode::Variable(_, kind) | TypedNode::Assignment(_, kind) => *kind,
-            TypedNode::BuiltinCall { result, ..} => *result,
+            TypedNode::BuiltinCall { result, ..} | TypedNode::Call { result, .. } => *result,
             TypedNode::RelativeReference(_, _, parent_kind) => *parent_kind,
             TypedNode::Add(_, _, result) | TypedNode::Minus(_, _, result)
             | TypedNode::Multiply(_, _, result) | TypedNode::Equal(_, _, result)
@@ -219,7 +219,12 @@ impl TypeChecker {
                         self.error_handler.push_error(TypeError {kind: TypeErrorType::TypeMismatch(required_variable_type, *kind)})
                     }
                 },
-                TypedNode::BuiltinCall { result: result, .. } => {
+                TypedNode::BuiltinCall { result, .. } | TypedNode::Add(_, _, result)
+                | TypedNode::Minus(_, _, result) | TypedNode::Multiply(_, _, result)
+                | TypedNode::Equal(_, _, result) | TypedNode::LessThan(_, _, result)
+                | TypedNode::GreaterThan(_, _, result) | TypedNode::LessThanOrEqual(_, _, result)
+                | TypedNode::GreaterThanOrEqual(_, _, result) | TypedNode::NotEqual(_, _, result)
+                => {
                     if required_variable_type != *result {
                         self.error_handler.push_error(TypeError {kind: TypeErrorType::TypeMismatch(required_variable_type, *result)})
                     }

@@ -13,18 +13,17 @@ pub enum Bytecode {
     Return,
     Store, // u16: offset from base pointer, u8: kind
     Array, // u32: length
-    DefineFunction, // u16: offset from base pointer, u16: index of body in constant pool
     Not,
-    Add, // u16: arity
-    Minus, // u16: arity
-    Multiply, // u16: arity
-    Equal, // u16: arity
-    LessThan, // u16: arity
+    Add, // u16: arity, u8: kind
+    Minus, // u16: arity, u8: kind
+    Multiply, // u16: arity, u8: kind
+    Equal, // u16: arity, u8: kind
+    LessThan, // u16: arity, u8: kind
 }
 
 impl Bytecode {
     pub const CALL: u8 = Self::Call as u8;
-    pub const CALL_SIZE: usize = 1 + 2 + 2;
+    pub const CALL_SIZE: usize = 1 + 2;
     pub const BUILTIN_CALL: u8 = Self::BuiltinCall as u8;
     pub const BUILTIN_CALL_SIZE: usize = 1 + 2 + 2;
     pub const LOAD: u8 = Self::Load as u8;
@@ -43,8 +42,6 @@ impl Bytecode {
     pub const STORE_SIZE: usize = 1 + 2 + 1;
     pub const ARRAY: u8 = Self::Array as u8;
     pub const ARRAY_SIZE: usize = 1 + 4;
-    pub const DEFINE_FUNCTION: u8 = Self::DefineFunction as u8;
-    pub const DEFINE_FUNCTION_SIZE: usize = 1 + 2 + 2;
     pub const NOT: u8 = Self::Not as u8;
     pub const NOT_SIZE: usize = 1;
     pub const ADD: u8 = Self::Add as u8;
@@ -61,7 +58,7 @@ impl Bytecode {
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum Instruction {
-    Call(u16, u16),
+    Call(u16),
     BuiltinCall(u16, u16),
     Load(u32),
     LoadVariable(u16),
@@ -71,7 +68,6 @@ pub enum Instruction {
     Return,
     Store(u16, u8),
     Array(u32),
-    DefineFunction(u16, u16),
     Not,
     Add(u16, Kind),
     Minus(u16, Kind),

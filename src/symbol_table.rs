@@ -12,12 +12,12 @@ pub struct FunctionSignature {
 
 #[derive(Copy, Clone, Debug)]
 pub enum SymbolType {
-    VariableScope(u16, u16, u32),
-    FunctionScope(u16, u16, u32),
+    VariableScope(u16, u32),
+    FunctionScope(u32),
     Builtin(u16),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct SymbolTable {
     builtins: HashMap<String, u16>,
     scopes: Vec<HashMap<String, SymbolType>>,
@@ -27,18 +27,15 @@ pub struct SymbolTable {
 }
 
 impl SymbolTable {
-    pub fn new() -> Self {
-        let mut builtins = HashMap::new();
-        for (index, &function) in BUILTIN_TABLE.iter().enumerate() {
-            builtins.insert(function.name.to_string(), index as u16);
-        }
-        Self {
-            builtins,
+    pub fn with_builtins() -> Self {
+        let mut table = Self {
             scopes: vec![HashMap::new()],
-            all_variable: Vec::new(),
-            functions: Vec::new(),
-            all_parameters: Vec::new(),
+            ..Self::default()
+        };
+        for (index, &function) in BUILTIN_TABLE.iter().enumerate() {
+            table.builtins.insert(function.name.to_string(), index as u16);
         }
+        table
     }
 
     pub fn new_scope(&mut self) {
@@ -57,7 +54,7 @@ impl SymbolTable {
             Entry::Vacant(entry) => {
                 let variable_index = self.all_variable.len() as u32;
                 self.all_variable.push(kind);
-                let new_symbol = SymbolType::VariableScope(scope, index, variable_index);
+                let new_symbol = SymbolType::VariableScope(index, variable_index);
                 entry.insert(new_symbol);
                 Ok(new_symbol)
             }
@@ -67,13 +64,11 @@ impl SymbolTable {
 
     pub fn add_function(&mut self, variable: String, signature_length: u32, result: Kind) -> Result<SymbolType, SymbolType> {
         let signature_index = self.functions.len() as u32;
-        self.functions.push(FunctionSignature { start: self.all_parameters.len() as u32, length: signature_length as u8, result });
-        let scope = self.scopes.len() as u16 - 1;
         let last_scope = self.scopes.last_mut().unwrap();
-        let index = last_scope.len() as u16;
         match last_scope.entry(variable) {
             Entry::Vacant(entry) => {
-                let new_symbol = SymbolType::FunctionScope(scope, index, signature_index);
+                self.functions.push(FunctionSignature { start: self.all_parameters.len() as u32, length: signature_length as u8, result });
+                let new_symbol = SymbolType::FunctionScope(signature_index);
                 entry.insert(new_symbol);
                 Ok(new_symbol)
             }

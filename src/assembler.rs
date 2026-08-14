@@ -1,7 +1,8 @@
 use crate::instructions::{Bytecode, Instruction, Chunk};
 use crate::memory::Memory;
 use crate::constants_pool::ConstantsPool;
-use crate::value::{LightValue, HeavyValue};
+use crate::value::HeavyValue;
+use crate::virmac::VMConfig;
 
 pub struct Assembler {
     memory: Memory,
@@ -16,7 +17,7 @@ impl Assembler {
         }
     }
 
-    pub fn assemble_map(mut self, map: Vec<Chunk>) -> (Vec<Vec<u8>>, Vec<usize>, Vec<LightValue>, Memory) {
+    pub fn assemble_map(mut self, map: Vec<Chunk>) -> (Vec<Vec<u8>>, VMConfig) {
         let mut byte_map = Vec::new();
         for chunk in map {
             let mut byte_position = 0;
@@ -24,37 +25,47 @@ impl Assembler {
             self.assemble_instruction(chunk.instructions, &mut byte_position, &mut byte_chunk);
             byte_map.push(byte_chunk)
         }
-        (byte_map, self.assemble_heavy_constants(), self.constants_pool.constants, self.memory)
+        (byte_map, VMConfig {
+            heavy_constant_starts: self.assemble_heavy_constants(),
+            function_starts: self.assemble_function(),
+            memory: self.memory,
+            constants_pool: self.constants_pool.constants
+        })
     }
 
     fn assemble_heavy_constants(&mut self) -> Vec<usize> {
-        let mut starts = Vec::new();
+        let mut heavy_constant_starts = Vec::new();
         for constant in std::mem::take(&mut self.constants_pool.heavy_constants) {
             match constant {
                 HeavyValue::String(string) => {
-                    starts.push(self.memory.permanent_space.len());
+                    heavy_constant_starts.push(self.memory.permanent_space.len());
                     let string_bytes = string.into_bytes();
                     self.memory.permanent_space.extend_from_slice(&string_bytes.len().to_le_bytes());
                     self.memory.permanent_space.extend_from_slice(&string_bytes)
                 },
-                HeavyValue::Function(body) => {
-                    starts.push(self.memory.permanent_space.len());
-                    self.memory.permanent_space.extend_from_slice(&body.len().to_le_bytes());
-                    for chunk in body {
-                        let mut byte_position = 0;
-                        let mut byte_chunk = vec![chunk.arity];
-                        byte_chunk.extend_from_slice(&chunk.variables_count.to_le_bytes());
-                        let arity_length = 1;
-                        let variables_count_length = 2;
-                        self.assemble_instruction(chunk.instructions, &mut byte_position, &mut byte_chunk);
-                        self.memory.permanent_space.extend_from_slice(&(byte_chunk.len() - arity_length - variables_count_length).to_le_bytes());
-                        self.memory.permanent_space.extend_from_slice(&byte_chunk)
-                    }
-                },
                 _ => unreachable!()
             }
         };
-        starts
+        heavy_constant_starts
+    }
+
+    fn assemble_function(&mut self) -> Vec<usize> {
+        let mut function_starts = Vec::new();
+        for function in std::mem::take(&mut self.constants_pool.functions) {
+            function_starts.push(self.memory.functions.len());
+            self.memory.functions.extend_from_slice(&function.len().to_le_bytes());
+            for chunk in function {
+                let mut byte_position = 0;
+                let mut byte_chunk = vec![chunk.arity];
+                byte_chunk.extend_from_slice(&chunk.variables_count.to_le_bytes());
+                let arity_length = 1;
+                let variables_count_length = 2;
+                self.assemble_instruction(chunk.instructions, &mut byte_position, &mut byte_chunk);
+                self.memory.functions.extend_from_slice(&(byte_chunk.len() - arity_length - variables_count_length).to_le_bytes());
+                self.memory.functions.extend_from_slice(&byte_chunk)
+            }
+        };
+        function_starts
     }
 
     fn assemble_instruction(&mut self, instructions: Vec<Instruction>, byte_position: &mut usize, byte_chunk: &mut Vec<u8>) {
@@ -73,9 +84,8 @@ impl Assembler {
                     byte_chunk.extend_from_slice(&arity.to_le_bytes());
                     *byte_position += Bytecode::BUILTIN_CALL_SIZE
                 },
-                Instruction::Call(scope, index) => {
+                Instruction::Call(index) => {
                     byte_chunk.push(Bytecode::Call as u8);
-                    byte_chunk.extend_from_slice(&scope.to_le_bytes());
                     byte_chunk.extend_from_slice(&index.to_le_bytes());
                     *byte_position += Bytecode::CALL_SIZE
                 },
@@ -95,12 +105,6 @@ impl Assembler {
                     byte_chunk.push(Bytecode::LoadVariable as u8);
                     byte_chunk.extend_from_slice(&index.to_le_bytes());
                     *byte_position += Bytecode::LOAD_VARIABLE_SIZE
-                },
-                Instruction::DefineFunction(index, body_index) => {
-                    byte_chunk.push(Bytecode::DefineFunction as u8);
-                    byte_chunk.extend_from_slice(&index.to_le_bytes());
-                    byte_chunk.extend_from_slice(&body_index.to_le_bytes());
-                    *byte_position += Bytecode::DEFINE_FUNCTION_SIZE
                 },
                 Instruction::Return => {
                     byte_chunk.push(Bytecode::Return as u8);
@@ -166,7 +170,7 @@ impl Assembler {
         let mut distance = 0;
         while position < target as usize {
             match instructions[position] {
-                Instruction::Call(_, _) => distance += Bytecode::CALL_SIZE,
+                Instruction::Call(_) => distance += Bytecode::CALL_SIZE,
                 Instruction::BuiltinCall(_, _) => distance += Bytecode::BUILTIN_CALL_SIZE,
                 Instruction::Load(_) => distance += Bytecode::LOAD_SIZE,
                 Instruction::LoadVariable(_) => distance += Bytecode::LOAD_VARIABLE_SIZE,
@@ -176,7 +180,6 @@ impl Assembler {
                 Instruction::Return => distance += Bytecode::RETURN_SIZE,
                 Instruction::Store(_, _) => distance += Bytecode::STORE_SIZE,
                 Instruction::Array(_) => distance += Bytecode::ARRAY_SIZE,
-                Instruction::DefineFunction(_, _) => distance += Bytecode::DEFINE_FUNCTION_SIZE,
                 Instruction::Not => distance += Bytecode::NOT_SIZE,
                 Instruction::Add(_, _) => distance += Bytecode::ADD_SIZE,
                 Instruction::Minus(_, _) => distance += Bytecode::MINUS_SIZE,

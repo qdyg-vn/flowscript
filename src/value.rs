@@ -2,7 +2,6 @@ use std::cell::RefCell;
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
-use crate::instructions::Chunk;
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -57,8 +56,6 @@ pub enum LightValue {
     Float(f64),
     Integer(i64),
     StringPointer(u32),
-    FunctionPointer(u32),
-    ClosurePointer(u32),
     ArrayPointer(u32),
     StringHeapPointer(u32),
     ArrayHeapPointer(u32),
@@ -75,8 +72,6 @@ impl LightValue {
     pub const INTEGER_SIZE: usize = 1 + 8;  
     pub const STRING_POINTER: u8 = 4;
     pub const STRING_POINTER_SIZE: usize = 1 + 4;
-    pub const FUNCTION_POINTER: u8 = 5;
-    pub const FUNCTION_POINTER_SIZE: usize = 1 + 4;
     pub const ARRAY_POINTER: u8 = 6;
     pub const ARRAY_POINTER_SIZE: usize = 1 + 4;
     pub fn get_kind(&self) -> Kind {
@@ -99,7 +94,6 @@ impl Hash for LightValue {
             Self::Float(float) => float.to_bits().hash(state),
             Self::StringPointer(string) => string.hash(state),
             Self::Nil => 0.hash(state),
-            Self::FunctionPointer(function) => function.hash(state),
             _ => unreachable!(),
         }
     }
@@ -108,8 +102,6 @@ impl Hash for LightValue {
 #[derive(Debug, Clone, PartialEq)]
 pub enum HeavyValue {
     String(String),
-    Function(Vec<Chunk>),
-    Closure(Closure),
     Array(Vec<LightValue>),
 }
 
@@ -140,7 +132,6 @@ pub enum Value {
     Float(f64),
     Integer(i64),
     String(String),
-    Function(Vec<u8>),
     Array(Vec<Value>),
 }
 
@@ -160,7 +151,7 @@ impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Boolean(boolean) => write!(f, "{}", boolean),
-            Self::Nil => write!(f, "Nil"),
+            Self::Nil => write!(f, ""),
             Self::Float(float) => write!(f, "{}", float),
             Self::Integer(integer) => write!(f, "{}", integer),
             Self::String(string) => write!(f, "{}", string),

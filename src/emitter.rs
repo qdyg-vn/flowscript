@@ -1,7 +1,6 @@
 use crate::constants_pool::ConstantsPool;
 use crate::instructions::{Chunk, Instruction};
 use crate::node::{TypedAST, TypedNode};
-use crate::value::HeavyValue;
 
 pub struct Emitter {
     constants_pool: ConstantsPool,
@@ -41,14 +40,14 @@ impl Emitter {
                     self.create_chunk(arguments, chunk);
                     chunk.instructions.push(Instruction::BuiltinCall(index, arity))
                 },
-                TypedNode::Call {scope, index, arguments, ..} => {
+                TypedNode::Call { signature_index, arguments, ..} => {
                     self.create_chunk(arguments, chunk);
-                    chunk.instructions.push(Instruction::Call(scope, index))
+                    chunk.instructions.push(Instruction::Call(signature_index as u16))
                 },
                 TypedNode::RelativeReference(x, y, _) => chunk.instructions.push(Instruction::RelativeReference(x, y)),
                 TypedNode::Assignment(index, kind) => chunk.instructions.push(Instruction::Store(index, kind as u8)),
                 TypedNode::Variable(index, _) => chunk.instructions.push(Instruction::LoadVariable(index)),
-                TypedNode::DefineFunction { index, body } => {
+                TypedNode::DefineFunction { signature_index, body } => {
                     let mut pipelines = Vec::with_capacity(body.nodes.len());
                     for node in body.nodes {
                         let TypedNode::Pipeline(pipeline) = node else { unreachable!() };
@@ -56,8 +55,7 @@ impl Emitter {
                         self.create_chunk(pipeline, &mut child_chunk);
                         pipelines.push(child_chunk)
                     }
-                    let body_index = self.constants_pool.add_heavy_constant(&HeavyValue::Function(pipelines));
-                    chunk.instructions.push(Instruction::DefineFunction(index, body_index as u16));
+                    self.constants_pool.write_function_body(signature_index as usize, pipelines);
                 },
                 TypedNode::Pipeline(stations) => self.create_chunk(stations, chunk),
                 TypedNode::Condition {branches, final_branch} => self.emit_condition(branches, final_branch, chunk),

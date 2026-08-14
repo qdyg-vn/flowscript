@@ -36,8 +36,6 @@ pub enum ResolvedNode {
         arguments: Vec<ResolvedNode>,
     },
     Call {
-        scope: u16,
-        index: u16,
         arguments: Vec<ResolvedNode>,
         signature_index: u32,
     },
@@ -47,7 +45,7 @@ pub enum ResolvedNode {
     SoftAssignment(u16, u32),
     Assignment(u16, u32, Kind),
     DefineFunction {
-        index: u16,
+        signature_index: u32,
         body: AST,
     },
     Condition {
@@ -68,8 +66,7 @@ pub enum TypedNode {
         result: Kind,
     },
     Call {
-        scope: u16,
-        index: u16,
+        signature_index: u32,
         arguments: Vec<TypedNode>,
         result: Kind,
     },
@@ -78,7 +75,7 @@ pub enum TypedNode {
     Variable(u16, Kind),
     Assignment(u16, Kind),
     DefineFunction {
-        index: u16,
+        signature_index: u32,
         body: TypedAST,
     },
     Condition {
@@ -101,14 +98,13 @@ pub enum TypedNode {
 #[derive(Debug)]
 pub struct AST {
     pub nodes: Vec<ResolvedNode>,
-    pub arity: u8,
     pub variables_count: u16,
-    pub define_function_count: u16,
+    pub arity: u8,
 }
 
 #[derive(Debug)]
 pub struct TypedAST {
     pub nodes: Vec<TypedNode>,
-    pub arity: u8,
     pub variables_count: u16,
+    pub arity: u8,
 }

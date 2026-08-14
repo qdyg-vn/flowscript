@@ -2,8 +2,10 @@ use crate::value::LightValue;
 
 const CAPACITY: usize = 262144;
 
+#[derive(Default, Debug)]
 pub struct Memory {
     pub permanent_space: Vec<u8>,
+    pub functions: Vec<u8>,
     pub from_space: Vec<u8>,
     to_space: Vec<u8>,
     free_pointer: usize,
@@ -15,13 +17,10 @@ pub struct Memory {
 impl Memory {
     pub fn new() -> Self {
         Self {
-            permanent_space: Vec::new(),
             from_space: Vec::with_capacity(CAPACITY),
             to_space: Vec::with_capacity(CAPACITY),
-            free_pointer: 0,
-            scan_pointer: 0,
-            allocated_bytes: 0,
             garbage_collect_threshold: CAPACITY,
+            ..Self::default()
         }
     }
 
