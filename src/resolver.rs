@@ -24,7 +24,7 @@ impl Resolver {
 
     pub fn resolve(mut self, nodes: Vec<Node>) -> ResolverOutput {
         let mut ast = AST { nodes: Vec::with_capacity(nodes.len()), arity: 0, variables_count: 0 };
-        let main_define_function_count = self.push_signature_to_symbol_table(&nodes, &mut ast);
+        let main_define_function_count = self.push_signature_to_symbol_table(&nodes);
         for node in nodes {
             if let Node::Pipeline(stations) = node {
                 let result = ResolvedNode::Pipeline(self.solve(stations, &mut ast));
@@ -35,20 +35,20 @@ impl Resolver {
         ResolverOutput { error_handler: self.error_handler, symbol_table: self.symbol_table, main_variables_count: ast.variables_count, ast, total_define_function_count: self.total_define_function_count, main_define_function_count }
     }
 
-    fn push_signature_to_symbol_table(&mut self, stations: &Vec<Node>, ast: &mut AST) -> u32 {
+    fn push_signature_to_symbol_table(&mut self, stations: &Vec<Node>) -> u32 {
         let mut define_function_count = 0;
         for station in stations {
             match station {
-                Node::Pipeline(stations) => { self.push_signature_to_symbol_table(stations, ast); },
+                Node::Pipeline(stations) => { self.push_signature_to_symbol_table(stations); },
                 Node::DefineFunction { operator, parameters, result, .. } => {
                     self.symbol_table.add_function(operator.clone(), parameters.len() as u32, *result);
                     define_function_count += 1;
                 }
                 Node::Condition { branches, final_branch } => {
                     for branch in branches {
-                        { self.push_signature_to_symbol_table(&branch.body, ast); }
+                        { self.push_signature_to_symbol_table(&branch.body); }
                     }
-                    { self.push_signature_to_symbol_table(final_branch, ast); }
+                    { self.push_signature_to_symbol_table(final_branch); }
                 }
                 _ => {}
             }
@@ -124,7 +124,7 @@ impl Resolver {
                             _ => todo!()
                         }
                     }
-                    self.push_signature_to_symbol_table(&body, &mut child_ast);
+                    self.push_signature_to_symbol_table(&body);
                     let body = self.solve(body, &mut child_ast);
                     child_ast.nodes = body;
                     self.symbol_table.pop_scope();

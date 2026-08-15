@@ -1,4 +1,4 @@
-use crate::value::{Kind, LightValue, HeavyValue};
+use crate::value::{Kind, LightValue, Value};
 
 #[derive(Debug)]
 pub struct ConditionBranch<N> {
@@ -9,7 +9,7 @@ pub struct ConditionBranch<N> {
 #[derive(Debug)]
 pub enum Node {
     Literal(LightValue),
-    HeavyLiteral(HeavyValue),
+    HeavyLiteral(Value),
     Apply {
         operator: String,
         arguments: Vec<Node>,
@@ -36,7 +36,7 @@ pub enum Node {
 #[derive(Debug)]
 pub enum ResolvedNode {
     Literal(LightValue),
-    HeavyLiteral(HeavyValue),
+    HeavyLiteral(Value),
     BuiltinCall {
         index: u16,
         arguments: Vec<ResolvedNode>,
@@ -65,7 +65,7 @@ pub enum ResolvedNode {
 #[derive(Debug)]
 pub enum TypedNode {
     Literal(LightValue),
-    HeavyLiteral(HeavyValue),
+    HeavyLiteral(Value),
     BuiltinCall {
         index: u16,
         arguments: Vec<TypedNode>,

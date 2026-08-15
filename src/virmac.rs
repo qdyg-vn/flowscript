@@ -473,7 +473,6 @@ impl VirMac {
                 self.memory.from_space[index..index + 8].copy_from_slice(&length.to_le_bytes());
                 LightValue::ArrayHeapPointer(index as u32)
             },
-            _ => unreachable!()
         }
     }
 }

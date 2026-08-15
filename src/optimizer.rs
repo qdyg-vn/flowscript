@@ -1,6 +1,6 @@
 use crate::node::{ResolvedNode, AST};
 use crate::builtins::{get_builtin, BuiltinFunction};
-use crate::value::{LightValue, HeavyValue, Value};
+use crate::value::{LightValue, Value};
 use crate::error_handler::ErrorHandler;
 
 pub struct Optimizer {
@@ -55,14 +55,14 @@ impl Optimizer {
             arguments.push(match argument {
                 ResolvedNode::Literal(LightValue::Float(value)) => Value::Float(*value),
                 ResolvedNode::Literal(LightValue::Integer(value)) => Value::Integer(*value),
-                ResolvedNode::HeavyLiteral(HeavyValue::String(value)) => Value::String(value.clone()),
+                ResolvedNode::HeavyLiteral(Value::String(value)) => Value::String(value.clone()),
                 ResolvedNode::Condition { .. } => { self.condition_node(argument); only_have_literal_node = false; continue }
                 ResolvedNode::BuiltinCall { .. } => {
                     self.builtin_node(argument);
                     match argument {
                         ResolvedNode::Literal(LightValue::Float(value)) => Value::Float(*value),
                         ResolvedNode::Literal(LightValue::Integer(value)) => Value::Integer(*value),
-                        ResolvedNode::HeavyLiteral(HeavyValue::String(value)) => Value::String(value.clone()),
+                        ResolvedNode::HeavyLiteral(Value::String(value)) => Value::String(value.clone()),
                         _ => { only_have_literal_node = false; continue }
                     }
                 }
@@ -74,7 +74,7 @@ impl Optimizer {
             Ok(Value::Boolean(value)) => ResolvedNode::Literal(LightValue::Boolean(value)),
             Ok(Value::Float(value)) => ResolvedNode::Literal(LightValue::Float(value)),
             Ok(Value::Integer(value)) => ResolvedNode::Literal(LightValue::Integer(value)),
-            Ok(Value::String(value)) => ResolvedNode::HeavyLiteral(HeavyValue::String(value)),
+            Ok(Value::String(value)) => ResolvedNode::HeavyLiteral(Value::String(value)),
             Ok(_) => todo!(),
             Err(error) => { self.error_handler.push_error(error); return }
         }

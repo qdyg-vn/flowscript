@@ -43,7 +43,7 @@ fn run(source_code: Vec<u8>) {
     let mut error_handler = ErrorHandler::default();
     let memory = Memory::new();
     let lexer = Lexer::new(&source_code);
-    let mut parser = Parser::new(lexer);
+    let parser = Parser::new(lexer);
     let mut nodes = Vec::new();
     for item in parser {
         match item {
@@ -52,18 +52,18 @@ fn run(source_code: Vec<u8>) {
         }
     }
     if !error_handler.errors.is_empty() { error_handler.report_exit() }
-    let symbol_table = SymbolTable::new();
-    let mut resolver = Resolver::new(error_handler, symbol_table);
-    let (error_handler, symbol_table, total_variables, ast) = resolver.resolve(nodes);
-    let mut optimizer = Optimizer::new(error_handler);
-    let (ast, error_handler) = optimizer.optimizer(ast);
-    let mut type_checker = TypeChecker::new(error_handler, symbol_table);
+    let symbol_table = SymbolTable::with_builtins();
+    let resolver = Resolver::new(error_handler, symbol_table);
+    let resolver_output = resolver.resolve(nodes);
+    let optimizer = Optimizer::new(resolver_output.error_handler);
+    let (ast, error_handler) = optimizer.optimizer(resolver_output.ast);
+    let type_checker = TypeChecker::new(error_handler, resolver_output.symbol_table);
     let (error_handler, typed_ast) = type_checker.checker(ast);
-    let constants_pool = ConstantsPool::default();
-    let mut emitter = Emitter::new(constants_pool);
+    let constants_pool = ConstantsPool::new(resolver_output.total_define_function_count as usize);
+    let emitter = Emitter::new(constants_pool);
     let (constants_pool, map) = emitter.emit(typed_ast);
-    let mut asm = Assembler::new(memory, constants_pool);
-    let (byte_map, starts, constants, memory) = asm.assemble_map(map);
-    let mut virmac = VirMac::new(memory, error_handler, constants, starts);
-    virmac.execute(byte_map, total_variables);
+    let asm = Assembler::new(memory, constants_pool);
+    let (byte_map, vm_config) = asm.assemble_map(map);
+    let mut virmac = VirMac::new(vm_config, error_handler);
+    virmac.execute(byte_map, resolver_output.main_variables_count as usize);
 }

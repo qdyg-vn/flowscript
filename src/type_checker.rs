@@ -172,40 +172,20 @@ impl TypeChecker {
         let required_arity = required_variables_type.len();
         for index in 0..std::cmp::min(received_arity, required_arity) {
             let required_variable_type = required_variables_type[index];
-            match &arguments[index] {
-                TypedNode::Literal(value) => {
-                    let received_variable_type = value.get_kind();
-                    if received_variable_type != required_variable_type {
-                        self.error_handler.push_error(TypeError {kind: TypeErrorType::TypeMismatch(required_variable_type, received_variable_type)})
-                    }
-                },
-                TypedNode::HeavyLiteral(value) => {
-                    let received_variable_type = value.get_kind();
-                    if received_variable_type != required_variable_type {
-                        self.error_handler.push_error(TypeError {kind: TypeErrorType::TypeMismatch(required_variable_type, received_variable_type)})
-                    }
-                },
-                TypedNode::Variable(_, kind) => {
-                    if *kind != required_variable_type {
-                        self.error_handler.push_error(TypeError {kind: TypeErrorType::TypeMismatch(required_variable_type, *kind)})
-                    }
-                },
-                TypedNode::RelativeReference(_, _, kind) => {
-                    if required_variable_type != *kind {
-                        self.error_handler.push_error(TypeError {kind: TypeErrorType::TypeMismatch(required_variable_type, *kind)})
-                    }
-                },
+            let received_variable_type = match &arguments[index] {
+                TypedNode::Literal(value) => value.get_kind(),
+                TypedNode::HeavyLiteral(value) => value.get_kind(),
+                TypedNode::Variable(_, kind) | TypedNode::RelativeReference(_, _, kind) => *kind,
                 TypedNode::BuiltinCall { result, .. } | TypedNode::Add(_, _, result)
                 | TypedNode::Minus(_, _, result) | TypedNode::Multiply(_, _, result)
                 | TypedNode::Equal(_, _, result) | TypedNode::LessThan(_, _, result)
                 | TypedNode::GreaterThan(_, _, result) | TypedNode::LessThanOrEqual(_, _, result)
                 | TypedNode::GreaterThanOrEqual(_, _, result) | TypedNode::NotEqual(_, _, result)
-                => {
-                    if required_variable_type != *result {
-                        self.error_handler.push_error(TypeError {kind: TypeErrorType::TypeMismatch(required_variable_type, *result)})
-                    }
-                },
+                => *result,
                 _ => {todo!("Currently under development")}
+            };
+            if received_variable_type != required_variable_type {
+                self.error_handler.push_error(TypeError {kind: TypeErrorType::TypeMismatch(required_variable_type, received_variable_type)})
             }
         }
         if received_arity != required_arity {
@@ -217,7 +197,7 @@ impl TypeChecker {
         let TypedNode::BuiltinCall { index, arguments, result } = builtin_function else { unreachable!() };
         let kind = self.find_typed_node_kind(&arguments[0]);
         let function = get_builtin(*index);
-        if !function.have_instruction { return; }
+        if !function.have_instruction || matches!(kind, Kind::String | Kind::Array) { return; }
         match function.name {
             "+" => { *builtin_function = TypedNode::Add(std::mem::take(arguments), kind, *result) },
             "-" => { *builtin_function = TypedNode::Minus(std::mem::take(arguments), kind, *result) },

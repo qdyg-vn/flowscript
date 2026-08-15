@@ -1,4 +1,4 @@
-use crate::value::{HeavyValue, LightValue};
+use crate::value::{LightValue, Value};
 use std::collections::{HashMap};
 use crate::instructions::Chunk;
 
@@ -6,8 +6,8 @@ use crate::instructions::Chunk;
 pub struct ConstantsPool {
     pub constants: Vec<LightValue>,
     pub lookup: HashMap<LightValue, usize>,
-    pub heavy_constants: Vec<HeavyValue>,
-    pub heavy_lookup: HashMap<HeavyValue, usize>,
+    pub heavy_constants: Vec<Value>,
+    pub heavy_lookup: HashMap<Value, usize>,
     pub functions: Vec<Vec<Chunk>>,
 }
 
@@ -30,7 +30,7 @@ impl ConstantsPool {
         self.functions[index] = body
     }
 
-    pub fn add_heavy_constant(&mut self, constant: &HeavyValue) -> usize {
+    pub fn add_heavy_constant(&mut self, constant: &Value) -> usize {
         let heavy_index = match self.heavy_lookup.get(constant) {
             Some(&heavy_index) => heavy_index,
             None => {

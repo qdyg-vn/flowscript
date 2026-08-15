@@ -2,7 +2,7 @@ use crate::error_handler::{Error, SemanticError, SemanticErrorType, SyntaxError,
 use crate::node::{ConditionBranch, Node};
 use crate::lexer::Lexer;
 use crate::token::{Token, TokenType};
-use crate::value::{Kind, LightValue, HeavyValue};
+use crate::value::{Kind, LightValue, Value};
 
 pub struct Parser<'source_code> {
     lexer: Lexer<'source_code>,
@@ -67,7 +67,7 @@ impl<'source_code> Parser<'source_code> {
             TokenType::Boolean(boolean) => Some(Node::Literal(LightValue::Boolean(boolean))),
             TokenType::Nil => Some(Node::Literal(LightValue::Nil)),
             TokenType::Identifier(identifier) => self.parse_function(token.start, identifier, errors),
-            TokenType::String(string) => Some(Node::HeavyLiteral(HeavyValue::String(string))),
+            TokenType::String(string) => Some(Node::HeavyLiteral(Value::String(string))),
             TokenType::RelativeReference(x, y) => {
                 if x == 0 && y == 0 {
                     errors.push(SemanticError { kind: SemanticErrorType::NegativeXCoordinate(x) }.into());

@@ -1,7 +1,7 @@
 use crate::instructions::{Bytecode, Instruction, Chunk};
 use crate::memory::Memory;
 use crate::constants_pool::ConstantsPool;
-use crate::value::HeavyValue;
+use crate::value::Value;
 use crate::virmac::VMConfig;
 
 pub struct Assembler {
@@ -37,7 +37,7 @@ impl Assembler {
         let mut heavy_constant_starts = Vec::new();
         for constant in std::mem::take(&mut self.constants_pool.heavy_constants) {
             match constant {
-                HeavyValue::String(string) => {
+                Value::String(string) => {
                     heavy_constant_starts.push(self.memory.permanent_space.len());
                     let string_bytes = string.into_bytes();
                     self.memory.permanent_space.extend_from_slice(&string_bytes.len().to_le_bytes());

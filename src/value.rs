@@ -100,32 +100,6 @@ impl Hash for LightValue {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum HeavyValue {
-    String(String),
-    Array(Vec<LightValue>),
-}
-
-impl HeavyValue {
-    pub fn get_kind(&self) -> Kind {
-        match self {
-            Self::String(_) => Kind::String,
-            _ => todo!()
-        }
-    }
-}
-
-impl Eq for HeavyValue {}
-
-impl Hash for HeavyValue {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        match self {
-            Self::String(string) => string.hash(state),
-            _ => unreachable!(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
 pub enum Value {
     Boolean(bool),
     Nil,
@@ -165,7 +139,17 @@ impl fmt::Display for Value {
                 }
                 write!(f, "]")
             },
-            something => write!(f, "{:?}", something)
+        }
+    }
+}
+
+impl Eq for Value {}
+
+impl Hash for Value {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self {
+            Self::String(string) => string.hash(state),
+            _ => unreachable!(),
         }
     }
 }
