@@ -12,6 +12,18 @@ pub struct VMConfig {
     pub function_starts: Vec<usize>,
 }
 
+enum FrameInstruction {
+    New(u16),
+    Pop,
+}
+
+struct CallFrame {
+    instruction_position: usize,
+    end_instruction: usize,
+    stack_position: usize,
+    base_pointer: usize,
+}
+
 #[derive(Default)]
 pub struct VirMac {
     stations_output: Vec<LightValue>,
@@ -36,87 +48,82 @@ impl VirMac {
         }
     }
 
-    pub fn execute(&mut self, map: Vec<Vec<u8>>, total_variables: usize) -> Vec<LightValue> {
+    pub fn execute(&mut self) -> Vec<LightValue> {
         let mut stack = vec![LightValue::Nil; 1024];
-        for chunk in map {
-            self.stations_output.clear();
-            let chunk_size = chunk.len();
-            let mut stack_position = total_variables;
-            let mut instruction_position = 0;
-            while instruction_position < chunk_size {
-                self.dispatch_instruction(&chunk, &mut instruction_position, &mut stack, &mut stack_position, 0);
+        let mut frames = Vec::new();
+        let start_index = self.function_starts.len() - 1;
+        let (function_index, length, _arity, variables_count) = self.to_function(start_index);
+        frames.push(CallFrame { instruction_position: function_index, end_instruction: function_index + length, stack_position: variables_count as usize, base_pointer: 0 });
+        while let Some(frame) = frames.last_mut() {
+            if frame.instruction_position == frame.end_instruction {
+                frames.pop();
+                continue
+            }
+            match self.dispatch_instruction(frame, &mut stack) {
+                Some(FrameInstruction::New(start_index)) => {
+                    let (function_index, length, arity, variables_count) = self.to_function(start_index as usize);
+                    let new_frame = CallFrame { instruction_position: function_index, end_instruction: function_index + length, stack_position: frame.stack_position + variables_count as usize, base_pointer: frame.stack_position - arity as usize };
+                    frames.push(new_frame);
+                }
+                Some(FrameInstruction::Pop) => { frames.pop(); }
+                None => {}
             }
         }
         stack
     }
 
-    fn dispatch_instruction(&mut self, chunk: &[u8], instruction_position: &mut usize, stack: &mut Vec<LightValue>, stack_position: &mut usize, base_pointer: usize) {
-        if stack.len() <= *stack_position { stack.resize(stack.len() * 2, LightValue::Nil) }
-        match chunk[*instruction_position] {
+    fn dispatch_instruction(&mut self, call_frame: &mut CallFrame, stack: &mut Vec<LightValue>) -> Option<FrameInstruction> {
+        if stack.len() <= call_frame.stack_position { stack.resize(stack.len() * 2, LightValue::Nil) }
+        match self.memory.functions[call_frame.instruction_position] {
             Bytecode::LOAD => {
-                let index = u32::from_le_bytes(chunk[*instruction_position + 1..=*instruction_position + 4].try_into().unwrap());
-                stack[*stack_position] = self.constants_pool[index as usize];
+                let index = u32::from_le_bytes(self.memory.functions[call_frame.instruction_position + 1..=call_frame.instruction_position + 4].try_into().unwrap());
+                stack[call_frame.stack_position] = self.constants_pool[index as usize];
                 self.stations_output.push(self.constants_pool[index as usize]);
-                *stack_position += 1;
-                *instruction_position += Bytecode::LOAD_SIZE;
+                call_frame.stack_position += 1;
+                call_frame.instruction_position += Bytecode::LOAD_SIZE;
             },
             Bytecode::LOAD_VARIABLE => {
-                let index = u16::from_le_bytes([chunk[*instruction_position + 1], chunk[*instruction_position + 2]]);
-                stack[*stack_position] = stack[base_pointer + index as usize];
-                self.stations_output.push(stack[*stack_position]);
-                *stack_position += 1;
-                *instruction_position += Bytecode::LOAD_VARIABLE_SIZE;
+                let index = u16::from_le_bytes([self.memory.functions[call_frame.instruction_position + 1], self.memory.functions[call_frame.instruction_position + 2]]);
+                stack[call_frame.stack_position] = stack[call_frame.base_pointer + index as usize];
+                self.stations_output.push(stack[call_frame.stack_position]);
+                call_frame.stack_position += 1;
+                call_frame.instruction_position += Bytecode::LOAD_VARIABLE_SIZE;
             }
             Bytecode::JUMP => {
-                let position = u16::from_le_bytes([chunk[*instruction_position + 1], chunk[*instruction_position + 2]]);
-                *instruction_position = position as usize;
+                let position = u16::from_le_bytes([self.memory.functions[call_frame.instruction_position + 1], self.memory.functions[call_frame.instruction_position + 2]]);
+                call_frame.instruction_position = position as usize;
             },
             Bytecode::JUMP_IF_FALSE => {
-                let position = u16::from_le_bytes([chunk[*instruction_position + 1], chunk[*instruction_position + 2]]);
-                if stack[*stack_position - 1] == LightValue::Boolean(false) {
-                    *instruction_position = position as usize;
+                let position = u16::from_le_bytes([self.memory.functions[call_frame.instruction_position + 1], self.memory.functions[call_frame.instruction_position + 2]]);
+                if stack[call_frame.stack_position - 1] == LightValue::Boolean(false) {
+                    call_frame.instruction_position = position as usize;
                 } else {
-                    *instruction_position += Bytecode::JUMP_IF_FALSE_SIZE;
+                    call_frame.instruction_position += Bytecode::JUMP_IF_FALSE_SIZE;
                 };
-                *stack_position -= 1;
+                call_frame.stack_position -= 1;
             }
             Bytecode::STORE => {
-                let index = u16::from_le_bytes([chunk[*instruction_position + 1], chunk[*instruction_position + 2]]);
-                self.stations_output.push(stack[*stack_position - 1]);
-                stack[base_pointer + index as usize] = stack[*stack_position - 1];
-                *instruction_position += Bytecode::STORE_SIZE;
+                let index = u16::from_le_bytes([self.memory.functions[call_frame.instruction_position + 1], self.memory.functions[call_frame.instruction_position + 2]]);
+                self.stations_output.push(stack[call_frame.stack_position - 1]);
+                stack[call_frame.base_pointer + index as usize] = stack[call_frame.stack_position - 1];
+                call_frame.instruction_position += Bytecode::STORE_SIZE;
             }
             Bytecode::BUILTIN_CALL => {
-                let index = u16::from_le_bytes([chunk[*instruction_position + 1], chunk[*instruction_position + 2]]);
-                let arity = u16::from_le_bytes([chunk[*instruction_position + 3], chunk[*instruction_position + 4]]);
-                let start = *stack_position - arity as usize;
-                let end = *stack_position;
-                self.execute_builtin_function(index, stack, stack_position, start, end);
-                *instruction_position += Bytecode::BUILTIN_CALL_SIZE;
+                let index = u16::from_le_bytes([self.memory.functions[call_frame.instruction_position + 1], self.memory.functions[call_frame.instruction_position + 2]]);
+                let arity = u16::from_le_bytes([self.memory.functions[call_frame.instruction_position + 3], self.memory.functions[call_frame.instruction_position + 4]]);
+                let start = call_frame.stack_position - arity as usize;
+                let end = call_frame.stack_position;
+                self.execute_builtin_function(index, stack, &mut call_frame.stack_position, start, end);
+                call_frame.instruction_position += Bytecode::BUILTIN_CALL_SIZE;
             }
             Bytecode::CALL => {
-                let function_index = u16::from_le_bytes([chunk[*instruction_position + 1], chunk[*instruction_position + 2]]);
-                let (functions, arities, variables_counts, lengths) = self.to_function(function_index as usize);
-                for index in 0..functions.len() {
-                    let (function, arity, variables_count, length) = (&functions[index], arities[index], variables_counts[index], lengths[index]);
-                    let mut function_instruction_position = 0;
-                    let mut child_stack_position = *stack_position + variables_count as usize;
-                    let child_base_pointer = *stack_position - arity as usize;
-                    self.base_pointers.push(child_base_pointer);
-                    while function_instruction_position < length {
-                        if matches!(function[function_instruction_position], Bytecode::RETURN) {
-                            self.dispatch_instruction(function, &mut function_instruction_position, stack, &mut child_stack_position, child_base_pointer);
-                            self.stations_output.push(stack[child_base_pointer]);
-                            break
-                        }
-                        self.dispatch_instruction(function, &mut function_instruction_position, stack, &mut child_stack_position, child_base_pointer);
-                    };
-                }
-                *instruction_position += Bytecode::CALL_SIZE;
+                let start_index = u16::from_le_bytes([self.memory.functions[call_frame.instruction_position + 1], self.memory.functions[call_frame.instruction_position + 2]]);
+                call_frame.instruction_position += Bytecode::CALL_SIZE;
+                return Some(FrameInstruction::New(start_index))
             },
             Bytecode::RELATIVE_REFERENCE => {
-                let x = u16::from_le_bytes([chunk[*instruction_position + 1], chunk[*instruction_position + 2]]);
-                let y = u16::from_le_bytes([chunk[*instruction_position + 3], chunk[*instruction_position + 4]]);
+                let x = u16::from_le_bytes([self.memory.functions[call_frame.instruction_position + 1], self.memory.functions[call_frame.instruction_position + 2]]);
+                let y = u16::from_le_bytes([self.memory.functions[call_frame.instruction_position + 3], self.memory.functions[call_frame.instruction_position + 4]]);
                 if self.stations_output.len() < x as usize {
                     self.error_handler.fatal(Error::RuntimeError(RuntimeError {kind: RuntimeErrorType::MissingStation(x)}))
                 }
@@ -124,20 +131,21 @@ impl VirMac {
                 if y != 0 {
                     todo!("Currently under development")
                 } else {
-                    stack[*stack_position] = output;
+                    stack[call_frame.stack_position] = output;
                 }
-                *stack_position += 1;
-                *instruction_position += Bytecode::RELATIVE_REFERENCE_SIZE;
+                call_frame.stack_position += 1;
+                call_frame.instruction_position += Bytecode::RELATIVE_REFERENCE_SIZE;
             }
             Bytecode::RETURN => {
-                stack.swap(base_pointer, *stack_position - 1);
-                *instruction_position += Bytecode::RETURN_SIZE;
+                stack.swap(call_frame.base_pointer, call_frame.stack_position - 1);
+                self.stations_output.push(stack[call_frame.base_pointer]);
+                return Some(FrameInstruction::Pop)
             },
             Bytecode::ARRAY => {
-                let count = u32::from_le_bytes(chunk[*instruction_position + 1..=*instruction_position + 4].try_into().unwrap());
-                let start = *stack_position - count as usize;
+                let count = u32::from_le_bytes(self.memory.functions[call_frame.instruction_position + 1..=call_frame.instruction_position + 4].try_into().unwrap());
+                let start = call_frame.stack_position - count as usize;
                 let mut array = Vec::new();
-                for value in stack[start..*stack_position].iter() {
+                for value in stack[start..call_frame.stack_position].iter() {
                     match value {
                         LightValue::Boolean(boolean) => {
                             array.push(LightValue::BOOLEAN);
@@ -170,15 +178,15 @@ impl VirMac {
                 self.memory.permanent_space.extend_from_slice(&array.len().to_le_bytes());
                 self.memory.permanent_space.extend_from_slice(&array);
                 stack[start] = LightValue::ArrayPointer(index as u32);
-                *stack_position = start + 1;
-                self.stations_output.push(stack[*stack_position - 1]);
-                *instruction_position += Bytecode::ARRAY_SIZE;
+                call_frame.stack_position = start + 1;
+                self.stations_output.push(stack[call_frame.stack_position - 1]);
+                call_frame.instruction_position += Bytecode::ARRAY_SIZE;
             },
             Bytecode::ADD => {
-                let arity = u16::from_le_bytes([chunk[*instruction_position + 1], chunk[*instruction_position + 2]]) as usize;
-                let kind = get_kind(chunk[*instruction_position + 3]);
-                let start = *stack_position - arity;
-                let (first, rest) = stack[start..*stack_position].split_first().unwrap();
+                let arity = u16::from_le_bytes([self.memory.functions[call_frame.instruction_position + 1], self.memory.functions[call_frame.instruction_position + 2]]) as usize;
+                let kind = get_kind(self.memory.functions[call_frame.instruction_position + 3]);
+                let start = call_frame.stack_position - arity;
+                let (first, rest) = stack[start..call_frame.stack_position].split_first().unwrap();
                 stack[start] = match kind {
                     Kind::Integer => {
                         rest.iter().fold(*first, |accumulator, x| {
@@ -198,14 +206,14 @@ impl VirMac {
                     },
                     _ => unreachable!()
                 };
-                *stack_position = start + 1;
-                *instruction_position += Bytecode::ADD_SIZE;
+                call_frame.stack_position = start + 1;
+                call_frame.instruction_position += Bytecode::ADD_SIZE;
             },
             Bytecode::MINUS => {
-                let arity = u16::from_le_bytes([chunk[*instruction_position + 1], chunk[*instruction_position + 2]]) as usize;
-                let kind = get_kind(chunk[*instruction_position + 3]);
-                let start = *stack_position - arity;
-                let (first, rest) = stack[start..*stack_position].split_first().unwrap();
+                let arity = u16::from_le_bytes([self.memory.functions[call_frame.instruction_position + 1], self.memory.functions[call_frame.instruction_position + 2]]) as usize;
+                let kind = get_kind(self.memory.functions[call_frame.instruction_position + 3]);
+                let start = call_frame.stack_position - arity;
+                let (first, rest) = stack[start..call_frame.stack_position].split_first().unwrap();
                 stack[start] = match kind {
                     Kind::Integer => {
                         rest.iter().fold(*first, |accumulator, x| {
@@ -225,14 +233,14 @@ impl VirMac {
                     },
                     _ => unreachable!()
                 };
-                *stack_position = start + 1;
-                *instruction_position += Bytecode::MINUS_SIZE;
+                call_frame.stack_position = start + 1;
+                call_frame.instruction_position += Bytecode::MINUS_SIZE;
             },
             Bytecode::MULTIPLY => {
-                let arity = u16::from_le_bytes([chunk[*instruction_position + 1], chunk[*instruction_position + 2]]) as usize;
-                let kind = get_kind(chunk[*instruction_position + 3]);
-                let start = *stack_position - arity;
-                let (first, rest) = stack[start..*stack_position].split_first().unwrap();
+                let arity = u16::from_le_bytes([self.memory.functions[call_frame.instruction_position + 1], self.memory.functions[call_frame.instruction_position + 2]]) as usize;
+                let kind = get_kind(self.memory.functions[call_frame.instruction_position + 3]);
+                let start = call_frame.stack_position - arity;
+                let (first, rest) = stack[start..call_frame.stack_position].split_first().unwrap();
                 stack[start] = match kind {
                     Kind::Integer => {
                         rest.iter().fold(*first, |accumulator, x| {
@@ -252,14 +260,14 @@ impl VirMac {
                     },
                     _ => unreachable!()
                 };
-                *stack_position = start + 1;
-                *instruction_position += Bytecode::MULTIPLY_SIZE;
+                call_frame.stack_position = start + 1;
+                call_frame.instruction_position += Bytecode::MULTIPLY_SIZE;
             },
             Bytecode::EQUAL => {
-                let arity = u16::from_le_bytes([chunk[*instruction_position + 1], chunk[*instruction_position + 2]]) as usize;
-                let kind = get_kind(chunk[*instruction_position + 3]);
-                let start = *stack_position - arity;
-                let (first, rest) = stack[start..*stack_position].split_first().unwrap();
+                let arity = u16::from_le_bytes([self.memory.functions[call_frame.instruction_position + 1], self.memory.functions[call_frame.instruction_position + 2]]) as usize;
+                let kind = get_kind(self.memory.functions[call_frame.instruction_position + 3]);
+                let start = call_frame.stack_position - arity;
+                let (first, rest) = stack[start..call_frame.stack_position].split_first().unwrap();
                 stack[start] = LightValue::Boolean(match (kind, first) {
                     (Kind::Integer, LightValue::Integer(first_value)) => {
                         rest.iter().all(|x| {
@@ -279,14 +287,14 @@ impl VirMac {
                     },
                     _ => unreachable!()
                 });
-                *stack_position = start + 1;
-                *instruction_position += Bytecode::EQUAL_SIZE;
+                call_frame.stack_position = start + 1;
+                call_frame.instruction_position += Bytecode::EQUAL_SIZE;
             },
             Bytecode::LESS_THAN => {
-                let arity = u16::from_le_bytes([chunk[*instruction_position + 1], chunk[*instruction_position + 2]]) as usize;
-                let kind = get_kind(chunk[*instruction_position + 3]);
-                let start = *stack_position - arity;
-                let (first, rest) = stack[start..*stack_position].split_first().unwrap();
+                let arity = u16::from_le_bytes([self.memory.functions[call_frame.instruction_position + 1], self.memory.functions[call_frame.instruction_position + 2]]) as usize;
+                let kind = get_kind(self.memory.functions[call_frame.instruction_position + 3]);
+                let start = call_frame.stack_position - arity;
+                let (first, rest) = stack[start..call_frame.stack_position].split_first().unwrap();
                 stack[start] = LightValue::Boolean(match (kind, first) {
                     (Kind::Integer, LightValue::Integer(first_value)) => {
                         rest.iter().all(|x| {
@@ -306,21 +314,22 @@ impl VirMac {
                     },
                     _ => unreachable!()
                 });
-                *stack_position = start + 1;
-                *instruction_position += Bytecode::LESS_THAN_SIZE;
+                call_frame.stack_position = start + 1;
+                call_frame.instruction_position += Bytecode::LESS_THAN_SIZE;
             },
             Bytecode::NOT => {
-                let LightValue::Boolean(boolean) = stack[*stack_position - 1] else { unreachable!() };
-                stack[*stack_position - 1] = LightValue::Boolean(!boolean);
-                *instruction_position += Bytecode::NOT_SIZE;
+                let LightValue::Boolean(boolean) = stack[call_frame.stack_position - 1] else { unreachable!() };
+                stack[call_frame.stack_position - 1] = LightValue::Boolean(!boolean);
+                call_frame.instruction_position += Bytecode::NOT_SIZE;
             },
             Bytecode::REVERSE => {
-                let arity = u16::from_le_bytes([chunk[*instruction_position + 1], chunk[*instruction_position + 2]]) as usize;
-                stack[*stack_position - arity..*stack_position].reverse();
-                *instruction_position += Bytecode::REVERSE_SIZE;
+                let arity = u16::from_le_bytes([self.memory.functions[call_frame.instruction_position + 1], self.memory.functions[call_frame.instruction_position + 2]]) as usize;
+                stack[call_frame.stack_position - arity..call_frame.stack_position].reverse();
+                call_frame.instruction_position += Bytecode::REVERSE_SIZE;
             },
             _ => unreachable!()
         }
+        None
     }
 
     fn execute_builtin_function(&mut self, index: u16, stack: &mut [LightValue], stack_position: &mut usize, start: usize, end: usize) {
@@ -363,26 +372,12 @@ impl VirMac {
         }
     }
 
-    fn to_function(&self, index_of_start: usize) -> (Vec<Vec<u8>>, Vec<u8>, Vec<u16>, Vec<usize>) {
-        let mut start = self.function_starts[index_of_start];
+    fn to_function(&self, index_of_start: usize) -> (usize, usize, u8, u16) {
+        let start = self.function_starts[index_of_start];
         let length = u64::from_le_bytes(self.memory.functions[start..start + 8].try_into().unwrap());
-        let mut lengths = Vec::with_capacity(length as usize);
-        let mut arities = Vec::with_capacity(length as usize);
-        let mut variables_counts = Vec::with_capacity(length as usize);
-        let mut functions = Vec::with_capacity(length as usize);
-        start += 8;
-        for _ in 0..length {
-            let length = u64::from_le_bytes(self.memory.functions[start..start + 8].try_into().unwrap());
-            lengths.push(length as usize);
-            let arity = self.memory.functions[start + 8];
-            arities.push(arity);
-            let variables_count = u16::from_le_bytes([self.memory.functions[start + 9], self.memory.functions[start + 10]]);
-            variables_counts.push(variables_count);
-            let function = self.memory.functions[start + 11..start + 11 + length as usize].to_vec();
-            functions.push(function);
-            start += 11 + length as usize;
-        }
-        (functions, arities, variables_counts, lengths)
+        let arity = self.memory.functions[start + 8];
+        let variables_count = u16::from_le_bytes([self.memory.functions[start + 9], self.memory.functions[start + 10]]);
+        (start + 11, length as usize, arity, variables_count)
     }
 
     fn to_string(&self, index_of_start: usize) -> String {

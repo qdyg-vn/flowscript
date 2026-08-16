@@ -8,12 +8,12 @@ pub struct ConstantsPool {
     pub lookup: HashMap<LightValue, usize>,
     pub heavy_constants: Vec<Value>,
     pub heavy_lookup: HashMap<Value, usize>,
-    pub functions: Vec<Vec<Chunk>>,
+    pub functions: Vec<Chunk>,
 }
 
 impl ConstantsPool {
     pub fn new(define_function_count: usize) -> Self {
-        Self { functions: vec![vec![]; define_function_count], ..Self::default() }
+        Self { functions: vec![Chunk::default(); define_function_count + 1], ..Self::default() } // + 1 for main
     }
 
     pub fn add_constant(&mut self, constant: LightValue) -> usize {
@@ -26,7 +26,7 @@ impl ConstantsPool {
         index
     }
 
-    pub fn write_function_body(&mut self, index: usize, body: Vec<Chunk>) {
+    pub fn write_function_body(&mut self, index: usize, body: Chunk) {
         self.functions[index] = body
     }
 

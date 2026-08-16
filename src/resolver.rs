@@ -25,12 +25,7 @@ impl Resolver {
     pub fn resolve(mut self, nodes: Vec<Node>) -> ResolverOutput {
         let mut ast = AST { nodes: Vec::with_capacity(nodes.len()), arity: 0, variables_count: 0 };
         let main_define_function_count = self.push_signature_to_symbol_table(&nodes);
-        for node in nodes {
-            if let Node::Pipeline(stations) = node {
-                let result = ResolvedNode::Pipeline(self.solve(stations, &mut ast));
-                ast.nodes.push(result)
-            }
-        }
+        ast.nodes = self.solve(nodes, &mut ast);
         if !self.error_handler.errors.is_empty() { self.error_handler.report_exit() }
         ResolverOutput { error_handler: self.error_handler, symbol_table: self.symbol_table, main_variables_count: ast.variables_count, ast, total_define_function_count: self.total_define_function_count, main_define_function_count }
     }

@@ -13,15 +13,11 @@ impl Emitter {
         }
     }
 
-    pub fn emit(mut self, ast: TypedAST) -> (ConstantsPool, Vec<Chunk>) {
-        let mut map: Vec<Chunk> = Vec::new();
-        for instructions in ast.nodes {
-            let TypedNode::Pipeline(stations) = instructions else { unreachable!() };
-            let mut chunk = Chunk::default();
-            self.create_chunk(stations, &mut chunk);
-            map.push(chunk)
-        }
-        (self.constants_pool, map)
+    pub fn emit(mut self, ast: TypedAST) -> ConstantsPool {
+        let mut chunk = Chunk::default();
+        self.create_chunk(ast.nodes, &mut chunk);
+        self.constants_pool.write_function_body(self.constants_pool.functions.len() - 1, chunk);
+        self.constants_pool
     }
 
     fn create_chunk(&mut self, stations: Vec<TypedNode>, chunk: &mut Chunk) {
@@ -48,14 +44,9 @@ impl Emitter {
                 TypedNode::Assignment(index, kind) => chunk.instructions.push(Instruction::Store(index, kind as u8)),
                 TypedNode::Variable(index, _) => chunk.instructions.push(Instruction::LoadVariable(index)),
                 TypedNode::DefineFunction { signature_index, body } => {
-                    let mut pipelines = Vec::with_capacity(body.nodes.len());
-                    for node in body.nodes {
-                        let TypedNode::Pipeline(pipeline) = node else { unreachable!() };
-                        let mut child_chunk = Chunk { instructions: Vec::with_capacity(pipeline.len()), arity: body.arity, variables_count: body.variables_count };
-                        self.create_chunk(pipeline, &mut child_chunk);
-                        pipelines.push(child_chunk)
-                    }
-                    self.constants_pool.write_function_body(signature_index as usize, pipelines);
+                    let mut child_chunk = Chunk { instructions: Vec::with_capacity(body.nodes.len()), arity: body.arity, variables_count: body.variables_count };
+                    self.create_chunk(body.nodes, &mut child_chunk);
+                    self.constants_pool.write_function_body(signature_index as usize, child_chunk);
                 },
                 TypedNode::Pipeline(stations) => self.create_chunk(stations, chunk),
                 TypedNode::Condition {branches, final_branch} => self.emit_condition(branches, final_branch, chunk),

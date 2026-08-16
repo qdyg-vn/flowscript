@@ -1,4 +1,4 @@
-use crate::instructions::{Bytecode, Instruction, Chunk};
+use crate::instructions::{Bytecode, Instruction};
 use crate::memory::Memory;
 use crate::constants_pool::ConstantsPool;
 use crate::value::Value;
@@ -17,20 +17,13 @@ impl Assembler {
         }
     }
 
-    pub fn assemble_map(mut self, map: Vec<Chunk>) -> (Vec<Vec<u8>>, VMConfig) {
-        let mut byte_map = Vec::new();
-        for chunk in map {
-            let mut byte_position = 0;
-            let mut byte_chunk = Vec::new();
-            self.assemble_instruction(chunk.instructions, &mut byte_position, &mut byte_chunk);
-            byte_map.push(byte_chunk)
-        }
-        (byte_map, VMConfig {
+    pub fn assemble_map(mut self) -> VMConfig {
+        VMConfig {
             heavy_constant_starts: self.assemble_heavy_constants(),
             function_starts: self.assemble_function(),
             memory: self.memory,
             constants_pool: self.constants_pool.constants
-        })
+        }
     }
 
     fn assemble_heavy_constants(&mut self) -> Vec<usize> {
@@ -53,17 +46,14 @@ impl Assembler {
         let mut function_starts = Vec::new();
         for function in std::mem::take(&mut self.constants_pool.functions) {
             function_starts.push(self.memory.functions.len());
-            self.memory.functions.extend_from_slice(&function.len().to_le_bytes());
-            for chunk in function {
-                let mut byte_position = 0;
-                let mut byte_chunk = vec![chunk.arity];
-                byte_chunk.extend_from_slice(&chunk.variables_count.to_le_bytes());
-                let arity_length = 1;
-                let variables_count_length = 2;
-                self.assemble_instruction(chunk.instructions, &mut byte_position, &mut byte_chunk);
-                self.memory.functions.extend_from_slice(&(byte_chunk.len() - arity_length - variables_count_length).to_le_bytes());
-                self.memory.functions.extend_from_slice(&byte_chunk)
-            }
+            let mut byte_position = 0;
+            let mut byte_chunk = vec![function.arity];
+            byte_chunk.extend_from_slice(&function.variables_count.to_le_bytes());
+            let arity_length = 1;
+            let variables_count_length = 2;
+            self.assemble_instruction(function.instructions, &mut byte_position, &mut byte_chunk);
+            self.memory.functions.extend_from_slice(&(byte_chunk.len() - arity_length - variables_count_length).to_le_bytes());
+            self.memory.functions.extend_from_slice(&byte_chunk)
         };
         function_starts
     }

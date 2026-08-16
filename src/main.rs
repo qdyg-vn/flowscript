@@ -61,9 +61,9 @@ fn run(source_code: Vec<u8>) {
     let (error_handler, typed_ast) = type_checker.checker(ast);
     let constants_pool = ConstantsPool::new(resolver_output.total_define_function_count as usize);
     let emitter = Emitter::new(constants_pool);
-    let (constants_pool, map) = emitter.emit(typed_ast);
+    let constants_pool = emitter.emit(typed_ast);
     let asm = Assembler::new(memory, constants_pool);
-    let (byte_map, vm_config) = asm.assemble_map(map);
+    let vm_config = asm.assemble_map();
     let mut virmac = VirMac::new(vm_config, error_handler);
-    virmac.execute(byte_map, resolver_output.main_variables_count as usize);
+    virmac.execute();
 }

@@ -334,7 +334,11 @@ impl<'source_code> Parser<'source_code> {
             };
         }
         if errors.is_empty() {
-            Ok(Node::Pipeline(stations))
+            if stations.len() == 1 {
+                Ok(stations.pop().unwrap())
+            } else {
+                Ok(Node::Pipeline(stations))
+            }
         } else {
             Err(errors)
         }

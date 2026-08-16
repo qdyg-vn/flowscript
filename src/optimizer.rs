@@ -13,10 +13,7 @@ impl Optimizer {
     }
 
     pub fn optimizer(mut self, mut ast: AST) -> (AST, ErrorHandler) {
-        for pipeline in &mut ast.nodes {
-            let ResolvedNode::Pipeline(stations) = pipeline else {unreachable!()};
-            self.optimize(stations);
-        }
+        self.optimize(&mut ast.nodes);
         (ast, self.error_handler)
     }
 
@@ -24,15 +21,7 @@ impl Optimizer {
         for station in stations {
             match station {
                 ResolvedNode::BuiltinCall { .. } => self.builtin_node(station),
-                ResolvedNode::DefineFunction { body: AST { nodes, .. }, .. } => {
-                    for node in nodes {
-                        let ResolvedNode::Pipeline(pipeline) = node else { unreachable!() };
-                        if let Some(index) = pipeline.iter().position(|node| matches!(node, ResolvedNode::Return(_))) {
-                            pipeline.truncate(index + 1);
-                        }
-                        self.optimize(pipeline)
-                    }
-                },
+                ResolvedNode::DefineFunction { body: AST { nodes, .. }, .. } => self.optimize(nodes),
                 ResolvedNode::Call { arguments, .. } => self.optimize(arguments),
                 ResolvedNode::Pipeline(station) => self.optimize(station),
                 ResolvedNode::Condition { .. } => self.condition_node(station),
