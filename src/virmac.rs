@@ -50,9 +50,9 @@ impl VirMac {
 
     pub fn execute(&mut self) -> Vec<LightValue> {
         let mut stack = vec![LightValue::Nil; 1024];
-        let mut frames = Vec::new();
         let start_index = self.function_starts.len() - 1;
         let (function_index, length, _arity, variables_count) = self.to_function(start_index);
+        let mut frames = Vec::with_capacity(1024);
         frames.push(CallFrame { instruction_position: function_index, end_instruction: function_index + length, stack_position: variables_count as usize, base_pointer: 0 });
         while let Some(frame) = frames.last_mut() {
             if frame.instruction_position == frame.end_instruction {

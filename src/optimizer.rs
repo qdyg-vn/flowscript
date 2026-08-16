@@ -19,15 +19,20 @@ impl Optimizer {
 
     fn optimize(&mut self, stations: &mut Vec<ResolvedNode>) {
         for station in stations {
-            match station {
-                ResolvedNode::BuiltinCall { .. } => self.builtin_node(station),
-                ResolvedNode::DefineFunction { body: AST { nodes, .. }, .. } => self.optimize(nodes),
-                ResolvedNode::Call { arguments, .. } => self.optimize(arguments),
-                ResolvedNode::Pipeline(station) => self.optimize(station),
-                ResolvedNode::Condition { .. } => self.condition_node(station),
-                ResolvedNode::Array(arguments) => self.optimize(arguments),
-                _ => {}
-            }
+            self.optimize_node(station)
+        }
+    }
+
+    fn optimize_node(&mut self, station: &mut ResolvedNode) {
+        match station {
+            ResolvedNode::BuiltinCall { .. } => self.builtin_node(station),
+            ResolvedNode::DefineFunction { body: AST { nodes, .. }, .. } => self.optimize(nodes),
+            ResolvedNode::Call { arguments, .. } => self.optimize(arguments),
+            ResolvedNode::Pipeline(station) => self.optimize(station),
+            ResolvedNode::Condition { .. } => self.condition_node(station),
+            ResolvedNode::Array(arguments) => self.optimize(arguments),
+            ResolvedNode::Return(value) => self.optimize_node(value),
+            _ => {}
         }
     }
 

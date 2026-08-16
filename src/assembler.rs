@@ -45,12 +45,13 @@ impl Assembler {
     fn assemble_function(&mut self) -> Vec<usize> {
         let mut function_starts = Vec::new();
         for function in std::mem::take(&mut self.constants_pool.functions) {
-            function_starts.push(self.memory.functions.len());
-            let mut byte_position = 0;
-            let mut byte_chunk = vec![function.arity];
-            byte_chunk.extend_from_slice(&function.variables_count.to_le_bytes());
+            function_starts.push(self.memory.functions.len() );
             let arity_length = 1;
             let variables_count_length = 2;
+            let length_length = 8;
+            let mut byte_position = self.memory.functions.len() + arity_length + variables_count_length + length_length;
+            let mut byte_chunk = vec![function.arity];
+            byte_chunk.extend_from_slice(&function.variables_count.to_le_bytes());
             self.assemble_instruction(function.instructions, &mut byte_position, &mut byte_chunk);
             self.memory.functions.extend_from_slice(&(byte_chunk.len() - arity_length - variables_count_length).to_le_bytes());
             self.memory.functions.extend_from_slice(&byte_chunk)
