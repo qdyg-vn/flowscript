@@ -11,7 +11,8 @@ pub enum Bytecode {
     JumpIfFalse, // u16: instruction position
     RelativeReference, // u16: x, u16: y
     Return,
-    Store, // u16: offset from base pointer, u8: kind
+    Store, // u16: offset from base pointer
+    StationCapture, // u16: offset from reference pointer
     Array, // u32: length
     Not,
     Reverse,
@@ -40,7 +41,9 @@ impl Bytecode {
     pub const RETURN: u8 = Self::Return as u8;
     pub const RETURN_SIZE: usize = 1;
     pub const STORE: u8 = Self::Store as u8;
-    pub const STORE_SIZE: usize = 1 + 2 + 1;
+    pub const STORE_SIZE: usize = 1 + 2;
+    pub const STATION_CAPTURE: u8 = Self::StationCapture as u8;
+    pub const STATION_CAPTURE_SIZE: usize = 1 + 2;
     pub const ARRAY: u8 = Self::Array as u8;
     pub const ARRAY_SIZE: usize = 1 + 4;
     pub const NOT: u8 = Self::Not as u8;
@@ -69,7 +72,8 @@ pub enum Instruction {
     JumpIfFalse(u16),
     RelativeReference(u16, u16),
     Return,
-    Store(u16, u8),
+    Store(u16),
+    StationCapture(u16),
     Array(u32),
     Not,
     Reverse(u16),
@@ -83,6 +87,7 @@ pub enum Instruction {
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
 pub struct Chunk {
     pub instructions: Vec<Instruction>,
-    pub arity: u8,
     pub variables_count: u16,
+    pub arity: u8,
+    pub max_relative_reference: u8,
 }

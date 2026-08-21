@@ -46,7 +46,8 @@ pub enum ResolvedNode {
         signature_index: u32,
     },
     Pipeline(Vec<ResolvedNode>),
-    RelativeReference(u16, u16),
+    RelativeReference(u16, u16, u32),
+    StationCapture(u16, u32),
     Variable(u16, u32),
     SoftAssignment(u16, u32),
     Assignment(u16, u32, Kind),
@@ -80,6 +81,7 @@ pub enum TypedNode {
     RelativeReference(u16, u16, Kind),
     Variable(u16, Kind),
     Assignment(u16, Kind),
+    StationCapture(u16, Kind),
     DefineFunction {
         signature_index: u32,
         body: TypedAST,
@@ -101,16 +103,18 @@ pub enum TypedNode {
     NotEqual(Vec<TypedNode>, Kind, Kind),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct AST {
     pub nodes: Vec<ResolvedNode>,
     pub variables_count: u16,
     pub arity: u8,
+    pub max_relative_reference: u8,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct TypedAST {
     pub nodes: Vec<TypedNode>,
     pub variables_count: u16,
     pub arity: u8,
+    pub max_relative_reference: u8,
 }

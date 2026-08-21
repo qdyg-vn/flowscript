@@ -24,7 +24,7 @@ impl TypeChecker {
             }
         }
         if !self.error_handler.errors.is_empty() { self.error_handler.report_exit() }
-        (self.error_handler, TypedAST { nodes: typed_nodes, arity: ast.arity, variables_count: ast.variables_count })
+        (self.error_handler, TypedAST { nodes: typed_nodes, arity: ast.arity, variables_count: ast.variables_count, max_relative_reference: ast.max_relative_reference })
     }
 
     pub fn check(&mut self, station: &ResolvedNode, typed_stations: &[TypedNode]) -> Result<TypedNode, Vec<Error>> {
@@ -50,17 +50,24 @@ impl TypeChecker {
             },
             ResolvedNode::Pipeline(stations) => {
                 let mut typed_stations = Vec::with_capacity(stations.len());
+                self.symbol_table.pipeline.clear();
                 for station in stations {
-                    typed_stations.push(self.check(station, &typed_stations)?)
+                    let station = self.check(station, &typed_stations)?;
+                    typed_stations.push(station)
                 }
                 Ok(TypedNode::Pipeline(typed_stations))
             },
-            ResolvedNode::RelativeReference(x, y) => {
-                if typed_stations.len() < *x as usize {
-                    return Err(vec![TypeError{ kind: TypeErrorType::MissingStation(*x) }.into()])
-                }
-                let station = &typed_stations[typed_stations.len() - *x as usize];
-                Ok(TypedNode::RelativeReference(*x, *y, self.find_typed_node_kind(station)))
+            ResolvedNode::RelativeReference(x, y, variable_index) => {
+                let kind = self.symbol_table.all_variable[*variable_index as usize];
+                Ok(TypedNode::RelativeReference(*x, *y, kind))
+            },
+            ResolvedNode::StationCapture(index, variable_index) => {
+                let received_kind = match typed_stations.last() {
+                    Some(typed_node) => self.find_typed_node_kind(typed_node),
+                    None => { unreachable!() }
+                };
+                self.symbol_table.all_variable[*variable_index as usize] = received_kind;
+                Ok(TypedNode::StationCapture(*index, received_kind))
             },
             ResolvedNode::Variable(index, variable_index) => {
                 let kind = self.symbol_table.all_variable[*variable_index as usize];
@@ -85,7 +92,7 @@ impl TypeChecker {
             },
             ResolvedNode::DefineFunction { signature_index, body } => {
                 let child_typed_stations = Vec::with_capacity(body.nodes.len());
-                Ok(TypedNode::DefineFunction { signature_index: *signature_index, body: TypedAST { nodes: body.nodes.iter().map(|node| self.check(node, &child_typed_stations)).collect::<Result<Vec<TypedNode>, Vec<Error>>>()?, arity: body.arity, variables_count: body.variables_count }})
+                Ok(TypedNode::DefineFunction { signature_index: *signature_index, body: TypedAST { nodes: body.nodes.iter().map(|node| self.check(node, &child_typed_stations)).collect::<Result<Vec<TypedNode>, Vec<Error>>>()?, arity: body.arity, variables_count: body.variables_count, max_relative_reference: body.max_relative_reference }})
             },
             ResolvedNode::Condition { branches, final_branch } => {
                 let mut typed_branches = Vec::with_capacity(branches.len());

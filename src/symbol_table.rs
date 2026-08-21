@@ -10,6 +10,12 @@ pub struct FunctionSignature {
     pub result: Kind,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct RelativeReference {
+    pub index_in_stations: u16,
+    pub variable_index: u32,
+}
+
 #[derive(Copy, Clone, Debug)]
 pub enum SymbolType {
     VariableScope(u16, u32),
@@ -24,6 +30,7 @@ pub struct SymbolTable {
     pub all_variable: Vec<Kind>,
     functions: Vec<FunctionSignature>,
     pub all_parameters: Vec<Kind>,
+    pub pipeline: Vec<RelativeReference>,
 }
 
 impl SymbolTable {
@@ -60,6 +67,19 @@ impl SymbolTable {
             }
             Entry::Occupied(entry) => Err(*entry.get())
         }
+    }
+
+    pub fn add_relative_reference(&mut self, index_in_stations: u16, kind: Kind) -> SymbolType {
+        for (index, relative_reference) in self.pipeline.iter().enumerate() {
+            if relative_reference.index_in_stations == index_in_stations {
+                return SymbolType::VariableScope(index as u16, relative_reference.variable_index)
+            }
+        };
+        let index = self.pipeline.len() as u16;
+        let variable_index = self.all_variable.len() as u32;
+        self.pipeline.push(RelativeReference { index_in_stations, variable_index });
+        self.all_variable.push(kind);
+        SymbolType::VariableScope(index, variable_index)
     }
 
     pub fn add_function(&mut self, variable: String, signature_length: u32, result: Kind) -> Result<SymbolType, SymbolType> {

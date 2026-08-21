@@ -14,7 +14,7 @@ impl Emitter {
     }
 
     pub fn emit(mut self, ast: TypedAST) -> ConstantsPool {
-        let mut chunk = Chunk::default();
+        let mut chunk = Chunk { instructions: Vec::with_capacity(ast.nodes.len()), arity: ast.arity, variables_count: ast.variables_count, max_relative_reference: ast.max_relative_reference };
         self.create_chunk(ast.nodes, &mut chunk);
         self.constants_pool.write_function_body(self.constants_pool.functions.len() - 1, chunk);
         self.constants_pool
@@ -41,10 +41,11 @@ impl Emitter {
                     chunk.instructions.push(Instruction::Call(signature_index as u16))
                 },
                 TypedNode::RelativeReference(x, y, _) => chunk.instructions.push(Instruction::RelativeReference(x, y)),
-                TypedNode::Assignment(index, kind) => chunk.instructions.push(Instruction::Store(index, kind as u8)),
+                TypedNode::StationCapture(index, _) => chunk.instructions.push(Instruction::StationCapture(index)),
+                TypedNode::Assignment(index, _) => chunk.instructions.push(Instruction::Store(index)),
                 TypedNode::Variable(index, _) => chunk.instructions.push(Instruction::LoadVariable(index)),
                 TypedNode::DefineFunction { signature_index, body } => {
-                    let mut child_chunk = Chunk { instructions: Vec::with_capacity(body.nodes.len()), arity: body.arity, variables_count: body.variables_count };
+                    let mut child_chunk = Chunk { instructions: Vec::with_capacity(body.nodes.len()), arity: body.arity, variables_count: body.variables_count, max_relative_reference: body.max_relative_reference };
                     self.create_chunk(body.nodes, &mut child_chunk);
                     self.constants_pool.write_function_body(signature_index as usize, child_chunk);
                 },

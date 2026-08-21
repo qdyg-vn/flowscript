@@ -218,6 +218,8 @@ impl fmt::Display for SemanticError {
             SemanticErrorType::UndefinedIdentifier(_) => 1,
             SemanticErrorType::DuplicateParameter(_) => 2,
             SemanticErrorType::NegativeXCoordinate(_) => 3,
+            SemanticErrorType::MissingStation(_) => 4,
+            SemanticErrorType::RelativeReferenceNotInPipeline => 5,
         };
         writeln!(formatter, "\x1b[31;1m[Error FSCC5{:0>3}]\x1b[0m {}", code, self.kind)
     }
@@ -227,6 +229,8 @@ pub enum SemanticErrorType {
     UndefinedIdentifier(String),
     DuplicateParameter(String),
     NegativeXCoordinate(u16),
+    MissingStation(u16),
+    RelativeReferenceNotInPipeline,
 }
 
 impl fmt::Display for SemanticErrorType {
@@ -235,6 +239,8 @@ impl fmt::Display for SemanticErrorType {
             Self::UndefinedIdentifier(name) => write!(formatter, "Cannot find {} in symbol table", name),
             Self::DuplicateParameter(name) => write!(formatter, "Identifier '{}' is bound more than once", name),
             Self::NegativeXCoordinate(x) => write!(formatter, "x must be positive when y is zero: {}", x),
+            Self::MissingStation(x) => write!(formatter, "There is no station at position {}", x),
+            Self::RelativeReferenceNotInPipeline => write!(formatter, "Cannot use relative reference outside a pipeline"),
         }
     }
 }
@@ -246,17 +252,15 @@ pub struct RuntimeError {
 impl fmt::Display for RuntimeError {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         let code = match &self.kind {
-            RuntimeErrorType::MissingStation(_) => 1,
-            RuntimeErrorType::OutOfBounds(_, _) => 2,
-            RuntimeErrorType::InsufficientOperands(_) => 3,
-            RuntimeErrorType::ParseError(_, _) => 4,
+            RuntimeErrorType::OutOfBounds(_, _) => 1,
+            RuntimeErrorType::InsufficientOperands(_) => 2,
+            RuntimeErrorType::ParseError(_, _) => 3,
         };
         writeln!(formatter, "\x1b[31;1m[Error FSCC7{:0>3}]\x1b[0m {}", code, self.kind)
     }
 }
 
 pub enum RuntimeErrorType {
-    MissingStation(u16),
     OutOfBounds(usize, usize),
     InsufficientOperands(String),
     ParseError(String, String)
@@ -265,7 +269,6 @@ pub enum RuntimeErrorType {
 impl fmt::Display for RuntimeErrorType {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Self::MissingStation(x) => write!(formatter, "There is no station at position {}", x),
             Self::OutOfBounds(start, end) => write!(formatter, "Stack out of bounds: start {} end {}", start, end),
             Self::InsufficientOperands(function) => write!(formatter, "{} requires at least one operand", function),
             Self::ParseError(value, kind) => write!(formatter, "Cannot convert {} to {}", value, kind),
@@ -287,7 +290,6 @@ impl fmt::Display for TypeError {
             TypeErrorType::AssignTypeMismatch(_, _) => 5,
             TypeErrorType::ArityMismatch(_, _) => 6,
             TypeErrorType::NotAFunction(_) => 7,
-            TypeErrorType::MissingStation(_) => 8,
         };
         writeln!(formatter, "\x1b[31;1m[Error FSCC8{:0>3}]\x1b[0m {}", code, self.kind)
     }
@@ -301,7 +303,6 @@ pub enum TypeErrorType {
     AssignTypeMismatch(Kind, Kind),
     ArityMismatch(usize, usize),
     NotAFunction(String),
-    MissingStation(u16),
 }
 
 impl fmt::Display for TypeErrorType {
@@ -313,7 +314,6 @@ impl fmt::Display for TypeErrorType {
             Self::AssignTypeMismatch(received_kind, required_kind) => write!(formatter, "Type '{}' is not assignable to type '{}'", received_kind, required_kind),
             Self::ArityMismatch(received_arity, required_arity) => write!(formatter, "Function expects {} arguments, but got {}", required_arity, received_arity),
             Self::NotAFunction(name) => write!(formatter, "{} is not a function", name),
-            Self::MissingStation(x) => write!(formatter, "There is no station at position {}", x),
         }
     }
 }

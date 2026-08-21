@@ -22,12 +22,11 @@ struct CallFrame {
     end_instruction: usize,
     stack_position: usize,
     base_pointer: usize,
+    reference_pointer: usize,
 }
 
 #[derive(Default)]
 pub struct VirMac {
-    stations_output: Vec<LightValue>,
-    base_pointers: Vec<usize>,
     memory: Memory,
     constants_pool: Vec<LightValue>,
     heavy_constant_starts: Vec<usize>,
@@ -38,22 +37,26 @@ pub struct VirMac {
 impl VirMac {
     pub fn new(config: VMConfig, error_handler: ErrorHandler) -> Self {
         Self {
-            base_pointers: vec![0],
             memory: config.memory,
             constants_pool: config.constants_pool,
             heavy_constant_starts: config.heavy_constant_starts,
             function_starts: config.function_starts,
             error_handler,
-            ..Self::default()
         }
     }
 
     pub fn execute(&mut self) -> Vec<LightValue> {
         let mut stack = vec![LightValue::Nil; 1024];
         let start_index = self.function_starts.len() - 1;
-        let (function_index, length, _arity, variables_count) = self.to_function(start_index);
+        let (function_index, length, variables_count, _arity, max_relative_reference) = self.to_function(start_index);
         let mut frames = Vec::with_capacity(1024);
-        frames.push(CallFrame { instruction_position: function_index, end_instruction: function_index + length, stack_position: variables_count as usize, base_pointer: 0 });
+        frames.push(CallFrame {
+            instruction_position: function_index,
+            end_instruction: function_index + length,
+            stack_position: variables_count as usize + max_relative_reference as usize,
+            base_pointer: 0,
+            reference_pointer: variables_count as usize,
+        });
         while let Some(frame) = frames.last_mut() {
             if frame.instruction_position == frame.end_instruction {
                 frames.pop();
@@ -61,8 +64,14 @@ impl VirMac {
             }
             match self.dispatch_instruction(frame, &mut stack) {
                 Some(FrameInstruction::New(start_index)) => {
-                    let (function_index, length, arity, variables_count) = self.to_function(start_index as usize);
-                    let new_frame = CallFrame { instruction_position: function_index, end_instruction: function_index + length, stack_position: frame.stack_position + variables_count as usize, base_pointer: frame.stack_position - arity as usize };
+                    let (function_index, length, variables_count, arity, max_relative_reference) = self.to_function(start_index as usize);
+                    let new_frame = CallFrame {
+                        instruction_position: function_index,
+                        end_instruction: function_index + length,
+                        stack_position: frame.stack_position + variables_count as usize + max_relative_reference as usize,
+                        base_pointer: frame.stack_position - arity as usize - max_relative_reference as usize,
+                        reference_pointer: frame.stack_position - arity as usize,
+                    };
                     frames.push(new_frame);
                 }
                 Some(FrameInstruction::Pop) => { frames.pop(); }
@@ -78,14 +87,12 @@ impl VirMac {
             Bytecode::LOAD => {
                 let index = u32::from_le_bytes(self.memory.functions[call_frame.instruction_position + 1..=call_frame.instruction_position + 4].try_into().unwrap());
                 stack[call_frame.stack_position] = self.constants_pool[index as usize];
-                self.stations_output.push(self.constants_pool[index as usize]);
                 call_frame.stack_position += 1;
                 call_frame.instruction_position += Bytecode::LOAD_SIZE;
             },
             Bytecode::LOAD_VARIABLE => {
                 let index = u16::from_le_bytes([self.memory.functions[call_frame.instruction_position + 1], self.memory.functions[call_frame.instruction_position + 2]]);
                 stack[call_frame.stack_position] = stack[call_frame.base_pointer + index as usize];
-                self.stations_output.push(stack[call_frame.stack_position]);
                 call_frame.stack_position += 1;
                 call_frame.instruction_position += Bytecode::LOAD_VARIABLE_SIZE;
             }
@@ -104,7 +111,6 @@ impl VirMac {
             }
             Bytecode::STORE => {
                 let index = u16::from_le_bytes([self.memory.functions[call_frame.instruction_position + 1], self.memory.functions[call_frame.instruction_position + 2]]);
-                self.stations_output.push(stack[call_frame.stack_position - 1]);
                 stack[call_frame.base_pointer + index as usize] = stack[call_frame.stack_position - 1];
                 call_frame.instruction_position += Bytecode::STORE_SIZE;
             }
@@ -124,21 +130,20 @@ impl VirMac {
             Bytecode::RELATIVE_REFERENCE => {
                 let x = u16::from_le_bytes([self.memory.functions[call_frame.instruction_position + 1], self.memory.functions[call_frame.instruction_position + 2]]);
                 let y = u16::from_le_bytes([self.memory.functions[call_frame.instruction_position + 3], self.memory.functions[call_frame.instruction_position + 4]]);
-                if self.stations_output.len() < x as usize {
-                    self.error_handler.fatal(Error::RuntimeError(RuntimeError {kind: RuntimeErrorType::MissingStation(x)}))
-                }
-                let output = self.stations_output[self.stations_output.len() - x as usize];
                 if y != 0 {
                     todo!("Currently under development")
-                } else {
-                    stack[call_frame.stack_position] = output;
                 }
+                stack[call_frame.stack_position] = stack[call_frame.reference_pointer + x as usize];
                 call_frame.stack_position += 1;
                 call_frame.instruction_position += Bytecode::RELATIVE_REFERENCE_SIZE;
+            },
+            Bytecode::STATION_CAPTURE => {
+                let index = u16::from_le_bytes([self.memory.functions[call_frame.instruction_position + 1], self.memory.functions[call_frame.instruction_position + 2]]);
+                stack[call_frame.reference_pointer + index as usize] = stack[call_frame.stack_position - 1];
+                call_frame.instruction_position += Bytecode::STATION_CAPTURE_SIZE;
             }
             Bytecode::RETURN => {
                 stack.swap(call_frame.base_pointer, call_frame.stack_position - 1);
-                self.stations_output.push(stack[call_frame.base_pointer]);
                 return Some(FrameInstruction::Pop)
             },
             Bytecode::ARRAY => {
@@ -179,7 +184,6 @@ impl VirMac {
                 self.memory.permanent_space.extend_from_slice(&array);
                 stack[start] = LightValue::ArrayPointer(index as u32);
                 call_frame.stack_position = start + 1;
-                self.stations_output.push(stack[call_frame.stack_position - 1]);
                 call_frame.instruction_position += Bytecode::ARRAY_SIZE;
             },
             Bytecode::ADD => {
@@ -361,23 +365,27 @@ impl VirMac {
                 match function(&arguments) {
                     Ok(value) => {
                         let light_value = self.push_into_storage(value, stack);
-                        self.stations_output.push(light_value);
                         stack[start] = light_value;
                         *stack_position = start + 1;
                     },
                     Err(error) => self.error_handler.fatal(error)
                 };
             },
-            BuiltinFunction::IO(function) => function(&arguments),
+            BuiltinFunction::IO(function) => {
+                function(&arguments);
+                stack[start] = LightValue::Nil;
+                *stack_position = start + 1;
+            },
         }
     }
 
-    fn to_function(&self, index_of_start: usize) -> (usize, usize, u8, u16) {
+    fn to_function(&self, index_of_start: usize) -> (usize, usize, u16, u8, u8) {
         let start = self.function_starts[index_of_start];
         let length = u64::from_le_bytes(self.memory.functions[start..start + 8].try_into().unwrap());
-        let arity = self.memory.functions[start + 8];
-        let variables_count = u16::from_le_bytes([self.memory.functions[start + 9], self.memory.functions[start + 10]]);
-        (start + 11, length as usize, arity, variables_count)
+        let variables_count = u16::from_le_bytes([self.memory.functions[start + 8], self.memory.functions[start + 9]]);
+        let arity = self.memory.functions[start + 10];
+        let max_relative_reference = self.memory.functions[start + 11];
+        (start + 12, length as usize, variables_count, arity, max_relative_reference)
     }
 
     fn to_string(&self, index_of_start: usize) -> String {
