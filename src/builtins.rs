@@ -153,6 +153,11 @@ pub const BUILTIN_TABLE: &[Builtin] = &[
     Builtin { name: "push", function: BuiltinFunction::Collection(push), have_instruction: false,
         types: &[
             Signature { arguments: &[Kind::Integer, Kind::Array], result: Kind::Array, min_arity: 2, infinite_arity: false },
+            Signature { arguments: &[Kind::Float, Kind::Array], result: Kind::Array, min_arity: 2, infinite_arity: false },
+            Signature { arguments: &[Kind::String, Kind::Array], result: Kind::Array, min_arity: 2, infinite_arity: false },
+            Signature { arguments: &[Kind::Boolean, Kind::Array], result: Kind::Array, min_arity: 2, infinite_arity: false },
+            Signature { arguments: &[Kind::Nil, Kind::Array], result: Kind::Array, min_arity: 2, infinite_arity: false },
+            Signature { arguments: &[Kind::Array, Kind::Array], result: Kind::Array, min_arity: 2, infinite_arity: false },
         ]
     },
     Builtin { name: "pop", function: BuiltinFunction::Collection(pop), have_instruction: false,

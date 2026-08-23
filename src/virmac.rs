@@ -358,41 +358,42 @@ impl VirMac {
         String::from_utf8(self.memory.from_space[start + 8..start + 8 + length as usize].to_vec()).unwrap()
     }
 
-    fn get_array(&self, mut start: usize) -> Vec<Value> {
-        let length = u64::from_le_bytes(self.memory.from_space[start..start + 8].try_into().unwrap());
-        start += 8;
-        let end = start + length as usize;
+    fn get_array(&self, start: &mut usize) -> Vec<Value> {
+        let length = u64::from_le_bytes(self.memory.from_space[*start..*start + 8].try_into().unwrap());
+        *start += 8;
+        let end = *start + length as usize;
         let mut array = Vec::new();
-        while start < end {
-            array.push(match self.memory.from_space[start] {
+        while *start < end {
+            array.push(match self.memory.from_space[*start] {
                 Kind::BOOLEAN => {
-                    let boolean = Value::Boolean(self.memory.from_space[start] != 0);
-                    start += LightValue::BOOLEAN_SIZE;
+                    let boolean = Value::Boolean(self.memory.from_space[*start] != 0);
+                    *start += LightValue::BOOLEAN_SIZE;
                     boolean
                 },
                 Kind::NIL => {
-                    start += LightValue::NIL_SIZE;
+                    *start += LightValue::NIL_SIZE;
                     Value::Nil
                 },
                 Kind::FLOAT => {
-                    let float = Value::Float(f64::from_le_bytes(self.memory.from_space[start + 1..=start + 8].try_into().unwrap()));
-                    start += LightValue::FLOAT_SIZE;
+                    let float = Value::Float(f64::from_le_bytes(self.memory.from_space[*start + 1..=*start + 8].try_into().unwrap()));
+                    *start += LightValue::FLOAT_SIZE;
                     float
                 },
                 Kind::INTEGER => {
-                    let integer = Value::Integer(i64::from_le_bytes(self.memory.from_space[start + 1..=start + 8].try_into().unwrap()));
-                    start += LightValue::INTEGER_SIZE;
+                    let integer = Value::Integer(i64::from_le_bytes(self.memory.from_space[*start + 1..=*start + 8].try_into().unwrap()));
+                    *start += LightValue::INTEGER_SIZE;
                     integer
                 },
                 Kind::STRING => {
-                    let length = u64::from_le_bytes(self.memory.from_space[start + 1..=start + 8].try_into().unwrap());
-                    start += 8;
-                    let string = String::from_utf8(self.memory.from_space[start + 1..=start + length as usize].to_vec()).unwrap();
-                    start += length as usize;
+                    *start += 1;
+                    let length = u64::from_le_bytes(self.memory.from_space[*start..*start + 8].try_into().unwrap());
+                    *start += 8;
+                    let string = String::from_utf8(self.memory.from_space[*start..*start + length as usize].to_vec()).unwrap();
+                    *start += length as usize;
                     Value::String(string)
                 },
                 Kind::ARRAY => {
-                    start += 1;
+                    *start += 1;
                     let array = self.get_array(start);
                     Value::Array(array)
                 },
@@ -478,7 +479,7 @@ impl VirMac {
                 let string = self.get_string_in_heap(index as usize);
                 Value::String(string)
             },
-            LightValue::ArrayPointer(index) => Value::Array(self.get_array(index as usize)),
+            LightValue::ArrayPointer(index) => Value::Array(self.get_array(&mut (index as usize))),
         }
     }
 }
