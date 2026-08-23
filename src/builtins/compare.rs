@@ -1,7 +1,7 @@
 use crate::error_handler::{Error, RuntimeError, RuntimeErrorType, TypeError, TypeErrorType};
 use crate::value::Value;
 
-pub fn equal(arguments: &[Value]) -> Result<Value, Error> {
+pub fn equal(arguments: Vec<Value>) -> Result<Value, Error> {
     if arguments.len() < 2 { return Err(RuntimeError {kind: RuntimeErrorType::InsufficientOperands("==".to_string())}.into()) }
     for window in arguments.windows(2) {
         let a = &window[0];
@@ -20,7 +20,7 @@ pub fn equal(arguments: &[Value]) -> Result<Value, Error> {
     Ok(Value::Boolean(true))
 }
 
-pub fn lower_than(arguments: &[Value]) -> Result<Value, Error> {
+pub fn lower_than(arguments: Vec<Value>) -> Result<Value, Error> {
     if arguments.len() < 2 { return Err(RuntimeError {kind: RuntimeErrorType::InsufficientOperands("<".to_string())}.into()) }
     for window in arguments.windows(2) {
         let a = &window[0];
@@ -38,7 +38,7 @@ pub fn lower_than(arguments: &[Value]) -> Result<Value, Error> {
     Ok(Value::Boolean(true))
 }
 
-pub fn greater_than(arguments: &[Value]) -> Result<Value, Error> {
+pub fn greater_than(arguments: Vec<Value>) -> Result<Value, Error> {
     if arguments.len() < 2 { return Err(RuntimeError {kind: RuntimeErrorType::InsufficientOperands(">".to_string())}.into()) }
     for window in arguments.windows(2) {
         let a = &window[0];
@@ -56,7 +56,7 @@ pub fn greater_than(arguments: &[Value]) -> Result<Value, Error> {
     Ok(Value::Boolean(true))
 }
 
-pub fn lower_than_or_equal(arguments: &[Value]) -> Result<Value, Error> {
+pub fn lower_than_or_equal(arguments: Vec<Value>) -> Result<Value, Error> {
     if arguments.len() < 2 { return Err(RuntimeError {kind: RuntimeErrorType::InsufficientOperands("<=".to_string())}.into()) }
     for window in arguments.windows(2) {
         let a = &window[0];
@@ -74,7 +74,7 @@ pub fn lower_than_or_equal(arguments: &[Value]) -> Result<Value, Error> {
     Ok(Value::Boolean(true))
 }
 
-pub fn greater_than_or_equal(arguments: &[Value]) -> Result<Value, Error> {
+pub fn greater_than_or_equal(arguments: Vec<Value>) -> Result<Value, Error> {
     if arguments.len() < 2 { return Err(RuntimeError {kind: RuntimeErrorType::InsufficientOperands(">=".to_string())}.into()) }
     for window in arguments.windows(2) {
         let a = &window[0];
@@ -92,7 +92,7 @@ pub fn greater_than_or_equal(arguments: &[Value]) -> Result<Value, Error> {
     Ok(Value::Boolean(true))
 }
 
-pub fn not_equal(arguments: &[Value]) -> Result<Value, Error> {
+pub fn not_equal(arguments: Vec<Value>) -> Result<Value, Error> {
     if arguments.len() < 2 { return Err(RuntimeError {kind: RuntimeErrorType::InsufficientOperands("!=".to_string())}.into()) }
     for window in arguments.windows(2) {
         let a = &window[0];

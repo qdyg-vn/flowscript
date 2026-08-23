@@ -40,7 +40,7 @@ impl Optimizer {
         let ResolvedNode::BuiltinCall { index, arguments: argument_nodes } = station else { unreachable!() };
         let builtin = get_builtin(*index);
         let function = match builtin.function {
-            BuiltinFunction::Math(function) | BuiltinFunction::Compare(function) | BuiltinFunction::Casting(function) | BuiltinFunction::Introspection(function) => function,
+            BuiltinFunction::Math(function) | BuiltinFunction::Compare(function) | BuiltinFunction::Casting(function) | BuiltinFunction::Collection(function) => function,
             _ => return
         };
         let mut arguments = Vec::with_capacity(argument_nodes.len());
@@ -64,7 +64,7 @@ impl Optimizer {
             })
         }
         if !only_have_literal_node { return }
-        *station = match function(&arguments) {
+        *station = match function(arguments) {
             Ok(Value::Boolean(value)) => ResolvedNode::Literal(LightValue::Boolean(value)),
             Ok(Value::Float(value)) => ResolvedNode::Literal(LightValue::Float(value)),
             Ok(Value::Integer(value)) => ResolvedNode::Literal(LightValue::Integer(value)),

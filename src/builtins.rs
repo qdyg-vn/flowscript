@@ -2,23 +2,23 @@ mod casting;
 mod io;
 mod math;
 mod compare;
-mod introspection;
+mod collection;
 
 use crate::value::{Kind, Value};
 use casting::{to_string, to_integer, to_float, to_boolean};
 use io::print;
 use math::{add, minus, multiply};
 use compare::{equal, lower_than, greater_than, lower_than_or_equal, greater_than_or_equal, not_equal};
-use introspection::length;
+use collection::{length, push, pop};
 use crate::error_handler::Error;
 
 #[derive(Copy, Clone, Debug)]
 pub enum BuiltinFunction {
-    Math(fn(&[Value]) -> Result<Value, Error>),
-    IO(fn(&[Value])),
-    Casting(fn(&[Value]) -> Result<Value, Error>),
-    Compare(fn(&[Value]) -> Result<Value, Error>),
-    Introspection(fn(&[Value]) -> Result<Value, Error>),
+    Math(fn(Vec<Value>) -> Result<Value, Error>),
+    IO(fn(Vec<Value>)),
+    Casting(fn(Vec<Value>) -> Result<Value, Error>),
+    Compare(fn(Vec<Value>) -> Result<Value, Error>),
+    Collection(fn(Vec<Value>) -> Result<Value, Error>),
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -145,9 +145,19 @@ pub const BUILTIN_TABLE: &[Builtin] = &[
             Signature { arguments: &[Kind::Boolean], result: Kind::Boolean, min_arity: 2, infinite_arity: true },
         ]
     },
-    Builtin { name: "length", function: BuiltinFunction::Introspection(length), have_instruction: false,
+    Builtin { name: "length", function: BuiltinFunction::Collection(length), have_instruction: false,
         types: &[
             Signature { arguments: &[Kind::String], result: Kind::Integer, min_arity: 1, infinite_arity: false },
+        ]
+    },
+    Builtin { name: "push", function: BuiltinFunction::Collection(push), have_instruction: false,
+        types: &[
+            Signature { arguments: &[Kind::Integer, Kind::Array], result: Kind::Array, min_arity: 2, infinite_arity: false },
+        ]
+    },
+    Builtin { name: "pop", function: BuiltinFunction::Collection(pop), have_instruction: false,
+        types: &[
+            Signature { arguments: &[Kind::Array], result: Kind::Array, min_arity: 1, infinite_arity: false },
         ]
     },
 ];

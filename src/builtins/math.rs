@@ -1,7 +1,7 @@
 use crate::value::Value;
 use crate::error_handler::{Error, RuntimeError, RuntimeErrorType, TypeError, TypeErrorType};
 
-pub fn add(arguments: &[Value]) -> Result<Value, Error> {
+pub fn add(arguments: Vec<Value>) -> Result<Value, Error> {
     if arguments.is_empty() { return Err(RuntimeError { kind: RuntimeErrorType::InsufficientOperands("Addition".to_string()) }.into()) }
     let (first, rest) = arguments.split_first().unwrap();
     if rest.is_empty() { return match first {
@@ -18,7 +18,7 @@ pub fn add(arguments: &[Value]) -> Result<Value, Error> {
     })
 }
 
-pub fn minus(arguments: &[Value]) -> Result<Value, Error> {
+pub fn minus(arguments: Vec<Value>) -> Result<Value, Error> {
     if arguments.is_empty() { return Err(RuntimeError { kind: RuntimeErrorType::InsufficientOperands("Minus".to_string()) }.into()) }
     let (first, rest) = arguments.split_first().unwrap();
     if rest.is_empty() {
@@ -37,7 +37,7 @@ pub fn minus(arguments: &[Value]) -> Result<Value, Error> {
     })
 }
 
-pub fn multiply(arguments: &[Value]) -> Result<Value, Error> {
+pub fn multiply(arguments: Vec<Value>) -> Result<Value, Error> {
     if arguments.is_empty() { return Err(RuntimeError { kind: RuntimeErrorType::InsufficientOperands("Multiply".to_string()) }.into()) }
     let (first, rest) = arguments.split_first().unwrap();
     if rest.is_empty() {
