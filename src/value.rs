@@ -21,6 +21,7 @@ impl Kind {
     pub const INTEGER: u8 = Self::Integer as u8;
     pub const STRING: u8 = Self::String as u8;
     pub const ARRAY: u8 = Self::Array as u8;
+    pub const NIL: u8 = Self::Nil as u8;
 }
 
 
@@ -56,24 +57,15 @@ pub enum LightValue {
     Float(f64),
     Integer(i64),
     StringPointer(u32),
-    ArrayPointer(u32),
     StringHeapPointer(u32),
-    ArrayHeapPointer(u32),
+    ArrayPointer(u32),
 }
 
 impl LightValue {
-    pub const BOOLEAN: u8 = 0;
     pub const BOOLEAN_SIZE: usize = 1 + 1;
-    pub const NIL: u8 = 1;
     pub const NIL_SIZE: usize = 1;
-    pub const FLOAT: u8 = 2;
     pub const FLOAT_SIZE: usize = 1 + 8;
-    pub const INTEGER: u8 = 3;
-    pub const INTEGER_SIZE: usize = 1 + 8;  
-    pub const STRING_POINTER: u8 = 4;
-    pub const STRING_POINTER_SIZE: usize = 1 + 4;
-    pub const ARRAY_POINTER: u8 = 6;
-    pub const ARRAY_POINTER_SIZE: usize = 1 + 4;
+    pub const INTEGER_SIZE: usize = 1 + 8;
     pub fn get_kind(&self) -> Kind {
         match self {
             Self::Boolean(_) => Kind::Boolean,

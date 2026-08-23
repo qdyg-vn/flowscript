@@ -48,7 +48,7 @@ impl Memory {
         let new_pointers = self.garbage_collect(pointers);
         for (index, &value_index) in indices.iter().enumerate() {
             match &mut stack[value_index] {
-                LightValue::StringHeapPointer(pointer) | LightValue::ArrayHeapPointer(pointer) => {
+                LightValue::StringHeapPointer(pointer) | LightValue::ArrayPointer(pointer) => {
                     *pointer = new_pointers[index] as u32;
                 },
                 _ => unreachable!(),
@@ -61,7 +61,7 @@ impl Memory {
         let mut indices = Vec::new();
         for (value_index, value) in stack.iter().enumerate() {
             match value {
-                LightValue::StringHeapPointer(index) | LightValue::ArrayHeapPointer(index) => {
+                LightValue::StringHeapPointer(index) | LightValue::ArrayPointer(index) => {
                     pointers.push(*index as usize);
                     indices.push(value_index);
                 },
