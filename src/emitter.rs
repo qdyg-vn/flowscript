@@ -36,18 +36,18 @@ impl Emitter {
                     self.create_chunk(arguments, chunk);
                     chunk.instructions.push(Instruction::BuiltinCall(index, arity))
                 },
-                TypedNode::Call { signature_index, arguments, ..} => {
+                TypedNode::Call { function_index, arguments, ..} => {
                     self.create_chunk(arguments, chunk);
-                    chunk.instructions.push(Instruction::Call(signature_index as u16))
+                    chunk.instructions.push(Instruction::Call(function_index as u16))
                 },
                 TypedNode::RelativeReference(x, y, _) => chunk.instructions.push(Instruction::RelativeReference(x, y)),
                 TypedNode::StationCapture(index, _) => chunk.instructions.push(Instruction::StationCapture(index)),
                 TypedNode::Assignment(index, _) => chunk.instructions.push(Instruction::Store(index)),
                 TypedNode::Variable(index, _) => chunk.instructions.push(Instruction::LoadVariable(index)),
-                TypedNode::DefineFunction { signature_index, body } => {
+                TypedNode::DefineFunction { function_index, body } => {
                     let mut child_chunk = Chunk { instructions: Vec::with_capacity(body.nodes.len()), arity: body.arity, variables_count: body.variables_count, max_relative_reference: body.max_relative_reference };
                     self.create_chunk(body.nodes, &mut child_chunk);
-                    self.constants_pool.write_function_body(signature_index as usize, child_chunk);
+                    self.constants_pool.write_function_body(function_index as usize, child_chunk);
                 },
                 TypedNode::Pipeline(stations) => self.create_chunk(stations, chunk),
                 TypedNode::Condition {branches, final_branch} => self.emit_condition(branches, final_branch, chunk),

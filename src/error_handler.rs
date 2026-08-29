@@ -25,6 +25,7 @@ impl ErrorHandler {
     }
 }
 
+#[derive(Debug)]
 pub enum Error {
     LexicalError(LexicalError),
     SyntaxError(SyntaxError),
@@ -75,6 +76,7 @@ impl From<TypeError> for Error {
     }
 }
 
+#[derive(Debug)]
 pub struct LexicalError {
     pub line: usize,
     pub column: usize,
@@ -96,6 +98,7 @@ impl fmt::Display for LexicalError {
     }
 }
 
+#[derive(Debug)]
 pub enum LexicalErrorType {
     InvalidCharacter(String),
     DecimalPoints(String),
@@ -126,6 +129,7 @@ impl fmt::Display for LexicalErrorType {
     }
 }
 
+#[derive(Debug)]
 pub struct SyntaxError {
     pub line: usize,
     pub column: usize,
@@ -160,6 +164,7 @@ impl fmt::Display for SyntaxError {
     }
 }
 
+#[derive(Debug)]
 pub enum SyntaxErrorType {
     UnimplementedToken(Token),
     MissingFunctionName,
@@ -208,6 +213,7 @@ impl fmt::Display for SyntaxErrorType {
     }
 }
 
+#[derive(Debug)]
 pub struct SemanticError {
     pub kind: SemanticErrorType
 }
@@ -225,6 +231,7 @@ impl fmt::Display for SemanticError {
     }
 }
 
+#[derive(Debug)]
 pub enum SemanticErrorType {
     UndefinedIdentifier(String),
     DuplicateParameter(String),
@@ -245,6 +252,7 @@ impl fmt::Display for SemanticErrorType {
     }
 }
 
+#[derive(Debug)]
 pub struct RuntimeError {
     pub kind: RuntimeErrorType,
 }
@@ -260,6 +268,7 @@ impl fmt::Display for RuntimeError {
     }
 }
 
+#[derive(Debug)]
 pub enum RuntimeErrorType {
     OutOfBounds(usize, usize),
     InsufficientOperands(String),
@@ -276,6 +285,7 @@ impl fmt::Display for RuntimeErrorType {
     }
 }
 
+#[derive(Debug)]
 pub struct TypeError {
     pub kind: TypeErrorType
 }
@@ -290,11 +300,13 @@ impl fmt::Display for TypeError {
             TypeErrorType::AssignTypeMismatch(_, _) => 5,
             TypeErrorType::ArityMismatch(_, _) => 6,
             TypeErrorType::NotAFunction(_) => 7,
+            TypeErrorType::NoFunctionFound(_) => 8,
         };
         writeln!(formatter, "\x1b[31;1m[Error FSCC8{:0>3}]\x1b[0m {}", code, self.kind)
     }
 }
 
+#[derive(Debug)]
 pub enum TypeErrorType {
     NotSequence(Value),
     TypeMismatch(Kind, Kind),
@@ -303,6 +315,7 @@ pub enum TypeErrorType {
     AssignTypeMismatch(Kind, Kind),
     ArityMismatch(usize, usize),
     NotAFunction(String),
+    NoFunctionFound(Vec<Kind>),
 }
 
 impl fmt::Display for TypeErrorType {
@@ -314,6 +327,7 @@ impl fmt::Display for TypeErrorType {
             Self::AssignTypeMismatch(received_kind, required_kind) => write!(formatter, "Type '{}' is not assignable to type '{}'", received_kind, required_kind),
             Self::ArityMismatch(received_arity, required_arity) => write!(formatter, "Function expects {} arguments, but got {}", required_arity, received_arity),
             Self::NotAFunction(name) => write!(formatter, "{} is not a function", name),
+            Self::NoFunctionFound(arguments) => write!(formatter, "No function found that matches the given arguments type: {:?}", arguments),
         }
     }
 }

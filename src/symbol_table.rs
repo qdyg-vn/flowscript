@@ -1,12 +1,17 @@
 use crate::builtins::BUILTIN_TABLE;
-use crate::error_handler::{SemanticError, SemanticErrorType};
+use crate::error_handler::{SemanticError, SemanticErrorType, TypeError, TypeErrorType};
 use std::collections::{HashMap, hash_map::Entry};
 use crate::value::Kind;
 
-#[derive(Debug, Clone, Copy)]
-pub struct FunctionSignature {
-    pub start: u32,
-    pub length: u8,
+#[derive(Debug, Hash, Eq, PartialEq)]
+struct FunctionSignature {
+    id: u32,
+    parameters_kind: Vec<Kind>,
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct Function {
+    pub index: u32,
     pub result: Kind,
 }
 
@@ -28,8 +33,7 @@ pub struct SymbolTable {
     builtins: HashMap<String, u16>,
     scopes: Vec<HashMap<String, SymbolType>>,
     pub all_variable: Vec<Kind>,
-    functions: Vec<FunctionSignature>,
-    pub all_parameters: Vec<Kind>,
+    functions: HashMap<FunctionSignature, Function>,
     pub pipeline: Vec<RelativeReference>,
 }
 
@@ -82,17 +86,33 @@ impl SymbolTable {
         SymbolType::VariableScope(index, variable_index)
     }
 
-    pub fn add_function(&mut self, variable: String, signature_length: u32, result: Kind) -> Result<SymbolType, SymbolType> {
-        let signature_index = self.functions.len() as u32;
+    pub fn add_function(&mut self, function_name: String, parameters_kind: Vec<Kind>, result: Kind) {
+        let function_index = self.functions.len() as u32;
         let last_scope = self.scopes.last_mut().unwrap();
-        match last_scope.entry(variable) {
+        match last_scope.entry(function_name) {
             Entry::Vacant(entry) => {
-                self.functions.push(FunctionSignature { start: self.all_parameters.len() as u32, length: signature_length as u8, result });
-                let new_symbol = SymbolType::FunctionScope(signature_index);
+                let function_signature = FunctionSignature { id: function_index, parameters_kind };
+                let function = Function { index: function_index, result };
+                self.functions.insert(function_signature, function);
+                let new_symbol = SymbolType::FunctionScope(function_index);
                 entry.insert(new_symbol);
-                Ok(new_symbol)
             }
-            Entry::Occupied(entry) => Err(*entry.get())
+            Entry::Occupied(entry) => {
+                let SymbolType::FunctionScope(id) = entry.get() else { todo!() };
+                let function_signature = FunctionSignature { id: *id, parameters_kind };
+                match self.functions.entry(function_signature) {
+                    Entry::Vacant(entry) => { entry.insert(Function { index: function_index, result }); },
+                    Entry::Occupied(_) => todo!(),
+                }
+            }
+        }
+    }
+
+    pub fn find_function(&self, id: u32, parameters_kind: Vec<Kind>) -> Result<Function, TypeError> {
+        let function = FunctionSignature { id, parameters_kind: parameters_kind.clone() };
+        match self.functions.get(&function) {
+            Some(function_index) => Ok(*function_index),
+            None => Err(TypeError { kind: TypeErrorType::NoFunctionFound(parameters_kind) }),
         }
     }
     
@@ -106,15 +126,5 @@ impl SymbolTable {
             return Ok(SymbolType::Builtin(index))
         }
         Err(SemanticError {kind: SemanticErrorType::UndefinedIdentifier(name.into())})
-    }
-
-    pub fn get_parameters(&self, function_index: u32) -> Vec<Kind> {
-        let function = self.functions[function_index as usize];
-        self.all_parameters[function.start as usize..function.start as usize + function.length as usize].to_vec()
-    }
-
-    pub fn get_result(&self, function_index: u32) -> Kind {
-        let function = self.functions[function_index as usize];
-        function.result
     }
 }

@@ -42,11 +42,13 @@ impl TypeChecker {
                     Err(errors) => Err(errors),
                 }
             },
-            ResolvedNode::Call { arguments, signature_index } => {
+            ResolvedNode::Call { arguments, function_index } => {
                 let typed_arguments = arguments.iter().map(|argument| self.check(argument, typed_stations)).collect::<Result<Vec<TypedNode>, Vec<Error>>>()?;
-                let required_variables_type = self.symbol_table.get_parameters(*signature_index);
-                self.check_function_arguments(&typed_arguments, required_variables_type);
-                Ok(TypedNode::Call { signature_index: *signature_index, arguments: typed_arguments, result: self.symbol_table.get_result(*signature_index) })
+                let arguments_kind = typed_arguments.iter().map(|argument| self.find_typed_node_kind(argument)).collect();
+                match self.symbol_table.find_function(*function_index, arguments_kind) {
+                    Ok(function) => Ok(TypedNode::Call { function_index: function.index, arguments: typed_arguments, result: function.result }),
+                    Err(errors) => Err(vec![errors.into()]),
+                }
             },
             ResolvedNode::Pipeline(stations) => {
                 let mut typed_stations = Vec::with_capacity(stations.len());
@@ -90,9 +92,9 @@ impl TypeChecker {
                 self.symbol_table.all_variable[*variable_index as usize] = *kind;
                 Ok(TypedNode::Assignment(*index, *kind))
             },
-            ResolvedNode::DefineFunction { signature_index, body } => {
+            ResolvedNode::DefineFunction { function_index, body } => {
                 let child_typed_stations = Vec::with_capacity(body.nodes.len());
-                Ok(TypedNode::DefineFunction { signature_index: *signature_index, body: TypedAST { nodes: body.nodes.iter().map(|node| self.check(node, &child_typed_stations)).collect::<Result<Vec<TypedNode>, Vec<Error>>>()?, arity: body.arity, variables_count: body.variables_count, max_relative_reference: body.max_relative_reference }})
+                Ok(TypedNode::DefineFunction { function_index: *function_index, body: TypedAST { nodes: body.nodes.iter().map(|node| self.check(node, &child_typed_stations)).collect::<Result<Vec<TypedNode>, Vec<Error>>>()?, arity: body.arity, variables_count: body.variables_count, max_relative_reference: body.max_relative_reference }})
             },
             ResolvedNode::Condition { branches, final_branch } => {
                 let mut typed_branches = Vec::with_capacity(branches.len());
@@ -171,32 +173,6 @@ impl TypeChecker {
             | TypedNode::NotEqual(_, _, result) => *result,
             TypedNode::Array(_) => Kind::Array,
             _ => {todo!("Currently under development")}
-        }
-    }
-
-    fn check_function_arguments(&mut self, arguments: &[TypedNode], required_variables_type: Vec<Kind>) {
-        let received_arity = arguments.len();
-        let required_arity = required_variables_type.len();
-        for index in 0..std::cmp::min(received_arity, required_arity) {
-            let required_variable_type = required_variables_type[index];
-            let received_variable_type = match &arguments[index] {
-                TypedNode::Literal(value) => value.get_kind(),
-                TypedNode::HeavyLiteral(value) => value.get_kind(),
-                TypedNode::Variable(_, kind) | TypedNode::RelativeReference(_, _, kind) => *kind,
-                TypedNode::BuiltinCall { result, .. } | TypedNode::Add(_, _, result)
-                | TypedNode::Minus(_, _, result) | TypedNode::Multiply(_, _, result)
-                | TypedNode::Equal(_, _, result) | TypedNode::LessThan(_, _, result)
-                | TypedNode::GreaterThan(_, _, result) | TypedNode::LessThanOrEqual(_, _, result)
-                | TypedNode::GreaterThanOrEqual(_, _, result) | TypedNode::NotEqual(_, _, result)
-                => *result,
-                _ => {todo!("Currently under development")}
-            };
-            if received_variable_type != required_variable_type {
-                self.error_handler.push_error(TypeError {kind: TypeErrorType::TypeMismatch(required_variable_type, received_variable_type)})
-            }
-        }
-        if received_arity != required_arity {
-            self.error_handler.push_error(TypeError {kind: TypeErrorType::ArityMismatch(received_arity, required_arity)})
         }
     }
 

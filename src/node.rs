@@ -43,7 +43,7 @@ pub enum ResolvedNode {
     },
     Call {
         arguments: Vec<ResolvedNode>,
-        signature_index: u32,
+        function_index: u32,
     },
     Pipeline(Vec<ResolvedNode>),
     RelativeReference(u16, u16, u32),
@@ -52,7 +52,7 @@ pub enum ResolvedNode {
     SoftAssignment(u16, u32),
     Assignment(u16, u32, Kind),
     DefineFunction {
-        signature_index: u32,
+        function_index: u32,
         body: AST,
     },
     Condition {
@@ -73,7 +73,7 @@ pub enum TypedNode {
         result: Kind,
     },
     Call {
-        signature_index: u32,
+        function_index: u32,
         arguments: Vec<TypedNode>,
         result: Kind,
     },
@@ -83,7 +83,7 @@ pub enum TypedNode {
     Assignment(u16, Kind),
     StationCapture(u16, Kind),
     DefineFunction {
-        signature_index: u32,
+        function_index: u32,
         body: TypedAST,
     },
     Condition {

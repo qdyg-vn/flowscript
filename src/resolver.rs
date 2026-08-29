@@ -47,7 +47,12 @@ impl Resolver {
             match station {
                 Node::Pipeline(stations) => { self.push_signature_to_symbol_table(stations); },
                 Node::DefineFunction { operator, parameters, result, .. } => {
-                    self.symbol_table.add_function(operator.clone(), parameters.len() as u32, *result);
+                    let mut parameters_kind = Vec::with_capacity(parameters.len());
+                    for parameter in parameters {
+                        let Node::Assignment(_, kind) = parameter else { todo!() };
+                        parameters_kind.push(*kind);
+                    }
+                    self.symbol_table.add_function(operator.clone(), parameters_kind, *result);
                     define_function_count += 1;
                 }
                 Node::Condition { branches, final_branch } => {
@@ -98,9 +103,9 @@ impl Resolver {
                 };
                 match self.symbol_table.resolve(&operator) {
                     Ok(SymbolType::Builtin(index)) => resolved_stations.push(ResolvedNode::BuiltinCall { index, arguments: self.solve(arguments, ast, station_context) }),
-                    Ok(SymbolType::FunctionScope(signature_index)) => {
+                    Ok(SymbolType::FunctionScope(function_index)) => {
                         let arguments = self.solve(arguments, ast, station_context);
-                        resolved_stations.push(ResolvedNode::Call { arguments, signature_index })
+                        resolved_stations.push(ResolvedNode::Call { arguments, function_index })
                     },
                     Ok(SymbolType::VariableScope(_, _)) => self.error_handler.push_error(TypeError { kind: TypeErrorType::NotAFunction(operator) }),
                     Err(error) => self.error_handler.push_error(error)
@@ -133,21 +138,18 @@ impl Resolver {
                     _ => unreachable!()
                 }
             },
-            Node::DefineFunction { operator, parameters, body, result } => {
-                let signature_index = match self.symbol_table.add_function(operator, parameters.len() as u32, result) {
-                    Err(SymbolType::FunctionScope(signature_index)) => signature_index,
-                    _ => unreachable!()
-                };
+            Node::DefineFunction { operator, parameters, body, .. } => {
+                let mut child_ast = AST { nodes: Vec::with_capacity(body.len()), .. AST::default() };
                 self.total_define_function_count += 1;
                 self.symbol_table.new_scope();
-                let mut child_ast = AST { nodes: Vec::with_capacity(body.len()), .. AST::default() };
+                let mut parameters_kind = Vec::with_capacity(parameters.len());
                 for parameter in parameters {
                     match parameter {
                         Node::Assignment(name, kind) => {
                             match self.symbol_table.add_variable(name.clone(), kind) {
                                 Ok(SymbolType::VariableScope(_, _)) => {
                                     child_ast.arity += 1;
-                                    self.symbol_table.all_parameters.push(kind)
+                                    parameters_kind.push(kind);
                                 },
                                 Err(SymbolType::VariableScope(_, _)) => self.error_handler.push_error(SemanticError {kind: SemanticErrorType::DuplicateParameter(name)}),
                                 _ => unreachable!()
@@ -160,7 +162,9 @@ impl Resolver {
                 let body = self.solve(body, &mut child_ast, PipelineContext::NotInPipeline);
                 child_ast.nodes = body;
                 self.symbol_table.pop_scope();
-                resolved_stations.push(ResolvedNode::DefineFunction { signature_index, body: child_ast })
+                let Ok(SymbolType::FunctionScope(function_id)) = self.symbol_table.resolve(&operator) else { unreachable!() };
+                let function = self.symbol_table.find_function(function_id, parameters_kind).unwrap();
+                resolved_stations.push(ResolvedNode::DefineFunction { function_index: function.index, body: child_ast })
             },
             Node::Pipeline(stations) => {
                 self.symbol_table.pipeline.clear();
