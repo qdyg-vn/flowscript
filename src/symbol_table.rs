@@ -86,7 +86,7 @@ impl SymbolTable {
         SymbolType::VariableScope(index, variable_index)
     }
 
-    pub fn add_function(&mut self, function_name: String, parameters_kind: Vec<Kind>, result: Kind) {
+    pub fn add_function(&mut self, function_name: String, parameters_kind: Vec<Kind>, result: Kind) -> Option<SemanticError> {
         let function_index = self.functions.len() as u32;
         let last_scope = self.scopes.last_mut().unwrap();
         match last_scope.entry(function_name) {
@@ -96,13 +96,14 @@ impl SymbolTable {
                 self.functions.insert(function_signature, function);
                 let new_symbol = SymbolType::FunctionScope(function_index);
                 entry.insert(new_symbol);
+                None
             }
             Entry::Occupied(entry) => {
                 let SymbolType::FunctionScope(id) = entry.get() else { todo!() };
                 let function_signature = FunctionSignature { id: *id, parameters_kind };
                 match self.functions.entry(function_signature) {
-                    Entry::Vacant(entry) => { entry.insert(Function { index: function_index, result }); },
-                    Entry::Occupied(_) => todo!(),
+                    Entry::Vacant(entry) => { entry.insert(Function { index: function_index, result }); None },
+                    Entry::Occupied(_) => Some(SemanticError { kind: SemanticErrorType::DuplicateFunctionDefinition }),
                 }
             }
         }

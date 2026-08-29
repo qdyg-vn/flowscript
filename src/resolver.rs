@@ -52,7 +52,9 @@ impl Resolver {
                         let Node::Assignment(_, kind) = parameter else { todo!() };
                         parameters_kind.push(*kind);
                     }
-                    self.symbol_table.add_function(operator.clone(), parameters_kind, *result);
+                    if let Some(error) = self.symbol_table.add_function(operator.clone(), parameters_kind, *result) {
+                        self.error_handler.push_error(error);
+                    }
                     define_function_count += 1;
                 }
                 Node::Condition { branches, final_branch } => {

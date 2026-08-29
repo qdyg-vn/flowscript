@@ -226,6 +226,7 @@ impl fmt::Display for SemanticError {
             SemanticErrorType::NegativeXCoordinate(_) => 3,
             SemanticErrorType::MissingStation(_) => 4,
             SemanticErrorType::RelativeReferenceNotInPipeline => 5,
+            SemanticErrorType::DuplicateFunctionDefinition => 6,
         };
         writeln!(formatter, "\x1b[31;1m[Error FSCC5{:0>3}]\x1b[0m {}", code, self.kind)
     }
@@ -238,6 +239,7 @@ pub enum SemanticErrorType {
     NegativeXCoordinate(u16),
     MissingStation(u16),
     RelativeReferenceNotInPipeline,
+    DuplicateFunctionDefinition,
 }
 
 impl fmt::Display for SemanticErrorType {
@@ -248,6 +250,7 @@ impl fmt::Display for SemanticErrorType {
             Self::NegativeXCoordinate(x) => write!(formatter, "x must be positive when y is zero: {}", x),
             Self::MissingStation(x) => write!(formatter, "There is no station at position {}", x),
             Self::RelativeReferenceNotInPipeline => write!(formatter, "Cannot use relative reference outside a pipeline"),
+            Self::DuplicateFunctionDefinition => write!(formatter, "Duplicate definition of function"),
         }
     }
 }
