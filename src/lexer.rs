@@ -123,26 +123,17 @@ impl<'source_code> Lexer<'source_code> {
             return Ok(Token::new(start, end, TokenType::RelativeReference(1, y)))
         }
         match value {
-            "fun" => return Ok(Token::new(start, end, TokenType::DefineFunction)),
-            "if" => return Ok(Token::new(start, end, TokenType::If)),
-            "else" => return Ok(Token::new(start, end, TokenType::Else)),
-            "return" => return Ok(Token::new(start, end, TokenType::Return)),
-            "true" => return Ok(Token::new(start, end, TokenType::Boolean(true))),
-            "false" => return Ok(Token::new(start, end, TokenType::Boolean(false))),
-            "nil" => return Ok(Token::new(start, end, TokenType::Nil)),
-            "do" => return Ok(Token::new(start, end, TokenType::Do)),
-            "end" => return Ok(Token::new(start, end, TokenType::End)),
-            "boolean" | "integer" | "float" | "string" | "array" => return Ok(Token::new(start, end, TokenType::Kind(value.to_owned()))),
-            _ => ()
+            "fun" => Ok(Token::new(start, end, TokenType::DefineFunction)),
+            "if" => Ok(Token::new(start, end, TokenType::If)),
+            "else" => Ok(Token::new(start, end, TokenType::Else)),
+            "return" => Ok(Token::new(start, end, TokenType::Return)),
+            "true" => Ok(Token::new(start, end, TokenType::Boolean(true))),
+            "false" => Ok(Token::new(start, end, TokenType::Boolean(false))),
+            "nil" => Ok(Token::new(start, end, TokenType::Nil)),
+            "do" => Ok(Token::new(start, end, TokenType::Do)),
+            "end" => Ok(Token::new(start, end, TokenType::End)),
+            _ => Ok(Token::new(start, end, TokenType::Identifier(value.to_owned()))),
         }
-        while let Some(character) = self.peek(0) && character == b' ' { self.advance(0); }
-        if self.peek(0) != Some(b'(') {
-            return Ok(Token::new(start, end, TokenType::Variable(value.to_owned())))
-        }
-        if value.ends_with('!') {
-            return Ok(Token::new(start, end, TokenType::Macro(value.to_owned())))
-        }
-        Ok(Token::new(start, end, TokenType::Identifier(value.to_owned())))
     }
 
     fn skip_comment(&mut self) {

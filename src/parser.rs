@@ -66,7 +66,12 @@ impl<'source_code> Parser<'source_code> {
             TokenType::Float(number) => Some(Node::Literal(LightValue::Float(number))),
             TokenType::Boolean(boolean) => Some(Node::Literal(LightValue::Boolean(boolean))),
             TokenType::Nil => Some(Node::Literal(LightValue::Nil)),
-            TokenType::Identifier(identifier) => self.parse_function(token.start, identifier, errors),
+            TokenType::Identifier(identifier) => {
+                if let Some(Ok(token)) = self.peek() && token.kind == TokenType::LeftParen {
+                    return self.parse_function(token.start, identifier, errors);
+                }
+                Some(Node::Variable(identifier))
+            },
             TokenType::String(string) => Some(Node::HeavyLiteral(Value::String(string))),
             TokenType::RelativeReference(x, y) => {
                 if x == 0 && y == 0 {
@@ -75,7 +80,6 @@ impl<'source_code> Parser<'source_code> {
                 }
                 Some(Node::RelativeReference(x, y))
             },
-            TokenType::Variable(name) => Some(Node::Variable(name)),
             TokenType::DefineFunction => self.parse_define_function(token.start, errors),
             TokenType::If => self.parse_condition(token.start, errors),
             TokenType::Return => Some(Node::Return(Box::from(match self.advance(1) {
@@ -122,20 +126,19 @@ impl<'source_code> Parser<'source_code> {
             Some(Err(error)) => { errors.push(error); return None }
             None => { self.error_pusher(self.last_index(), SyntaxErrorType::MissingTypeIdentity, errors); return None },
         };
-        match token.kind {
-            TokenType::Kind(kind) => {
-                let node_kind = match kind.as_str() {
-                    "boolean" => Kind::Boolean,
-                    "float" => Kind::Float,
-                    "integer" => Kind::Integer,
-                    "string" => Kind::String,
-                    "array" => Kind::Array,
-                    _ => unreachable!(),
-                };
-                Some(Node::Assignment(name, node_kind))
-            },
-            _ => { self.error_pusher(token.start, SyntaxErrorType::InvalidTypeError, errors); None }
+        if let TokenType::Identifier(kind) = token.kind {
+            let node_kind = match kind.as_str() {
+                "boolean" => Kind::Boolean,
+                "float" => Kind::Float,
+                "integer" => Kind::Integer,
+                "string" => Kind::String,
+                "array" => Kind::Array,
+                _ => { self.error_pusher(token.start, SyntaxErrorType::InvalidTypeError, errors); return None },
+            };
+            return Some(Node::Assignment(name, node_kind))
         }
+        self.error_pusher(token.start, SyntaxErrorType::InvalidTypeError, errors);
+        None
     }
 
     fn parse_define_function(&mut self, start: usize, errors: &mut Vec<Error>) -> Option<Node> {
@@ -158,7 +161,7 @@ impl<'source_code> Parser<'source_code> {
             match self.advance(1) {
                 Some(Ok(Token { kind: TokenType::RightParen, .. })) => break,
                 Some(Ok(argument)) => match argument.kind {
-                    TokenType::Variable(name) => { // Because in a lexer when it encounters a function argument, it converts it into a variable
+                    TokenType::Identifier(name) => {
                         if let Some(Ok(token)) = self.peek() && token.kind == TokenType::Colon {
                             parameters.push(self.parse_assignment(name, errors)?)
                         } else {
@@ -172,17 +175,17 @@ impl<'source_code> Parser<'source_code> {
             }
         };
         let mut result = Kind::Nil;
-        if let Some(Ok(Token { kind, .. })) = self.peek() && kind == TokenType::Colon {
+        if let Some(Ok(Token { start, kind, .. })) = self.peek() && kind == TokenType::Colon {
             self.advance(1);
             match self.peek() {
-                Some(Ok(Token { kind: TokenType::Kind(kind), .. })) => {
+                Some(Ok(Token { kind: TokenType::Identifier(kind), .. })) => {
                     let result_kind = match kind.as_str() {
                         "boolean" => Kind::Boolean,
                         "float" => Kind::Float,
                         "integer" => Kind::Integer,
                         "string" => Kind::String,
                         "array" => Kind::Array,
-                        _ => unreachable!(),
+                        _ => { self.error_pusher(start, SyntaxErrorType::InvalidTypeError, errors); return None },
                     };
                     result = result_kind;
                     self.advance(1);

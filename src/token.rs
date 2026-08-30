@@ -20,7 +20,6 @@ pub enum TokenType {
     Function,
     Nil,
     Identifier(String),
-    Macro(String),
     Integer(i64),
     LeftParen,
     Minus,
@@ -30,7 +29,6 @@ pub enum TokenType {
     RightParen,
     Semicolon,
     String(String),
-    Variable(String),
     DefineFunction,
     LeftBrace,
     RightBrace,
@@ -40,7 +38,6 @@ pub enum TokenType {
     LeftBracket,
     RightBracket,
     Colon,
-    Kind(String),
     Do,
     End,
 }
