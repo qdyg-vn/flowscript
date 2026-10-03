@@ -1,12 +1,14 @@
 use crate::instructions::{Bytecode, Instruction};
 use crate::memory::Memory;
 use crate::constants_pool::ConstantsPool;
-use crate::value::Value;
+use crate::value::{LightValue, Value, BOOLEAN_SIZE, FLOAT_SIZE, INTEGER_SIZE, INDEX_SIZE, NIL_SIZE};
 use crate::virmac::VMConfig;
 
+#[derive(Default)]
 pub struct Assembler {
     memory: Memory,
     constants_pool: ConstantsPool,
+    heavy_constants_offset: Vec<u32>,
 }
 
 impl Assembler {
@@ -14,24 +16,23 @@ impl Assembler {
         Self {
             memory,
             constants_pool,
+            ..Self::default()
         }
     }
 
     pub fn assemble_map(mut self) -> VMConfig {
+        self.assemble_heavy_constants();
         VMConfig {
-            heavy_constant_starts: self.assemble_heavy_constants(),
             function_starts: self.assemble_function(),
             memory: self.memory,
-            constants_pool: self.constants_pool.constants
         }
     }
 
-    fn assemble_heavy_constants(&mut self) -> Vec<usize> {
-        let mut heavy_constant_starts = Vec::new();
+    fn assemble_heavy_constants(&mut self) {
         for constant in std::mem::take(&mut self.constants_pool.heavy_constants) {
             match constant {
                 Value::String(string) => {
-                    heavy_constant_starts.push(self.memory.permanent_space.len());
+                    self.heavy_constants_offset.push(self.memory.permanent_space.len() as u32);
                     let string_bytes = string.into_bytes();
                     self.memory.permanent_space.extend_from_slice(&string_bytes.len().to_le_bytes());
                     self.memory.permanent_space.extend_from_slice(&string_bytes)
@@ -39,7 +40,7 @@ impl Assembler {
                 _ => unreachable!()
             }
         };
-        heavy_constant_starts
+
     }
 
     fn assemble_function(&mut self) -> Vec<usize> {
@@ -66,10 +67,32 @@ impl Assembler {
         let mut position = 0;
         while position < chunk_size {
             match instructions[position] {
-                Instruction::Load(index) => {
+                Instruction::Load(value) => {
                     byte_chunk.push(Bytecode::Load as u8);
-                    byte_chunk.extend_from_slice(&index.to_le_bytes());
+                    byte_chunk.push(value.get_kind().to_byte());
+                    match value {
+                        LightValue::Boolean(boolean) => {
+                            byte_chunk.push(boolean as u8);
+                            *byte_position += BOOLEAN_SIZE;
+                        },
+                        LightValue::Nil => {},
+                        LightValue::Float(float) => {
+                            byte_chunk.extend_from_slice(&float.to_le_bytes());
+                            *byte_position += FLOAT_SIZE;
+                        },
+                        LightValue::Integer(integer) => {
+                            byte_chunk.extend_from_slice(&integer.to_le_bytes());
+                            *byte_position += INTEGER_SIZE;
+                        },
+                        _ => unreachable!(),
+                    };
                     *byte_position += Bytecode::LOAD_SIZE
+                },
+                Instruction::HeavyLoad(index, kind) => {
+                    byte_chunk.push(Bytecode::Load as u8);
+                    byte_chunk.push(kind.to_byte());
+                    byte_chunk.extend_from_slice(&self.heavy_constants_offset[index as usize].to_le_bytes());
+                    *byte_position += Bytecode::LOAD_SIZE;
                 },
                 Instruction::BuiltinCall(index, arity) => {
                     byte_chunk.push(Bytecode::BuiltinCall as u8);
@@ -190,7 +213,14 @@ impl Assembler {
             match instructions[position] {
                 Instruction::Call(_) => distance += Bytecode::CALL_SIZE,
                 Instruction::BuiltinCall(_, _) => distance += Bytecode::BUILTIN_CALL_SIZE,
-                Instruction::Load(_) => distance += Bytecode::LOAD_SIZE,
+                Instruction::Load(value) => distance += Bytecode::LOAD_SIZE + match value {
+                    LightValue::Boolean(_) => BOOLEAN_SIZE,
+                    LightValue::Nil => NIL_SIZE,
+                    LightValue::Float(_) => FLOAT_SIZE,
+                    LightValue::Integer(_) => INTEGER_SIZE,
+                    _ => unreachable!()
+                },
+                Instruction::HeavyLoad(_, _) => distance += Bytecode::LOAD_SIZE + INDEX_SIZE,
                 Instruction::LoadVariable(_) => distance += Bytecode::LOAD_VARIABLE_SIZE,
                 Instruction::Jump(_) => distance += Bytecode::JUMP_SIZE,
                 Instruction::JumpIfFalse(_) => distance += Bytecode::JUMP_IF_FALSE_SIZE,

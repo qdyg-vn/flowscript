@@ -1,14 +1,12 @@
 use crate::builtins::{get_builtin, BuiltinFunction};
 use crate::instructions::Bytecode;
-use crate::value::{get_kind, LightValue, Value, Kind, Tag};
+use crate::value::{get_kind, LightValue, Value, Kind, Tag, BOOLEAN_SIZE, FLOAT_SIZE, INTEGER_SIZE, INDEX_SIZE};
 use crate::error_handler::{ErrorHandler, Error, RuntimeError, RuntimeErrorType};
 use crate::memory::Memory;
 
 #[derive(Debug)]
 pub struct VMConfig {
     pub memory: Memory,
-    pub constants_pool: Vec<LightValue>,
-    pub heavy_constant_starts: Vec<usize>,
     pub function_starts: Vec<usize>,
 }
 
@@ -29,8 +27,6 @@ struct CallFrame {
 #[derive(Default)]
 pub struct VirMac {
     memory: Memory,
-    constants_pool: Vec<LightValue>,
-    heavy_constant_starts: Vec<usize>,
     function_starts: Vec<usize>,
     error_handler: ErrorHandler,
 }
@@ -39,8 +35,6 @@ impl VirMac {
     pub fn new(config: VMConfig, error_handler: ErrorHandler) -> Self {
         Self {
             memory: config.memory,
-            constants_pool: config.constants_pool,
-            heavy_constant_starts: config.heavy_constant_starts,
             function_starts: config.function_starts,
             error_handler,
         }
@@ -88,8 +82,31 @@ impl VirMac {
         if stack.len() <= call_frame.stack_position { stack.resize(stack.len() * 2, LightValue::Nil) }
         match self.memory.functions[call_frame.instruction_position] {
             Bytecode::LOAD => {
-                let index = u32::from_le_bytes(self.memory.functions[call_frame.instruction_position + 1..=call_frame.instruction_position + 4].try_into().unwrap());
-                stack[call_frame.stack_position] = self.constants_pool[index as usize];
+                let tag = self.memory.functions[call_frame.instruction_position + 1];
+                stack[call_frame.stack_position] = match tag {
+                    Tag::BOOLEAN => {
+                        let value = LightValue::Boolean(self.memory.functions[call_frame.instruction_position + 2] != 0);
+                        call_frame.instruction_position += BOOLEAN_SIZE;
+                        value
+                    },
+                    Tag::NIL => LightValue::Nil,
+                    Tag::FLOAT => {
+                        let value = LightValue::Float(f64::from_le_bytes(self.memory.functions[call_frame.instruction_position + 2..=call_frame.instruction_position + 9].try_into().unwrap()));
+                        call_frame.instruction_position += FLOAT_SIZE;
+                        value
+                    },
+                    Tag::INTEGER => {
+                        let value = LightValue::Integer(i64::from_le_bytes(self.memory.functions[call_frame.instruction_position + 2..=call_frame.instruction_position + 9].try_into().unwrap()));
+                        call_frame.instruction_position += INTEGER_SIZE;
+                        value
+                    },
+                    Tag::STRING => {
+                        let value = LightValue::StringPointer(u32::from_le_bytes(self.memory.functions[call_frame.instruction_position + 2..=call_frame.instruction_position + 5].try_into().unwrap()));
+                        call_frame.instruction_position += INDEX_SIZE;
+                        value
+                    },
+                    _ => unreachable!()
+                };
                 call_frame.stack_position += 1;
                 call_frame.instruction_position += Bytecode::LOAD_SIZE;
             },
@@ -378,8 +395,7 @@ impl VirMac {
         (start + 13, length as usize, variables_count, arity, max_temp_variables, max_relative_reference)
     }
 
-    fn get_string_in_permanent_space(&self, index_of_start: usize) -> String {
-        let start = self.heavy_constant_starts[index_of_start];
+    fn get_string_in_permanent_space(&self, start: usize) -> String {
         let length = u64::from_le_bytes(self.memory.permanent_space[start..start + 8].try_into().unwrap());
         String::from_utf8(self.memory.permanent_space[start + 8..start + 8 + length as usize].to_vec()).unwrap()
     }

@@ -3,6 +3,12 @@ use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
+pub const BOOLEAN_SIZE: usize = 1;
+pub const FLOAT_SIZE: usize = 8;
+pub const INTEGER_SIZE: usize = 8;
+pub const INDEX_SIZE: usize = 4;
+pub const NIL_SIZE: usize = 0;
+
 #[repr(u8)]
 #[derive(Debug, Clone, Copy)]
 pub enum Tag {

@@ -1,4 +1,4 @@
-use crate::value::Kind;
+use crate::value::{Kind, LightValue};
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -32,7 +32,7 @@ impl Bytecode {
     pub const BUILTIN_CALL: u8 = Self::BuiltinCall as u8;
     pub const BUILTIN_CALL_SIZE: usize = 1 + 2 + 2;
     pub const LOAD: u8 = Self::Load as u8;
-    pub const LOAD_SIZE: usize = 1 + 4;
+    pub const LOAD_SIZE: usize = 1 + 1;
     pub const LOAD_VARIABLE: u8 = Self::LoadVariable as u8;
     pub const LOAD_VARIABLE_SIZE: usize = 1 + 2;
     pub const JUMP: u8 = Self::Jump as u8;
@@ -75,7 +75,8 @@ impl Bytecode {
 pub enum Instruction {
     Call(u16),
     BuiltinCall(u16, u16),
-    Load(u32),
+    Load(LightValue),
+    HeavyLoad(u32, Kind),
     LoadVariable(u16),
     Jump(u16),
     JumpIfFalse(u16),

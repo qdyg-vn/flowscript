@@ -29,12 +29,11 @@ impl Emitter {
     fn emit_single_node(&mut self, station: TypedNode, chunk: &mut Chunk) {
         match station {
             TypedNode::Literal(value) => {
-                let index = self.constants_pool.add_constant(value);
-                chunk.instructions.push(Instruction::Load(index as u32))
+                chunk.instructions.push(Instruction::Load(value))
             },
             TypedNode::HeavyLiteral(heavy_value) => {
                 let index = self.constants_pool.add_heavy_constant(&heavy_value);
-                chunk.instructions.push(Instruction::Load(index as u32))
+                chunk.instructions.push(Instruction::HeavyLoad(index as u32, heavy_value.get_kind()))
             },
             TypedNode::BuiltinCall {index, arguments, ..} => {
                 let arity = arguments.len() as u16;
