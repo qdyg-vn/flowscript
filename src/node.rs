@@ -29,6 +29,19 @@ pub enum Node {
         branches: Vec<ConditionBranch<Node>>,
         final_branch: Vec<Node>,
     },
+    Struct {
+        name: String,
+        fields: Vec<Node>,
+    },
+    StructInstantiation {
+        name: String,
+        field_names: Vec<String>,
+        field_values: Vec<Node>,
+    },
+    FieldAccess {
+        name: String,
+        field_name: String,
+    },
     Return(Box<Node>),
     Array(Vec<Node>),
 }
@@ -61,6 +74,17 @@ pub enum ResolvedNode {
     },
     Return(Box<ResolvedNode>),
     Array(Vec<ResolvedNode>),
+    StructInstantiation {
+        index: u16,
+        field_kind_indices: Vec<u8>,
+        field_values: Vec<ResolvedNode>,
+    },
+    FieldAccess {
+        index: u16,
+        variable_index: u32,
+        struct_name: String,
+        field_name: String,
+    },
 }
 
 #[derive(Debug)]
@@ -101,6 +125,16 @@ pub enum TypedNode {
     LessThanOrEqual(Vec<TypedNode>, Kind, Kind),
     GreaterThanOrEqual(Vec<TypedNode>, Kind, Kind),
     NotEqual(Vec<TypedNode>, Kind, Kind),
+    StructInstantiation {
+        field_kind_indices: Vec<u8>,
+        field_values: Vec<TypedNode>,
+        structure: Kind,
+    },
+    FieldAccess {
+        index: u16,
+        field_offset: u16,
+        field_kind: Kind,
+    },
 }
 
 #[derive(Debug, Default)]
@@ -108,6 +142,7 @@ pub struct AST {
     pub nodes: Vec<ResolvedNode>,
     pub variables_count: u16,
     pub arity: u8,
+    pub max_temp_variables: u8,
     pub max_relative_reference: u8,
 }
 
@@ -116,5 +151,6 @@ pub struct TypedAST {
     pub nodes: Vec<TypedNode>,
     pub variables_count: u16,
     pub arity: u8,
+    pub max_temp_variables: u8,
     pub max_relative_reference: u8,
 }

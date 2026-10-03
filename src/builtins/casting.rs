@@ -3,7 +3,7 @@ use crate::value::Value;
 
 pub fn to_string(mut arguments: Vec<Value>) -> Result<Value, Error> {
     if arguments.is_empty() {
-        return Err(RuntimeError {kind: RuntimeErrorType::InsufficientOperands("String".to_string())}.into())
+        return Err(RuntimeError { kind: RuntimeErrorType::InsufficientOperands("String".to_string())}.into())
     } else if arguments.len() > 1 {
         todo!()
     }
@@ -21,7 +21,7 @@ pub fn to_string(mut arguments: Vec<Value>) -> Result<Value, Error> {
 
 pub fn to_integer(mut arguments: Vec<Value>) -> Result<Value, Error> {
     if arguments.is_empty() {
-        return Err(RuntimeError {kind: RuntimeErrorType::InsufficientOperands("Integer".to_string())}.into())
+        return Err(RuntimeError { kind: RuntimeErrorType::InsufficientOperands("Integer".to_string())}.into())
     } else if arguments.len() > 1 {
         todo!()
     }
@@ -33,7 +33,7 @@ pub fn to_integer(mut arguments: Vec<Value>) -> Result<Value, Error> {
         Value::Nil => 0,
         Value::String(string) => match string.parse() {
             Ok(integer) => integer,
-            Err(_) => return Err(RuntimeError {kind: RuntimeErrorType::ParseError(string, "Integer".to_string())}.into())
+            Err(_) => return Err(RuntimeError { kind: RuntimeErrorType::ParseError(string, "Integer".to_string())}.into())
         },
         _ => todo!(),
     };
@@ -42,7 +42,7 @@ pub fn to_integer(mut arguments: Vec<Value>) -> Result<Value, Error> {
 
 pub fn to_float(mut arguments: Vec<Value>) -> Result<Value, Error> {
     if arguments.is_empty() {
-        return Err(RuntimeError {kind: RuntimeErrorType::InsufficientOperands("Float".to_string())}.into())
+        return Err(RuntimeError { kind: RuntimeErrorType::InsufficientOperands("Float".to_string())}.into())
     } else if arguments.len() > 1 {
         todo!()
     }
@@ -50,11 +50,11 @@ pub fn to_float(mut arguments: Vec<Value>) -> Result<Value, Error> {
     let result = match value {
         Value::Float(float) => float,
         Value::Integer(integer) => integer as f64,
-        Value::Boolean(_) => return Err(RuntimeError {kind: RuntimeErrorType::ParseError("Boolean".to_string(), "Float".to_string())}.into()),
-        Value::Nil => return Err(RuntimeError {kind: RuntimeErrorType::ParseError("Nil".to_string(), "Float".to_string())}.into()),
+        Value::Boolean(_) => return Err(RuntimeError { kind: RuntimeErrorType::ParseError("Boolean".to_string(), "Float".to_string())}.into()),
+        Value::Nil => return Err(RuntimeError { kind: RuntimeErrorType::ParseError("Nil".to_string(), "Float".to_string())}.into()),
         Value::String(string) => match string.parse() {
             Ok(float) => float,
-            Err(_) => return Err(RuntimeError {kind: RuntimeErrorType::ParseError(string, "Float".to_string())}.into())
+            Err(_) => return Err(RuntimeError { kind: RuntimeErrorType::ParseError(string, "Float".to_string())}.into())
         },
         _ => todo!(),
     };
@@ -63,7 +63,7 @@ pub fn to_float(mut arguments: Vec<Value>) -> Result<Value, Error> {
 
 pub fn to_boolean(arguments: Vec<Value>) -> Result<Value, Error> {
     if arguments.is_empty() {
-        return Err(RuntimeError {kind: RuntimeErrorType::InsufficientOperands("Boolean".to_string())}.into())
+        return Err(RuntimeError { kind: RuntimeErrorType::InsufficientOperands("Boolean".to_string())}.into())
     } else if arguments.len() > 1 {
         todo!()
     }

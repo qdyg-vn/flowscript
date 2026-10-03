@@ -14,7 +14,7 @@ impl Emitter {
     }
 
     pub fn emit(mut self, ast: TypedAST) -> ConstantsPool {
-        let mut chunk = Chunk { instructions: Vec::with_capacity(ast.nodes.len()), arity: ast.arity, variables_count: ast.variables_count, max_relative_reference: ast.max_relative_reference };
+        let mut chunk = Chunk { instructions: Vec::with_capacity(ast.nodes.len()), arity: ast.arity, variables_count: ast.variables_count, max_temp_variables: ast.max_temp_variables, max_relative_reference: ast.max_relative_reference };
         self.create_chunk(ast.nodes, &mut chunk);
         self.constants_pool.write_function_body(self.constants_pool.functions.len() - 1, chunk);
         self.constants_pool
@@ -22,95 +22,110 @@ impl Emitter {
 
     fn create_chunk(&mut self, stations: Vec<TypedNode>, chunk: &mut Chunk) {
         for station in stations {
-            match station {
-                TypedNode::Literal(value) => {
-                    let index = self.constants_pool.add_constant(value);
-                    chunk.instructions.push(Instruction::Load(index as u32))
-                },
-                TypedNode::HeavyLiteral(heavy_value) => {
-                    let index = self.constants_pool.add_heavy_constant(&heavy_value);
-                    chunk.instructions.push(Instruction::Load(index as u32))
-                },
-                TypedNode::BuiltinCall {index, arguments, ..} => {
-                    let arity = arguments.len() as u16;
-                    self.create_chunk(arguments, chunk);
-                    chunk.instructions.push(Instruction::BuiltinCall(index, arity))
-                },
-                TypedNode::Call { function_index, arguments, ..} => {
-                    self.create_chunk(arguments, chunk);
-                    chunk.instructions.push(Instruction::Call(function_index as u16))
-                },
-                TypedNode::RelativeReference(x, y, _) => chunk.instructions.push(Instruction::RelativeReference(x, y)),
-                TypedNode::StationCapture(index, _) => chunk.instructions.push(Instruction::StationCapture(index)),
-                TypedNode::Assignment(index, _) => chunk.instructions.push(Instruction::Store(index)),
-                TypedNode::Variable(index, _) => chunk.instructions.push(Instruction::LoadVariable(index)),
-                TypedNode::DefineFunction { function_index, body } => {
-                    let mut child_chunk = Chunk { instructions: Vec::with_capacity(body.nodes.len()), arity: body.arity, variables_count: body.variables_count, max_relative_reference: body.max_relative_reference };
-                    self.create_chunk(body.nodes, &mut child_chunk);
-                    self.constants_pool.write_function_body(function_index as usize, child_chunk);
-                },
-                TypedNode::Pipeline(stations) => self.create_chunk(stations, chunk),
-                TypedNode::Condition {branches, final_branch} => self.emit_condition(branches, final_branch, chunk),
-                TypedNode::Return(value) => {
-                    self.create_chunk(vec![*value], chunk);
-                    chunk.instructions.push(Instruction::Return)
-                },
-                TypedNode::Array(elements) => {
-                    let count = elements.len() as u32;
-                    self.create_chunk(elements, chunk);
-                    chunk.instructions.push(Instruction::Array(count))
-                },
-                TypedNode::Add(arguments, kind, _) => {
-                    let arity = arguments.len() as u16;
-                    self.create_chunk(arguments, chunk);
-                    chunk.instructions.push(Instruction::Add(arity, kind))
+            self.emit_single_node(station, chunk);
+        }
+    }
+
+    fn emit_single_node(&mut self, station: TypedNode, chunk: &mut Chunk) {
+        match station {
+            TypedNode::Literal(value) => {
+                let index = self.constants_pool.add_constant(value);
+                chunk.instructions.push(Instruction::Load(index as u32))
+            },
+            TypedNode::HeavyLiteral(heavy_value) => {
+                let index = self.constants_pool.add_heavy_constant(&heavy_value);
+                chunk.instructions.push(Instruction::Load(index as u32))
+            },
+            TypedNode::BuiltinCall {index, arguments, ..} => {
+                let arity = arguments.len() as u16;
+                self.create_chunk(arguments, chunk);
+                chunk.instructions.push(Instruction::BuiltinCall(index, arity))
+            },
+            TypedNode::Call { function_index, arguments, ..} => {
+                self.create_chunk(arguments, chunk);
+                chunk.instructions.push(Instruction::Call(function_index as u16))
+            },
+            TypedNode::RelativeReference(x, y, _) => chunk.instructions.push(Instruction::RelativeReference(x, y)),
+            TypedNode::StationCapture(index, _) => chunk.instructions.push(Instruction::StationCapture(index)),
+            TypedNode::Assignment(index, _) => chunk.instructions.push(Instruction::Store(index)),
+            TypedNode::Variable(index, _) => chunk.instructions.push(Instruction::LoadVariable(index)),
+            TypedNode::DefineFunction { function_index, body } => {
+                let mut child_chunk = Chunk { instructions: Vec::with_capacity(body.nodes.len()), arity: body.arity, variables_count: body.variables_count, max_temp_variables: body.max_temp_variables, max_relative_reference: body.max_relative_reference };
+                self.create_chunk(body.nodes, &mut child_chunk);
+                self.constants_pool.write_function_body(function_index as usize, child_chunk);
+            },
+            TypedNode::Pipeline(stations) => self.create_chunk(stations, chunk),
+            TypedNode::Condition {branches, final_branch} => self.emit_condition(branches, final_branch, chunk),
+            TypedNode::Return(value) => {
+                self.emit_single_node(*value, chunk);
+                chunk.instructions.push(Instruction::Return)
+            },
+            TypedNode::Array(elements) => {
+                let count = elements.len() as u32;
+                self.create_chunk(elements, chunk);
+                chunk.instructions.push(Instruction::Array(count))
+            },
+            TypedNode::Add(arguments, kind, _) => {
+                let arity = arguments.len() as u16;
+                self.create_chunk(arguments, chunk);
+                chunk.instructions.push(Instruction::Add(arity, kind))
+            },
+            TypedNode::Minus(arguments, kind, _) => {
+                let arity = arguments.len() as u16;
+                self.create_chunk(arguments, chunk);
+                chunk.instructions.push(Instruction::Minus(arity, kind))
+            },
+            TypedNode::Multiply(arguments, kind, _) => {
+                let arity = arguments.len() as u16;
+                self.create_chunk(arguments, chunk);
+                chunk.instructions.push(Instruction::Multiply(arity, kind))
+            },
+            TypedNode::Equal(arguments, kind, _) => {
+                let arity = arguments.len() as u16;
+                self.create_chunk(arguments, chunk);
+                chunk.instructions.push(Instruction::Equal(arity, kind))
+            },
+            TypedNode::LessThan(arguments, kind, _) => {
+                let arity = arguments.len() as u16;
+                self.create_chunk(arguments, chunk);
+                chunk.instructions.push(Instruction::LessThan(arity, kind))
+            },
+            TypedNode::GreaterThan(arguments, kind, _) => {
+                let arity = arguments.len() as u16;
+                self.create_chunk(arguments, chunk);
+                chunk.instructions.push(Instruction::Reverse(arity));
+                chunk.instructions.push(Instruction::LessThan(arity, kind))
+            },
+            TypedNode::LessThanOrEqual(arguments, kind, _) => {
+                let arity = arguments.len() as u16;
+                self.create_chunk(arguments, chunk);
+                chunk.instructions.push(Instruction::Reverse(arity));
+                chunk.instructions.push(Instruction::LessThan(arity, kind));
+                chunk.instructions.push(Instruction::Not);
+            },
+            TypedNode::GreaterThanOrEqual(arguments, kind, _) => {
+                let arity = arguments.len() as u16;
+                self.create_chunk(arguments, chunk);
+                chunk.instructions.push(Instruction::LessThan(arity, kind));
+                chunk.instructions.push(Instruction::Not);
+            },
+            TypedNode::NotEqual(arguments, kind, _) => {
+                let arity = arguments.len() as u16;
+                self.create_chunk(arguments, chunk);
+                chunk.instructions.push(Instruction::Equal(arity, kind));
+                chunk.instructions.push(Instruction::Not);
+            },
+            TypedNode::StructInstantiation { field_kind_indices, field_values, .. } => {
+                let fields_count = field_kind_indices.len() as u8;
+                for (temp_index, field_value) in field_kind_indices.into_iter().zip(field_values) {
+                    self.emit_single_node(field_value, chunk);
+                    chunk.instructions.push(Instruction::StoreTemp(temp_index));
                 }
-                TypedNode::Minus(arguments, kind, _) => {
-                    let arity = arguments.len() as u16;
-                    self.create_chunk(arguments, chunk);
-                    chunk.instructions.push(Instruction::Minus(arity, kind))
-                }
-                TypedNode::Multiply(arguments, kind, _) => {
-                    let arity = arguments.len() as u16;
-                    self.create_chunk(arguments, chunk);
-                    chunk.instructions.push(Instruction::Multiply(arity, kind))
-                }
-                TypedNode::Equal(arguments, kind, _) => {
-                    let arity = arguments.len() as u16;
-                    self.create_chunk(arguments, chunk);
-                    chunk.instructions.push(Instruction::Equal(arity, kind))
-                },
-                TypedNode::LessThan(arguments, kind, _) => {
-                    let arity = arguments.len() as u16;
-                    self.create_chunk(arguments, chunk);
-                    chunk.instructions.push(Instruction::LessThan(arity, kind))
-                },
-                TypedNode::GreaterThan(arguments, kind, _) => {
-                    let arity = arguments.len() as u16;
-                    self.create_chunk(arguments, chunk);
-                    chunk.instructions.push(Instruction::Reverse(arity));
-                    chunk.instructions.push(Instruction::LessThan(arity, kind))
-                },
-                TypedNode::LessThanOrEqual(arguments, kind, _) => {
-                    let arity = arguments.len() as u16;
-                    self.create_chunk(arguments, chunk);
-                    chunk.instructions.push(Instruction::Reverse(arity));
-                    chunk.instructions.push(Instruction::LessThan(arity, kind));
-                    chunk.instructions.push(Instruction::Not);
-                },
-                TypedNode::GreaterThanOrEqual(arguments, kind, _) => {
-                    let arity = arguments.len() as u16;
-                    self.create_chunk(arguments, chunk);
-                    chunk.instructions.push(Instruction::LessThan(arity, kind));
-                    chunk.instructions.push(Instruction::Not);
-                },
-                TypedNode::NotEqual(arguments, kind, _) => {
-                    let arity = arguments.len() as u16;
-                    self.create_chunk(arguments, chunk);
-                    chunk.instructions.push(Instruction::Equal(arity, kind));
-                    chunk.instructions.push(Instruction::Not);
-                }
-            }
+                chunk.instructions.push(Instruction::StructInstantiation(fields_count));
+            },
+            TypedNode::FieldAccess { index, field_offset, .. } => {
+                chunk.instructions.push(Instruction::FieldAccess(index, field_offset));
+            },
         }
     }
 

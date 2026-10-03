@@ -4,6 +4,35 @@ use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
 #[repr(u8)]
+#[derive(Debug, Clone, Copy)]
+pub enum Tag {
+    Nil,
+    Boolean,
+    Integer,
+    Float,
+    String,
+    StringPointer,
+    StringHeapPointer,
+    Array,
+    ArrayPointer,
+    Struct,
+    StructPointer,
+}
+
+impl Tag {
+    pub const NIL: u8 = Self::Nil as u8;
+    pub const BOOLEAN: u8 = Self::Boolean as u8;
+    pub const INTEGER: u8 = Self::Integer as u8;
+    pub const FLOAT: u8 = Self::Float as u8;
+    pub const STRING: u8 = Self::String as u8;
+    pub const STRING_POINTER: u8 = Self::StringPointer as u8;
+    pub const STRING_HEAP_POINTER: u8 = Self::StringHeapPointer as u8;
+    pub const ARRAY: u8 = Self::Array as u8;
+    pub const ARRAY_POINTER: u8 = Self::ArrayPointer as u8;
+    pub const STRUCT: u8 = Self::Struct as u8;
+    pub const STRUCT_POINTER: u8 = Self::StructPointer as u8;
+}
+
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub enum Kind {
     Boolean,
@@ -11,27 +40,46 @@ pub enum Kind {
     Integer,
     String,
     Array,
+    Struct(u16),
     Nil,
     Undefined,
 }
 
 impl Kind {
-    pub const BOOLEAN: u8 = Self::Boolean as u8;
-    pub const FLOAT: u8 = Self::Float as u8;
-    pub const INTEGER: u8 = Self::Integer as u8;
-    pub const STRING: u8 = Self::String as u8;
-    pub const ARRAY: u8 = Self::Array as u8;
-    pub const NIL: u8 = Self::Nil as u8;
+    pub fn to_byte(&self) -> u8 {
+        match self {
+            Self::Boolean => Tag::BOOLEAN,
+            Self::Float => Tag::FLOAT,
+            Self::Integer => Tag::INTEGER,
+            Self::String => Tag::STRING,
+            Self::Array => Tag::ARRAY,
+            Self::Struct(_) => Tag::STRUCT,
+            Self::Nil => Tag::NIL,
+            Self::Undefined => unreachable!(),
+        }
+    }
+
+    pub fn size(&self) -> u16 {
+        match self {
+            Self::Boolean => LightValue::BOOLEAN_SIZE as u16,
+            Self::Float => LightValue::FLOAT_SIZE as u16,
+            Self::Integer => LightValue::INTEGER_SIZE as u16,
+            Self::String => LightValue::STRING_POINTER_SIZE as u16,
+            Self::Array => LightValue::ARRAY_POINTER_SIZE as u16,
+            Self::Struct(_) => LightValue::STRUCT_POINTER_SIZE as u16,
+            _ => unreachable!(),
+        }
+    }
 }
 
 
 pub fn get_kind(kind: u8) -> Kind {
     match kind {
-        Kind::BOOLEAN => Kind::Boolean,
-        Kind::FLOAT => Kind::Float,
-        Kind::INTEGER => Kind::Integer,
-        Kind::STRING => Kind::String,
-        Kind::ARRAY => Kind::Array,
+        Tag::BOOLEAN => Kind::Boolean,
+        Tag::FLOAT => Kind::Float,
+        Tag::INTEGER => Kind::Integer,
+        Tag::STRING => Kind::String,
+        Tag::ARRAY => Kind::Array,
         _ => unreachable!()
     }
 }
@@ -59,6 +107,7 @@ pub enum LightValue {
     StringPointer(u32),
     StringHeapPointer(u32),
     ArrayPointer(u32),
+    StructPointer(u32),
 }
 
 impl LightValue {
@@ -66,12 +115,15 @@ impl LightValue {
     pub const NIL_SIZE: usize = 1;
     pub const FLOAT_SIZE: usize = 1 + 8;
     pub const INTEGER_SIZE: usize = 1 + 8;
+    pub const STRING_POINTER_SIZE: usize = 1 + 4;
+    pub const ARRAY_POINTER_SIZE: usize = 1 + 4;
+    pub const STRUCT_POINTER_SIZE: usize = 1 + 4;
     pub fn get_kind(&self) -> Kind {
         match self {
             Self::Boolean(_) => Kind::Boolean,
             Self::Integer(_) => Kind::Integer,
             Self::Float(_) => Kind::Float,
-            _ => todo!()
+            _ => unreachable!(),
         }
     }
 }
@@ -99,6 +151,7 @@ pub enum Value {
     Integer(i64),
     String(String),
     Array(Vec<Value>),
+    Struct(Vec<Value>),
 }
 
 impl Value {
@@ -108,7 +161,7 @@ impl Value {
             Self::Float(_) => Kind::Float,
             Self::Integer(_) => Kind::Integer,
             Self::String(_) => Kind::String,
-            _ => todo!()
+            _ => unreachable!(),
         }
     }
 }
@@ -131,6 +184,7 @@ impl fmt::Display for Value {
                 }
                 write!(f, "]")
             },
+            _ => unreachable!()
         }
     }
 }

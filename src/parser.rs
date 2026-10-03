@@ -67,10 +67,13 @@ impl<'source_code> Parser<'source_code> {
             TokenType::Boolean(boolean) => Some(Node::Literal(LightValue::Boolean(boolean))),
             TokenType::Nil => Some(Node::Literal(LightValue::Nil)),
             TokenType::Identifier(identifier) => {
-                if let Some(Ok(token)) = self.peek() && token.kind == TokenType::LeftParen {
-                    return self.parse_function(token.start, identifier, errors);
+                let Some(Ok(token)) = self.peek() else { return Some(Node::Variable(identifier)) };
+                match token.kind {
+                    TokenType::LeftParen => self.parse_function(identifier, errors),
+                    TokenType::LeftBrace => self.parse_struct_instantiation(identifier, errors),
+                    TokenType::Dot => self.parse_field_access(token.start, identifier, errors),
+                    _ => Some(Node::Variable(identifier))
                 }
-                Some(Node::Variable(identifier))
             },
             TokenType::String(string) => Some(Node::HeavyLiteral(Value::String(string))),
             TokenType::RelativeReference(x, y) => {
@@ -81,6 +84,7 @@ impl<'source_code> Parser<'source_code> {
                 Some(Node::RelativeReference(x, y))
             },
             TokenType::DefineFunction => self.parse_define_function(token.start, errors),
+            TokenType::Struct => self.parse_struct(token.start, errors),
             TokenType::If => self.parse_condition(token.start, errors),
             TokenType::Return => Some(Node::Return(Box::from(match self.advance(1) {
                 Some(Ok(token)) => self.dispatch_node(token, errors)?,
@@ -90,6 +94,87 @@ impl<'source_code> Parser<'source_code> {
             TokenType::LeftBracket => self.parse_array(token.start, errors),
             _ => { self.error_pusher(token.start, SyntaxErrorType::UnimplementedToken(token), errors); None }
         }
+    }
+
+    fn parse_field_access(&mut self, start: usize, name: String, errors: &mut Vec<Error>) -> Option<Node> {
+        self.advance(1);
+        let field_name = match self.peek() {
+            Some(Ok(Token { kind: TokenType::Identifier(name), ..})) => { self.advance(1); name },
+            Some(Ok(_)) => { self.error_pusher(start, SyntaxErrorType::MissingFieldName, errors); String::default() },
+            Some(Err(error)) => { errors.push(error); self.jump(errors); String::default() }
+            None => { self.error_pusher(start, SyntaxErrorType::RedundantFieldAccess, errors); return None }
+        };
+        Some(Node::FieldAccess { name, field_name })
+    }
+
+    fn parse_struct_instantiation(&mut self, name: String, errors: &mut Vec<Error>) -> Option<Node> {
+        self.advance(1);
+        let mut field_names = Vec::new();
+        let mut field_values = Vec::new();
+        loop {
+            match self.advance(1) {
+                Some(Ok(Token { kind: TokenType::RightBrace, .. })) => break,
+                Some(Ok(argument)) => match argument.kind {
+                    TokenType::Identifier(name) => {
+                        if let Some(Ok(token)) = self.peek() && token.kind == TokenType::Equal {
+                            field_names.push(name.clone());
+                            field_values.push(self.parse_mapping(name, errors)?)
+                        } else {
+                            self.error_pusher(self.last_index(), SyntaxErrorType::MissingValue(name), errors)
+                        }
+                    },
+                    _ => self.error_pusher(self.last_index(), SyntaxErrorType::ExpectedIdentifier(argument), errors),
+                },
+                Some(Err(error)) => errors.push(error),
+                None => { self.error_pusher(self.last_index(), SyntaxErrorType::RedundantStructInstantiation, errors); return None }
+            }
+        };
+        Some(Node::StructInstantiation { name, field_names, field_values })
+    }
+    
+    fn parse_mapping(&mut self, name: String, errors: &mut Vec<Error>) -> Option<Node> {
+        self.advance(1);
+        match self.advance(1) {
+            Some(Ok(token)) => { Some(self.dispatch_node(token, errors)?) },
+            Some(Err(error)) => { errors.push(error); None }
+            None => { self.error_pusher(self.last_index(), SyntaxErrorType::MissingValue(name), errors); None },
+        }
+    }
+
+    fn parse_struct(&mut self, start: usize, errors: &mut Vec<Error>) -> Option<Node> {
+        let name = match self.peek() {
+            Some(Ok(Token { kind: TokenType::Identifier(name), ..})) => { self.advance(1); name },
+            Some(Ok(_)) => { self.error_pusher(start, SyntaxErrorType::MissingStructName, errors); String::default() },
+            Some(Err(error)) => { errors.push(error); String::default() }
+            None => { self.error_pusher(start, SyntaxErrorType::RedundantStruct, errors); return None }
+        };
+        match self.peek() {
+            Some(Ok(token)) => if token.kind != TokenType::LeftBrace {
+                if token.kind != TokenType::RightBrace { self.advance(1); }
+                self.error_pusher(start, SyntaxErrorType::MissingLeftBrace, errors)
+            } else { self.advance(1); },
+            Some(Err(error)) => errors.push(error),
+            None => self.error_pusher(start, SyntaxErrorType::RedundantStruct, errors),
+        }
+        let mut fields = Vec::new();
+        loop {
+            match self.advance(1) {
+                Some(Ok(Token { kind: TokenType::RightBrace, .. })) => break,
+                Some(Ok(argument)) => match argument.kind {
+                    TokenType::Identifier(name) => {
+                        if let Some(Ok(token)) = self.peek() && token.kind == TokenType::Colon {
+                            fields.push(self.parse_assignment(name, errors)?)
+                        } else {
+                            self.error_pusher(self.last_index(), SyntaxErrorType::MissingType(name), errors)
+                        }
+                    },
+                    _ => self.error_pusher(self.last_index(), SyntaxErrorType::ExpectedIdentifier(argument), errors),
+                },
+                Some(Err(error)) => errors.push(error),
+                None => { self.error_pusher(self.last_index(), SyntaxErrorType::MissingTypeIdentity, errors); return None }
+            }
+        };
+        Some(Node::Struct { name, fields })
     }
 
     fn parse_array(&mut self, start: usize, errors: &mut Vec<Error>) -> Option<Node> {
@@ -105,7 +190,7 @@ impl<'source_code> Parser<'source_code> {
         Some(Node::Array(arguments))
     }
 
-    fn parse_function(&mut self, start: usize, operator: String, errors: &mut Vec<Error>) -> Option<Node> {
+    fn parse_function(&mut self, operator: String, errors: &mut Vec<Error>) -> Option<Node> {
         self.advance(1);
         let mut arguments = Vec::new();
         loop {
@@ -113,7 +198,7 @@ impl<'source_code> Parser<'source_code> {
                 Some(Ok(Token { kind: TokenType::RightParen, .. })) => break,
                 Some(Ok(argument)) => arguments.push(self.dispatch_node(argument, errors)?),
                 Some(Err(error)) => errors.push(error),
-                None => { self.error_pusher(start, SyntaxErrorType::MissingRightParen, errors); return None },
+                None => { self.error_pusher(self.last_index(), SyntaxErrorType::MissingRightParen, errors); return None },
             }
         }
         Some(Node::Apply {operator, arguments})
@@ -143,7 +228,7 @@ impl<'source_code> Parser<'source_code> {
 
     fn parse_define_function(&mut self, start: usize, errors: &mut Vec<Error>) -> Option<Node> {
         let operator = match self.peek() {
-            Some(Ok(Token {kind: TokenType::Identifier(name), ..})) => { self.advance(1); name },
+            Some(Ok(Token { kind: TokenType::Identifier(name), ..})) => { self.advance(1); name },
             Some(Ok(_)) => { self.error_pusher(start, SyntaxErrorType::MissingFunctionName, errors); String::default() },
             Some(Err(error)) => { errors.push(error); String::default() }
             None => { self.error_pusher(start, SyntaxErrorType::RedundantFunctionDefinition, errors); return None }
@@ -168,7 +253,7 @@ impl<'source_code> Parser<'source_code> {
                             self.error_pusher(self.last_index(), SyntaxErrorType::MissingType(name), errors)
                         }
                     },
-                    _ => todo!()
+                    _ => self.error_pusher(self.last_index(), SyntaxErrorType::ExpectedIdentifier(argument), errors),
                 },
                 Some(Err(error)) => errors.push(error),
                 None => { self.error_pusher(self.last_index(), SyntaxErrorType::MissingTypeIdentity, errors); return None }

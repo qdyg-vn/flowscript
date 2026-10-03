@@ -158,6 +158,13 @@ impl fmt::Display for SyntaxError {
             SyntaxErrorType::MissingConditionBody => 17,
             SyntaxErrorType::MissingType(_) => 18,
             SyntaxErrorType::MissingDoKeyword => 19,
+            SyntaxErrorType::RedundantStruct => 20,
+            SyntaxErrorType::MissingStructName => 21,
+            SyntaxErrorType::MissingValue(_) => 22,
+            SyntaxErrorType::MissingFieldName => 23,
+            SyntaxErrorType::RedundantFieldAccess => 24,
+            SyntaxErrorType::RedundantStructInstantiation => 25,
+            SyntaxErrorType::ExpectedIdentifier(_) => 26,
         };
         writeln!(formatter, "\x1b[31;1m[Error FSCC3{:0>3}]\x1b[0m {}", code, self.kind)?;
         write!(formatter, "\x1b[38;2;143;255;46m  --> Line: {} Column: {}\n\x1b[0m", self.line, self.column)
@@ -185,6 +192,13 @@ pub enum SyntaxErrorType {
     MissingConditionBody,
     MissingType(String),
     MissingDoKeyword,
+    RedundantStruct,
+    MissingStructName,
+    MissingValue(String),
+    MissingFieldName,
+    RedundantFieldAccess,
+    RedundantStructInstantiation,
+    ExpectedIdentifier(Token),
 }
 
 impl fmt::Display for SyntaxErrorType {
@@ -197,18 +211,25 @@ impl fmt::Display for SyntaxErrorType {
             Self::MissingLeftBrace => write!(formatter, "Behind condition needs a left brace!"),
             Self::NoStationBeforePipeline => write!(formatter, "There is no station before pipeline!"),
             Self::NoStationAfterPipeline => write!(formatter, "There is no station after pipeline!"),
-            Self::MissingTypeIdentity => write!(formatter, "Missing type in declaration"),
+            Self::MissingTypeIdentity => write!(formatter, "Missing kind in declaration"),
             Self::MissingCondition => write!(formatter, "The conditional expression is empty!"),
             Self::MissingRightParen => write!(formatter, "Behind function arguments needs a right paren!"),
             Self::MissingEndKeyword => write!(formatter, "Missing 'end' after function body!"),
             Self::MissingRightBracket => write!(formatter, "Behind array elements needs a right bracket!"),
             Self::RedundantFunction => write!(formatter, "There is one redundant function"),
-            Self::InvalidTypeError => write!(formatter, "Behind ':' needs a valid type!"),
+            Self::InvalidTypeError => write!(formatter, "Behind ':' needs a valid kind!"),
             Self::MissingFunctionBody => write!(formatter, "Function needs a body!"),
             Self::RedundantCondition => write!(formatter, "There is one redundant condition"),
             Self::MissingConditionBody => write!(formatter, "Condition needs a body!"),
             Self::MissingDoKeyword => write!(formatter, "Missing 'do' after function arguments!"),
-            Self::MissingType(name) => write!(formatter, "Missing type for parameter '{}'", name),
+            Self::MissingType(name) => write!(formatter, "Missing kind for parameter '{}'", name),
+            Self::RedundantStruct => write!(formatter, "There is one redundant struct"),
+            Self::MissingStructName => write!(formatter, "Struct needs a name!"),
+            Self::MissingValue(name) => write!(formatter, "Missing value for field {}", name),
+            Self::MissingFieldName => write!(formatter, "Missing field name!"),
+            Self::RedundantFieldAccess => write!(formatter, "There is one redundant field access"),
+            Self::RedundantStructInstantiation => write!(formatter, "There is one redundant struct instantiation"),
+            Self::ExpectedIdentifier(token) => write!(formatter, "Expected identifier found {:?}", token),
         }
     }
 }
@@ -227,6 +248,9 @@ impl fmt::Display for SemanticError {
             SemanticErrorType::MissingStation(_) => 4,
             SemanticErrorType::RelativeReferenceNotInPipeline => 5,
             SemanticErrorType::DuplicateFunctionDefinition => 6,
+            SemanticErrorType::DuplicateStructDefinition => 7,
+            SemanticErrorType::NoFieldFound(_, _) => 8,
+            SemanticErrorType::MissingField(_, _) => 9,
         };
         writeln!(formatter, "\x1b[31;1m[Error FSCC5{:0>3}]\x1b[0m {}", code, self.kind)
     }
@@ -240,6 +264,9 @@ pub enum SemanticErrorType {
     MissingStation(u16),
     RelativeReferenceNotInPipeline,
     DuplicateFunctionDefinition,
+    DuplicateStructDefinition,
+    NoFieldFound(String, String),
+    MissingField(String, String),
 }
 
 impl fmt::Display for SemanticErrorType {
@@ -251,6 +278,9 @@ impl fmt::Display for SemanticErrorType {
             Self::MissingStation(x) => write!(formatter, "There is no station at position {}", x),
             Self::RelativeReferenceNotInPipeline => write!(formatter, "Cannot use relative reference outside a pipeline"),
             Self::DuplicateFunctionDefinition => write!(formatter, "Duplicate definition of function"),
+            Self::DuplicateStructDefinition => write!(formatter, "Duplicate definition of struct"),
+            Self::NoFieldFound(structure, field) => write!(formatter, "Struct {} has no field named: {}", structure, field),
+            Self::MissingField(structure, field) => write!(formatter, "Struct {} missing field {}", structure, field),
         }
     }
 }
@@ -304,6 +334,7 @@ impl fmt::Display for TypeError {
             TypeErrorType::ArityMismatch(_, _) => 6,
             TypeErrorType::NotAFunction(_) => 7,
             TypeErrorType::NoFunctionFound(_) => 8,
+            TypeErrorType::NotAStruct(_) => 9,
         };
         writeln!(formatter, "\x1b[31;1m[Error FSCC8{:0>3}]\x1b[0m {}", code, self.kind)
     }
@@ -319,6 +350,7 @@ pub enum TypeErrorType {
     ArityMismatch(usize, usize),
     NotAFunction(String),
     NoFunctionFound(Vec<Kind>),
+    NotAStruct(String),
 }
 
 impl fmt::Display for TypeErrorType {
@@ -327,10 +359,11 @@ impl fmt::Display for TypeErrorType {
             Self::NotSequence(station) => write!(formatter, "{} is not a sequence", station),
             Self::TypeMismatch(accumulator, x) => write!(formatter, "Expected {} found {}", accumulator, x),
             Self::InvalidOperand(message) | TypeErrorType::InvalidUnaryOperand(message) => write!(formatter, "{}", message),
-            Self::AssignTypeMismatch(received_kind, required_kind) => write!(formatter, "Type '{}' is not assignable to type '{}'", received_kind, required_kind),
+            Self::AssignTypeMismatch(received_kind, required_kind) => write!(formatter, "Kind '{}' is not assignable to kind '{}'", received_kind, required_kind),
             Self::ArityMismatch(received_arity, required_arity) => write!(formatter, "Function expects {} arguments, but got {}", required_arity, received_arity),
             Self::NotAFunction(name) => write!(formatter, "{} is not a function", name),
-            Self::NoFunctionFound(arguments) => write!(formatter, "No function found that matches the given arguments type: {:?}", arguments),
+            Self::NoFunctionFound(arguments) => write!(formatter, "No function found that matches the given arguments kind: {:?}", arguments),
+            Self::NotAStruct(name) => write!(formatter, "{} is not a struct", name),
         }
     }
 }

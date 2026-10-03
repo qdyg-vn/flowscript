@@ -40,4 +40,7 @@ pub enum TokenType {
     Colon,
     Do,
     End,
+    Struct,
+    Equal,
+    Dot,
 }

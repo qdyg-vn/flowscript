@@ -132,6 +132,8 @@ impl<'source_code> Lexer<'source_code> {
             "nil" => Ok(Token::new(start, end, TokenType::Nil)),
             "do" => Ok(Token::new(start, end, TokenType::Do)),
             "end" => Ok(Token::new(start, end, TokenType::End)),
+            "struct" => Ok(Token::new(start, end, TokenType::Struct)),
+            "=" => Ok(Token::new(start, end, TokenType::Equal)),
             _ => Ok(Token::new(start, end, TokenType::Identifier(value.to_owned()))),
         }
     }
@@ -173,6 +175,7 @@ impl<'source_code> Iterator for Lexer<'source_code> {
                 b'[' => return Some(Ok(Token::new(start, start + 1, TokenType::LeftBracket))),
                 b']' => return Some(Ok(Token::new(start, start + 1, TokenType::RightBracket))),
                 b':' => return Some(Ok(Token::new(start, start + 1, TokenType::Colon))),
+                b'.' => return Some(Ok(Token::new(start, start + 1, TokenType::Dot))),
                 b'#' => { self.skip_comment(); continue },
                 _ => {
                     let bytes_needed = match byte {

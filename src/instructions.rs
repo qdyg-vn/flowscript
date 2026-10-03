@@ -12,6 +12,7 @@ pub enum Bytecode {
     RelativeReference, // u16: x, u16: y
     Return,
     Store, // u16: offset from base pointer
+    StoreTemp, // u8: temp index
     StationCapture, // u16: offset from reference pointer
     Array, // u32: length
     Not,
@@ -21,6 +22,8 @@ pub enum Bytecode {
     Multiply, // u16: arity, u8: kind
     Equal, // u16: arity, u8: kind
     LessThan, // u16: arity, u8: kind
+    StructInstantiation, // u8: fields count
+    FieldAccess, // u16: offset from base pointer, u16: field index
 }
 
 impl Bytecode {
@@ -42,6 +45,8 @@ impl Bytecode {
     pub const RETURN_SIZE: usize = 1;
     pub const STORE: u8 = Self::Store as u8;
     pub const STORE_SIZE: usize = 1 + 2;
+    pub const STORE_TEMP: u8 = Self::StoreTemp as u8;
+    pub const STORE_TEMP_SIZE: usize = 1 + 1;
     pub const STATION_CAPTURE: u8 = Self::StationCapture as u8;
     pub const STATION_CAPTURE_SIZE: usize = 1 + 2;
     pub const ARRAY: u8 = Self::Array as u8;
@@ -60,6 +65,10 @@ impl Bytecode {
     pub const EQUAL_SIZE: usize = 1 + 2 + 1;
     pub const LESS_THAN: u8 = Self::LessThan as u8;
     pub const LESS_THAN_SIZE: usize = 1 + 2 + 1;
+    pub const STRUCT_INSTANTIATION: u8 = Self::StructInstantiation as u8;
+    pub const STRUCT_INSTANTIATION_SIZE: usize = 1 + 1;
+    pub const FIELD_ACCESS: u8 = Self::FieldAccess as u8;
+    pub const FIELD_ACCESS_SIZE: usize = 1 + 2 + 2;
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -74,6 +83,7 @@ pub enum Instruction {
     Return,
     Store(u16),
     StationCapture(u16),
+    StoreTemp(u8),
     Array(u32),
     Not,
     Reverse(u16),
@@ -82,6 +92,8 @@ pub enum Instruction {
     Multiply(u16, Kind),
     Equal(u16, Kind),
     LessThan(u16, Kind),
+    StructInstantiation(u8),
+    FieldAccess(u16, u16),
 }
 
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
@@ -89,5 +101,6 @@ pub struct Chunk {
     pub instructions: Vec<Instruction>,
     pub variables_count: u16,
     pub arity: u8,
+    pub max_temp_variables: u8,
     pub max_relative_reference: u8,
 }

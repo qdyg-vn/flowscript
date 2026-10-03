@@ -48,13 +48,14 @@ impl Assembler {
             function_starts.push(self.memory.functions.len());
             let variables_count_length = 2;
             let arity_length = 1;
+            let max_temp_variables_length = 1;
             let max_relative_reference_length = 1;
             let length_length = 8;
-            let mut byte_position = self.memory.functions.len() + variables_count_length + arity_length + max_relative_reference_length + length_length;
+            let mut byte_position = self.memory.functions.len() + variables_count_length + arity_length + max_temp_variables_length + max_relative_reference_length + length_length;
             let mut byte_chunk = function.variables_count.to_le_bytes().to_vec();
-            byte_chunk.extend_from_slice(&[function.arity, function.max_relative_reference]);
+            byte_chunk.extend_from_slice(&[function.arity, function.max_temp_variables, function.max_relative_reference]);
             self.assemble_instruction(function.instructions, &mut byte_position, &mut byte_chunk);
-            self.memory.functions.extend_from_slice(&(byte_chunk.len() - variables_count_length - arity_length - max_relative_reference_length).to_le_bytes());
+            self.memory.functions.extend_from_slice(&(byte_chunk.len() - variables_count_length - arity_length - max_temp_variables_length - max_relative_reference_length).to_le_bytes());
             self.memory.functions.extend_from_slice(&byte_chunk)
         };
         function_starts
@@ -91,6 +92,11 @@ impl Assembler {
                     byte_chunk.push(Bytecode::Store as u8);
                     byte_chunk.extend_from_slice(&index.to_le_bytes());
                     *byte_position += Bytecode::STORE_SIZE
+                },
+                Instruction::StoreTemp(index) => {
+                    byte_chunk.push(Bytecode::StoreTemp as u8);
+                    byte_chunk.extend_from_slice(&index.to_le_bytes());
+                    *byte_position += Bytecode::STORE_TEMP_SIZE
                 },
                 Instruction::StationCapture(index) => {
                     byte_chunk.push(Bytecode::StationCapture as u8);
@@ -135,32 +141,43 @@ impl Assembler {
                 Instruction::Add(arity, kind) => {
                     byte_chunk.push(Bytecode::Add as u8);
                     byte_chunk.extend_from_slice(&arity.to_le_bytes());
-                    byte_chunk.push(kind as u8);
+                    byte_chunk.push(kind.to_byte());
                     *byte_position += Bytecode::ADD_SIZE
-                },
+                }
                 Instruction::Minus(arity, kind) => {
                     byte_chunk.push(Bytecode::Minus as u8);
                     byte_chunk.extend_from_slice(&arity.to_le_bytes());
-                    byte_chunk.push(kind as u8);
+                    byte_chunk.push(kind.to_byte());
                     *byte_position += Bytecode::MINUS_SIZE
                 },
                 Instruction::Multiply(arity, kind) => {
                     byte_chunk.push(Bytecode::Multiply as u8);
                     byte_chunk.extend_from_slice(&arity.to_le_bytes());
-                    byte_chunk.push(kind as u8);
+                    byte_chunk.push(kind.to_byte());
                     *byte_position += Bytecode::MULTIPLY_SIZE
                 },
                 Instruction::Equal(arity, kind) => {
                     byte_chunk.push(Bytecode::Equal as u8);
                     byte_chunk.extend_from_slice(&arity.to_le_bytes());
-                    byte_chunk.push(kind as u8);
+                    byte_chunk.push(kind.to_byte());
                     *byte_position += Bytecode::EQUAL_SIZE
                 },
                 Instruction::LessThan(arity, kind) => {
                     byte_chunk.push(Bytecode::LessThan as u8);
                     byte_chunk.extend_from_slice(&arity.to_le_bytes());
-                    byte_chunk.push(kind as u8);
+                    byte_chunk.push(kind.to_byte());
                     *byte_position += Bytecode::LESS_THAN_SIZE
+                },
+                Instruction::StructInstantiation(fields_count) => {
+                    byte_chunk.push(Bytecode::StructInstantiation as u8);
+                    byte_chunk.extend_from_slice(&fields_count.to_le_bytes());
+                    *byte_position += Bytecode::STRUCT_INSTANTIATION_SIZE
+                },
+                Instruction::FieldAccess(index, field_offset) => {
+                    byte_chunk.push(Bytecode::FieldAccess as u8);
+                    byte_chunk.extend_from_slice(&index.to_le_bytes());
+                    byte_chunk.extend_from_slice(&field_offset.to_le_bytes());
+                    *byte_position += Bytecode::FIELD_ACCESS_SIZE
                 },
             }
             position += 1
@@ -180,6 +197,7 @@ impl Assembler {
                 Instruction::RelativeReference(_, _) => distance += Bytecode::RELATIVE_REFERENCE_SIZE,
                 Instruction::Return => distance += Bytecode::RETURN_SIZE,
                 Instruction::Store(_) => distance += Bytecode::STORE_SIZE,
+                Instruction::StoreTemp(_) => distance += Bytecode::STORE_TEMP_SIZE,
                 Instruction::StationCapture(_) => distance += Bytecode::STATION_CAPTURE_SIZE,
                 Instruction::Array(_) => distance += Bytecode::ARRAY_SIZE,
                 Instruction::Not => distance += Bytecode::NOT_SIZE,
@@ -189,6 +207,8 @@ impl Assembler {
                 Instruction::Multiply(_, _) => distance += Bytecode::MULTIPLY_SIZE,
                 Instruction::Equal(_, _) => distance += Bytecode::EQUAL_SIZE,
                 Instruction::LessThan(_, _) => distance += Bytecode::LESS_THAN_SIZE,
+                Instruction::StructInstantiation(_) => distance += Bytecode::STRUCT_INSTANTIATION_SIZE,
+                Instruction::FieldAccess(_, _) => distance += Bytecode::FIELD_ACCESS_SIZE,
             }
             position += 1
         }

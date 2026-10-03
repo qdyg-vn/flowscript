@@ -2,7 +2,7 @@ use crate::error_handler::{Error, RuntimeError, RuntimeErrorType, TypeError, Typ
 use crate::value::Value;
 
 pub fn equal(arguments: Vec<Value>) -> Result<Value, Error> {
-    if arguments.len() < 2 { return Err(RuntimeError {kind: RuntimeErrorType::InsufficientOperands("==".to_string())}.into()) }
+    if arguments.len() < 2 { return Err(RuntimeError { kind: RuntimeErrorType::InsufficientOperands("==".to_string())}.into()) }
     for window in arguments.windows(2) {
         let a = &window[0];
         let b = &window[1];
@@ -11,7 +11,7 @@ pub fn equal(arguments: Vec<Value>) -> Result<Value, Error> {
             (Value::Boolean(a), Value::Boolean(b)) => a == b,
             (Value::Integer(a), Value::Integer(b)) => a == b,
             (Value::Float(a), Value::Float(b)) => a == b,
-            _ => return Err(TypeError {kind: TypeErrorType::TypeMismatch(a.get_kind(), b.get_kind())}.into())
+            _ => return Err(TypeError { kind: TypeErrorType::TypeMismatch(a.get_kind(), b.get_kind())}.into())
         };
         if !is_equal {
             return Ok(Value::Boolean(false))
@@ -21,7 +21,7 @@ pub fn equal(arguments: Vec<Value>) -> Result<Value, Error> {
 }
 
 pub fn lower_than(arguments: Vec<Value>) -> Result<Value, Error> {
-    if arguments.len() < 2 { return Err(RuntimeError {kind: RuntimeErrorType::InsufficientOperands("<".to_string())}.into()) }
+    if arguments.len() < 2 { return Err(RuntimeError { kind: RuntimeErrorType::InsufficientOperands("<".to_string())}.into()) }
     for window in arguments.windows(2) {
         let a = &window[0];
         let b = &window[1];
@@ -29,7 +29,7 @@ pub fn lower_than(arguments: Vec<Value>) -> Result<Value, Error> {
             (Value::String(a), Value::String(b)) => a < b,
             (Value::Float(a), Value::Float(b)) => a < b,
             (Value::Integer(a), Value::Integer(b)) => a < b,
-            _ => return Err(TypeError {kind: TypeErrorType::TypeMismatch(a.get_kind(), b.get_kind())}.into())
+            _ => return Err(TypeError { kind: TypeErrorType::TypeMismatch(a.get_kind(), b.get_kind())}.into())
         };
         if !is_lower_than {
             return Ok(Value::Boolean(false))
@@ -39,7 +39,7 @@ pub fn lower_than(arguments: Vec<Value>) -> Result<Value, Error> {
 }
 
 pub fn greater_than(arguments: Vec<Value>) -> Result<Value, Error> {
-    if arguments.len() < 2 { return Err(RuntimeError {kind: RuntimeErrorType::InsufficientOperands(">".to_string())}.into()) }
+    if arguments.len() < 2 { return Err(RuntimeError { kind: RuntimeErrorType::InsufficientOperands(">".to_string())}.into()) }
     for window in arguments.windows(2) {
         let a = &window[0];
         let b = &window[1];
@@ -47,7 +47,7 @@ pub fn greater_than(arguments: Vec<Value>) -> Result<Value, Error> {
             (Value::String(a), Value::String(b)) => a > b,
             (Value::Float(a), Value::Float(b)) => a > b,
             (Value::Integer(a), Value::Integer(b)) => a > b,
-            _ => return Err(TypeError {kind: TypeErrorType::TypeMismatch(a.get_kind(), b.get_kind())}.into())
+            _ => return Err(TypeError { kind: TypeErrorType::TypeMismatch(a.get_kind(), b.get_kind())}.into())
         };
         if !is_greater_than {
             return Ok(Value::Boolean(false))
@@ -57,7 +57,7 @@ pub fn greater_than(arguments: Vec<Value>) -> Result<Value, Error> {
 }
 
 pub fn lower_than_or_equal(arguments: Vec<Value>) -> Result<Value, Error> {
-    if arguments.len() < 2 { return Err(RuntimeError {kind: RuntimeErrorType::InsufficientOperands("<=".to_string())}.into()) }
+    if arguments.len() < 2 { return Err(RuntimeError { kind: RuntimeErrorType::InsufficientOperands("<=".to_string())}.into()) }
     for window in arguments.windows(2) {
         let a = &window[0];
         let b = &window[1];
@@ -65,7 +65,7 @@ pub fn lower_than_or_equal(arguments: Vec<Value>) -> Result<Value, Error> {
             (Value::String(a), Value::String(b)) => a <= b,
             (Value::Float(a), Value::Float(b)) => a <= b,
             (Value::Integer(a), Value::Integer(b)) => a <= b,
-            _ => return Err(TypeError {kind: TypeErrorType::TypeMismatch(a.get_kind(), b.get_kind())}.into())
+            _ => return Err(TypeError { kind: TypeErrorType::TypeMismatch(a.get_kind(), b.get_kind())}.into())
         };
         if !is_lower_than {
             return Ok(Value::Boolean(false))
@@ -75,7 +75,7 @@ pub fn lower_than_or_equal(arguments: Vec<Value>) -> Result<Value, Error> {
 }
 
 pub fn greater_than_or_equal(arguments: Vec<Value>) -> Result<Value, Error> {
-    if arguments.len() < 2 { return Err(RuntimeError {kind: RuntimeErrorType::InsufficientOperands(">=".to_string())}.into()) }
+    if arguments.len() < 2 { return Err(RuntimeError { kind: RuntimeErrorType::InsufficientOperands(">=".to_string())}.into()) }
     for window in arguments.windows(2) {
         let a = &window[0];
         let b = &window[1];
@@ -83,7 +83,7 @@ pub fn greater_than_or_equal(arguments: Vec<Value>) -> Result<Value, Error> {
             (Value::String(a), Value::String(b)) => a >= b,
             (Value::Float(a), Value::Float(b)) => a >= b,
             (Value::Integer(a), Value::Integer(b)) => a >= b,
-            _ => return Err(TypeError {kind: TypeErrorType::TypeMismatch(a.get_kind(), b.get_kind())}.into())
+            _ => return Err(TypeError { kind: TypeErrorType::TypeMismatch(a.get_kind(), b.get_kind())}.into())
         };
         if !is_greater_than_or_equal {
             return Ok(Value::Boolean(false))
@@ -93,7 +93,7 @@ pub fn greater_than_or_equal(arguments: Vec<Value>) -> Result<Value, Error> {
 }
 
 pub fn not_equal(arguments: Vec<Value>) -> Result<Value, Error> {
-    if arguments.len() < 2 { return Err(RuntimeError {kind: RuntimeErrorType::InsufficientOperands("!=".to_string())}.into()) }
+    if arguments.len() < 2 { return Err(RuntimeError { kind: RuntimeErrorType::InsufficientOperands("!=".to_string())}.into()) }
     for window in arguments.windows(2) {
         let a = &window[0];
         let b = &window[1];
@@ -102,7 +102,7 @@ pub fn not_equal(arguments: Vec<Value>) -> Result<Value, Error> {
             (Value::Boolean(a), Value::Boolean(b)) => a != b,
             (Value::Integer(a), Value::Integer(b)) => a != b,
             (Value::Float(a), Value::Float(b)) => a != b,
-            _ => return Err(TypeError {kind: TypeErrorType::TypeMismatch(a.get_kind(), b.get_kind())}.into())
+            _ => return Err(TypeError { kind: TypeErrorType::TypeMismatch(a.get_kind(), b.get_kind())}.into())
         };
         if !is_not_equal {
             return Ok(Value::Boolean(false))

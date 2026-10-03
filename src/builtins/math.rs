@@ -6,7 +6,7 @@ pub fn add(arguments: Vec<Value>) -> Result<Value, Error> {
     let (first, rest) = arguments.split_first().unwrap();
     if rest.is_empty() { return match first {
         Value::Integer(_) | Value::Float(_) => Ok(first.to_owned()),
-        _ => Err(TypeError { kind: TypeErrorType::InvalidUnaryOperand("Unary add only supports numeric types".to_string()) }.into())
+        _ => Err(TypeError { kind: TypeErrorType::InvalidUnaryOperand("Unary add only supports numeric kinds".to_string()) }.into())
     } };
     rest.iter().try_fold(first.clone(), |accumulator, x| {
         match (&accumulator, x) {
@@ -25,7 +25,7 @@ pub fn minus(arguments: Vec<Value>) -> Result<Value, Error> {
         return match first {
             Value::Integer(a) => Ok(Value::Integer(-a)),
             Value::Float(a) => Ok(Value::Float(-a)),
-            _ => Err(TypeError { kind: TypeErrorType::InvalidUnaryOperand("Unary minus only supports numeric types".to_string()) }.into())
+            _ => Err(TypeError { kind: TypeErrorType::InvalidUnaryOperand("Unary minus only supports numeric kinds".to_string()) }.into())
         }
     };
     rest.iter().try_fold(first.clone(), |accumulator, x| {

@@ -1,6 +1,6 @@
 use crate::builtins::{get_builtin, BuiltinFunction};
 use crate::instructions::Bytecode;
-use crate::value::{get_kind, LightValue, Value, Kind};
+use crate::value::{get_kind, LightValue, Value, Kind, Tag};
 use crate::error_handler::{ErrorHandler, Error, RuntimeError, RuntimeErrorType};
 use crate::memory::Memory;
 
@@ -22,6 +22,7 @@ struct CallFrame {
     end_instruction: usize,
     stack_position: usize,
     base_pointer: usize,
+    temp_pointer: usize,
     reference_pointer: usize,
 }
 
@@ -48,14 +49,15 @@ impl VirMac {
     pub fn execute(&mut self) -> Vec<LightValue> {
         let mut stack = vec![LightValue::Nil; 1024];
         let start_index = self.function_starts.len() - 1;
-        let (function_index, length, variables_count, _arity, max_relative_reference) = self.get_function(start_index);
+        let (function_index, length, variables_count, _arity, max_temp_variables, max_relative_reference) = self.get_function(start_index);
         let mut frames = Vec::with_capacity(1024);
         frames.push(CallFrame {
             instruction_position: function_index,
             end_instruction: function_index + length,
-            stack_position: variables_count as usize + max_relative_reference as usize,
+            stack_position: variables_count as usize + max_temp_variables as usize + max_relative_reference as usize,
             base_pointer: 0,
-            reference_pointer: variables_count as usize,
+            temp_pointer: variables_count as usize,
+            reference_pointer: variables_count as usize + max_temp_variables as usize,
         });
         while let Some(frame) = frames.last_mut() {
             if frame.instruction_position == frame.end_instruction {
@@ -64,13 +66,14 @@ impl VirMac {
             }
             match self.dispatch_instruction(frame, &mut stack) {
                 Some(FrameInstruction::New(start_index)) => {
-                    let (function_index, length, variables_count, arity, max_relative_reference) = self.get_function(start_index as usize);
+                    let (function_index, length, variables_count, arity, max_temp_variables, max_relative_reference) = self.get_function(start_index as usize);
                     let new_frame = CallFrame {
                         instruction_position: function_index,
                         end_instruction: function_index + length,
-                        stack_position: frame.stack_position + variables_count as usize + max_relative_reference as usize,
-                        base_pointer: frame.stack_position - arity as usize - max_relative_reference as usize,
-                        reference_pointer: frame.stack_position - arity as usize,
+                        stack_position: frame.stack_position + variables_count as usize + max_temp_variables as usize + max_relative_reference as usize,
+                        base_pointer: frame.stack_position - arity as usize,
+                        temp_pointer: frame.stack_position + variables_count as usize,
+                        reference_pointer: frame.stack_position + variables_count as usize + max_temp_variables as usize,
                     };
                     frames.push(new_frame);
                 }
@@ -95,7 +98,7 @@ impl VirMac {
                 stack[call_frame.stack_position] = stack[call_frame.base_pointer + index as usize];
                 call_frame.stack_position += 1;
                 call_frame.instruction_position += Bytecode::LOAD_VARIABLE_SIZE;
-            }
+            },
             Bytecode::JUMP => {
                 let position = u16::from_le_bytes([self.memory.functions[call_frame.instruction_position + 1], self.memory.functions[call_frame.instruction_position + 2]]);
                 call_frame.instruction_position = position as usize;
@@ -108,12 +111,17 @@ impl VirMac {
                     call_frame.instruction_position += Bytecode::JUMP_IF_FALSE_SIZE;
                 };
                 call_frame.stack_position -= 1;
-            }
+            },
             Bytecode::STORE => {
                 let index = u16::from_le_bytes([self.memory.functions[call_frame.instruction_position + 1], self.memory.functions[call_frame.instruction_position + 2]]);
                 stack[call_frame.base_pointer + index as usize] = stack[call_frame.stack_position - 1];
                 call_frame.instruction_position += Bytecode::STORE_SIZE;
-            }
+            },
+            Bytecode::STORE_TEMP => {
+                let temp_index = self.memory.functions[call_frame.instruction_position + 1];
+                stack[call_frame.temp_pointer + temp_index as usize] = stack[call_frame.stack_position - 1];
+                call_frame.instruction_position += Bytecode::STORE_TEMP_SIZE;
+            },
             Bytecode::BUILTIN_CALL => {
                 let index = u16::from_le_bytes([self.memory.functions[call_frame.instruction_position + 1], self.memory.functions[call_frame.instruction_position + 2]]);
                 let arity = u16::from_le_bytes([self.memory.functions[call_frame.instruction_position + 3], self.memory.functions[call_frame.instruction_position + 4]]);
@@ -121,7 +129,7 @@ impl VirMac {
                 let end = call_frame.stack_position;
                 self.execute_builtin_function(index, stack, &mut call_frame.stack_position, start, end);
                 call_frame.instruction_position += Bytecode::BUILTIN_CALL_SIZE;
-            }
+            },
             Bytecode::CALL => {
                 let start_index = u16::from_le_bytes([self.memory.functions[call_frame.instruction_position + 1], self.memory.functions[call_frame.instruction_position + 2]]);
                 call_frame.instruction_position += Bytecode::CALL_SIZE;
@@ -141,7 +149,7 @@ impl VirMac {
                 let index = u16::from_le_bytes([self.memory.functions[call_frame.instruction_position + 1], self.memory.functions[call_frame.instruction_position + 2]]);
                 stack[call_frame.reference_pointer + index as usize] = stack[call_frame.stack_position - 1];
                 call_frame.instruction_position += Bytecode::STATION_CAPTURE_SIZE;
-            }
+            },
             Bytecode::RETURN => {
                 stack.swap(call_frame.base_pointer, call_frame.stack_position - 1);
                 return Some(FrameInstruction::Pop)
@@ -150,12 +158,12 @@ impl VirMac {
                 let count = u32::from_le_bytes(self.memory.functions[call_frame.instruction_position + 1..=call_frame.instruction_position + 4].try_into().unwrap());
                 let start = call_frame.stack_position - count as usize;
                 let mut array = Vec::new();
-                for value in stack[start..call_frame.stack_position].iter() {
-                    self.push_into_array(self.light_value_to_value(*value), &mut array)
-                }
+                self.push_light_value_into_array(&stack[start..call_frame.stack_position], &mut array);
                 let index = self.memory.from_space.len();
-                self.memory.from_space.extend_from_slice(&array.len().to_le_bytes());
-                self.memory.from_space.extend_from_slice(&array);
+                let array_length_bytes = array.len().to_le_bytes();
+                self.memory.allocate(array_length_bytes.len() + array.len(), stack);
+                self.memory.push_to_heap(&array_length_bytes);
+                self.memory.push_to_heap(&array);
                 stack[start] = LightValue::ArrayPointer(index as u32);
                 call_frame.stack_position = start + 1;
                 call_frame.instruction_position += Bytecode::ARRAY_SIZE;
@@ -305,6 +313,28 @@ impl VirMac {
                 stack[call_frame.stack_position - arity..call_frame.stack_position].reverse();
                 call_frame.instruction_position += Bytecode::REVERSE_SIZE;
             },
+            Bytecode::STRUCT_INSTANTIATION => {
+                let fields_count = self.memory.functions[call_frame.instruction_position + 1];
+                let index = self.memory.from_space.len();
+                let mut structure = Vec::new();
+                self.push_light_value_into_array(&stack[call_frame.temp_pointer..call_frame.temp_pointer + fields_count as usize], &mut structure);
+                let struct_length_bytes = structure.len().to_le_bytes();
+                self.memory.allocate(struct_length_bytes.len() + structure.len(), stack);
+                self.memory.push_to_heap(&struct_length_bytes);
+                self.memory.push_to_heap(&structure);
+                stack[call_frame.stack_position] = LightValue::StructPointer(index as u32);
+                call_frame.stack_position += 1;
+                call_frame.instruction_position += Bytecode::STRUCT_INSTANTIATION_SIZE;
+            },
+            Bytecode::FIELD_ACCESS => {
+                let index = u16::from_le_bytes([self.memory.functions[call_frame.instruction_position + 1], self.memory.functions[call_frame.instruction_position + 2]]);
+                let field_index = u16::from_le_bytes([self.memory.functions[call_frame.instruction_position + 3], self.memory.functions[call_frame.instruction_position + 4]]);
+                let LightValue::StructPointer(struct_index) = stack[call_frame.base_pointer + index as usize] else { unreachable!() };
+                let light_value = self.get_field_value(&mut (struct_index as usize), field_index as usize);
+                stack[call_frame.stack_position] = light_value;
+                call_frame.stack_position += 1;
+                call_frame.instruction_position += Bytecode::FIELD_ACCESS_SIZE;
+            },
             _ => unreachable!()
         }
         None
@@ -323,7 +353,7 @@ impl VirMac {
             BuiltinFunction::Math(function) | BuiltinFunction::Collection(function) | BuiltinFunction::Compare(function) | BuiltinFunction::Casting(function) => {
                 match function(arguments) {
                     Ok(value) => {
-                        let light_value = self.push_into_stack(value, stack);
+                        let light_value = self.value_to_light_value(value, stack);
                         stack[start] = light_value;
                         *stack_position = start + 1;
                     },
@@ -338,13 +368,14 @@ impl VirMac {
         }
     }
 
-    fn get_function(&self, index_of_start: usize) -> (usize, usize, u16, u8, u8) {
+    fn get_function(&self, index_of_start: usize) -> (usize, usize, u16, u8, u8, u8) {
         let start = self.function_starts[index_of_start];
         let length = u64::from_le_bytes(self.memory.functions[start..start + 8].try_into().unwrap());
         let variables_count = u16::from_le_bytes([self.memory.functions[start + 8], self.memory.functions[start + 9]]);
         let arity = self.memory.functions[start + 10];
-        let max_relative_reference = self.memory.functions[start + 11];
-        (start + 12, length as usize, variables_count, arity, max_relative_reference)
+        let max_temp_variables = self.memory.functions[start + 11];
+        let max_relative_reference = self.memory.functions[start + 12];
+        (start + 13, length as usize, variables_count, arity, max_temp_variables, max_relative_reference)
     }
 
     fn get_string_in_permanent_space(&self, index_of_start: usize) -> String {
@@ -365,26 +396,26 @@ impl VirMac {
         let mut array = Vec::new();
         while *start < end {
             array.push(match self.memory.from_space[*start] {
-                Kind::BOOLEAN => {
-                    let boolean = Value::Boolean(self.memory.from_space[*start] != 0);
+                Tag::BOOLEAN => {
+                    let boolean = Value::Boolean(self.memory.from_space[*start + 1] != 0);
                     *start += LightValue::BOOLEAN_SIZE;
                     boolean
                 },
-                Kind::NIL => {
+                Tag::NIL => {
                     *start += LightValue::NIL_SIZE;
                     Value::Nil
                 },
-                Kind::FLOAT => {
+                Tag::FLOAT => {
                     let float = Value::Float(f64::from_le_bytes(self.memory.from_space[*start + 1..=*start + 8].try_into().unwrap()));
                     *start += LightValue::FLOAT_SIZE;
                     float
                 },
-                Kind::INTEGER => {
+                Tag::INTEGER => {
                     let integer = Value::Integer(i64::from_le_bytes(self.memory.from_space[*start + 1..=*start + 8].try_into().unwrap()));
                     *start += LightValue::INTEGER_SIZE;
                     integer
                 },
-                Kind::STRING => {
+                Tag::STRING => {
                     *start += 1;
                     let length = u64::from_le_bytes(self.memory.from_space[*start..*start + 8].try_into().unwrap());
                     *start += 8;
@@ -392,10 +423,33 @@ impl VirMac {
                     *start += length as usize;
                     Value::String(string)
                 },
-                Kind::ARRAY => {
+                Tag::STRING_POINTER => {
+                    let index = u32::from_le_bytes(self.memory.from_space[*start + 1..=*start + 4].try_into().unwrap());
+                    let string = self.get_string_in_permanent_space(index as usize);
+                    Value::String(string)
+                },
+                Tag::STRING_HEAP_POINTER => {
+                    let index = u32::from_le_bytes(self.memory.from_space[*start + 1..=*start + 4].try_into().unwrap());
+                    let string = self.get_string_in_heap(index as usize);
+                    Value::String(string)
+                },
+                Tag::ARRAY => {
                     *start += 1;
                     let array = self.get_array(start);
                     Value::Array(array)
+                },
+                Tag::ARRAY_POINTER => {
+                    let index = u32::from_le_bytes(self.memory.from_space[*start + 1..=*start + 4].try_into().unwrap());
+                    Value::Array(self.get_array(&mut (index as usize)))
+                },
+                Tag::STRUCT => {
+                    *start += 1;
+                    let structure = self.get_array(start);
+                    Value::Struct(structure)
+                },
+                Tag::STRUCT_POINTER => {
+                    let index = u32::from_le_bytes(self.memory.from_space[*start + 1..=*start + 4].try_into().unwrap());
+                    Value::Struct(self.get_array(&mut (index as usize)))
                 },
                 _ => unreachable!()
             });
@@ -403,7 +457,21 @@ impl VirMac {
         array
     }
 
-    fn push_into_stack(&mut self, value: Value, stack: &mut [LightValue]) -> LightValue {
+    fn get_field_value(&self, start: &mut usize, field_index: usize) -> LightValue {
+        *start += 8 + field_index;
+        match self.memory.from_space[*start] {
+            Tag::BOOLEAN => LightValue::Boolean(self.memory.from_space[*start + 1] != 0),
+            Tag::FLOAT => LightValue::Float(f64::from_le_bytes(self.memory.from_space[*start + 1..=*start + 8].try_into().unwrap())),
+            Tag::INTEGER => LightValue::Integer(i64::from_le_bytes(self.memory.from_space[*start + 1..=*start + 8].try_into().unwrap())),
+            Tag::STRING_POINTER => LightValue::StringPointer(u32::from_le_bytes(self.memory.from_space[*start + 1..=*start + 4].try_into().unwrap())),
+            Tag::STRING_HEAP_POINTER => LightValue::StringHeapPointer(u32::from_le_bytes(self.memory.from_space[*start + 1..=*start + 4].try_into().unwrap())),
+            Tag::ARRAY_POINTER => LightValue::ArrayPointer(u32::from_le_bytes(self.memory.from_space[*start + 1..=*start + 4].try_into().unwrap())),
+            Tag::STRUCT_POINTER => LightValue::StructPointer(u32::from_le_bytes(self.memory.from_space[*start + 1..=*start + 4].try_into().unwrap())),
+            _ => unreachable!()
+        }
+    }
+
+    fn value_to_light_value(&mut self, value: Value, stack: &mut [LightValue]) -> LightValue {
         match value {
             Value::Boolean(boolean) => LightValue::Boolean(boolean),
             Value::Nil => LightValue::Nil,
@@ -421,47 +489,102 @@ impl VirMac {
             Value::Array(array) => {
                 let index = self.memory.from_space.len();
                 let mut byte_array = Vec::new();
-                array.into_iter().for_each(|element| self.push_into_array(element, &mut byte_array));
+                self.push_value_into_array(array, &mut byte_array);
                 let array_length_bytes = byte_array.len().to_le_bytes();
                 self.memory.allocate(array_length_bytes.len() + byte_array.len(), stack);
                 self.memory.push_to_heap(&array_length_bytes);
                 self.memory.push_to_heap(&byte_array);
                 LightValue::ArrayPointer(index as u32)
             },
+            Value::Struct(fields) => {
+                let index = self.memory.from_space.len();
+                let mut structure = Vec::new();
+                self.push_value_into_array(fields, &mut structure);
+                let struct_length_bytes = structure.len().to_le_bytes();
+                self.memory.allocate(struct_length_bytes.len() + structure.len(), stack);
+                self.memory.push_to_heap(&struct_length_bytes);
+                self.memory.push_to_heap(&structure);
+                LightValue::StructPointer(index as u32)
+            }
         }
     }
 
-    fn push_into_array(&mut self, value: Value, target_array: &mut Vec<u8>) {
-        match value {
-            Value::Boolean(boolean) => {
-                target_array.push(Kind::BOOLEAN);
-                target_array.push(boolean as u8);
-            },
-            Value::Nil => {
-                target_array.push(Kind::NIL);
-            },
-            Value::Float(float) => {
-                target_array.push(Kind::FLOAT);
-                target_array.extend_from_slice(&float.to_le_bytes());
-            },
-            Value::Integer(integer) => {
-                target_array.push(Kind::INTEGER);
-                target_array.extend_from_slice(&integer.to_le_bytes());
-            },
-            Value::String(string) => {
-                target_array.push(Kind::STRING);
-                let string_bytes = string.into_bytes();
-                let string_length_bytes = string_bytes.len().to_le_bytes();
-                target_array.extend_from_slice(&string_length_bytes);
-                target_array.extend_from_slice(&string_bytes);
-            },
-            Value::Array(array) => {
-                let mut byte_array = Vec::new();
-                array.into_iter().for_each(|element| self.push_into_array(element, &mut byte_array));
-                target_array.push(Kind::ARRAY);
-                target_array.extend_from_slice(&byte_array.len().to_le_bytes());
-                target_array.extend_from_slice(&byte_array);
-            },
+    fn push_light_value_into_array(&mut self, elements: &[LightValue], target_array: &mut Vec<u8>) {
+        for element in elements {
+            match element {
+                LightValue::Boolean(boolean) => {
+                    target_array.push(Tag::BOOLEAN);
+                    target_array.push(*boolean as u8);
+                },
+                LightValue::Nil => {
+                    target_array.push(Tag::NIL);
+                },
+                LightValue::Float(float) => {
+                    target_array.push(Tag::FLOAT);
+                    target_array.extend_from_slice(&float.to_le_bytes());
+                },
+                LightValue::Integer(integer) => {
+                    target_array.push(Tag::INTEGER);
+                    target_array.extend_from_slice(&integer.to_le_bytes());
+                },
+                LightValue::ArrayPointer(index) => {
+                    target_array.push(Tag::ARRAY_POINTER);
+                    target_array.extend_from_slice(&index.to_le_bytes());
+                },
+                LightValue::StringPointer(index) => {
+                    target_array.push(Tag::STRING_POINTER);
+                    target_array.extend_from_slice(&index.to_le_bytes());
+                },
+                LightValue::StringHeapPointer(index) => {
+                    target_array.push(Tag::STRING_HEAP_POINTER);
+                    target_array.extend_from_slice(&index.to_le_bytes());
+                },
+                LightValue::StructPointer(index) => {
+                    target_array.push(Tag::STRUCT_POINTER);
+                    target_array.extend_from_slice(&index.to_le_bytes());
+                },
+            }
+        }
+    }
+
+    fn push_value_into_array(&mut self, elements: Vec<Value>, target_array: &mut Vec<u8>) {
+        for element in elements {
+            match element {
+                Value::Boolean(boolean) => {
+                    target_array.push(Tag::BOOLEAN);
+                    target_array.push(boolean as u8);
+                },
+                Value::Nil => target_array.push(Tag::NIL),
+                Value::Float(float) => {
+                    target_array.push(Tag::FLOAT);
+                    target_array.extend_from_slice(&float.to_le_bytes());
+                },
+                Value::Integer(integer) => {
+                    target_array.push(Tag::INTEGER);
+                    target_array.extend_from_slice(&integer.to_le_bytes());
+                },
+                Value::String(string) => {
+                    target_array.push(Tag::STRING);
+                    let string_bytes = string.into_bytes();
+                    let string_length_bytes = string_bytes.len().to_le_bytes();
+                    target_array.extend_from_slice(&string_length_bytes);
+                    target_array.extend_from_slice(&string_bytes);
+                },
+                Value::Array(elements) => {
+                    let mut array = Vec::new();
+                    self.push_value_into_array(elements, &mut array);
+                    target_array.push(Tag::ARRAY);
+                    target_array.extend_from_slice(&array.len().to_le_bytes());
+                    target_array.extend_from_slice(&array);
+                },
+                Value::Struct(fields) => {
+                    let mut structure = Vec::new();
+                    self.push_value_into_array(fields, &mut structure);
+                    target_array.push(Tag::STRUCT);
+                    target_array.extend_from_slice(&structure.len().to_le_bytes());
+                    target_array.extend_from_slice(&structure);
+                }
+            }
         }
     }
 
@@ -480,6 +603,7 @@ impl VirMac {
                 Value::String(string)
             },
             LightValue::ArrayPointer(index) => Value::Array(self.get_array(&mut (index as usize))),
+            LightValue::StructPointer(index) => Value::Struct(self.get_array(&mut (index as usize))),
         }
     }
 }

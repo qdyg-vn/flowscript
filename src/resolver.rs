@@ -1,3 +1,5 @@
+use std::collections::hash_map::Entry;
+use std::collections::{HashMap, HashSet};
 use crate::error_handler::{ErrorHandler, SemanticError, SemanticErrorType, TypeError, TypeErrorType};
 use crate::node::{Node, ResolvedNode, AST, ConditionBranch};
 use crate::symbol_table::{SymbolTable, SymbolType};
@@ -35,34 +37,51 @@ impl Resolver {
 
     pub fn resolve(mut self, nodes: Vec<Node>) -> ResolverOutput {
         let mut ast = AST { nodes: Vec::with_capacity(nodes.len()), .. AST::default() };
-        let main_define_function_count = self.push_signature_to_symbol_table(&nodes);
+        let main_define_function_count = self.collect_declarations(&nodes, &mut ast);
         ast.nodes = self.solve(nodes, &mut ast, PipelineContext::NotInPipeline);
         if !self.error_handler.errors.is_empty() { self.error_handler.report_exit() }
         ResolverOutput { error_handler: self.error_handler, symbol_table: self.symbol_table, main_variables_count: ast.variables_count, ast, total_define_function_count: self.total_define_function_count, main_define_function_count }
     }
 
-    fn push_signature_to_symbol_table(&mut self, stations: &Vec<Node>) -> u32 {
+    fn collect_declarations(&mut self, stations: &Vec<Node>, ast: &mut AST) -> u32 {
         let mut define_function_count = 0;
         for station in stations {
             match station {
-                Node::Pipeline(stations) => { self.push_signature_to_symbol_table(stations); },
+                Node::Pipeline(stations) => { self.collect_declarations(stations, ast); },
                 Node::DefineFunction { operator, parameters, result, .. } => {
                     let mut parameters_kind = Vec::with_capacity(parameters.len());
                     for parameter in parameters {
-                        let Node::Assignment(_, kind) = parameter else { todo!() };
+                        let Node::Assignment(_, kind) = parameter else { unreachable!() };
                         parameters_kind.push(*kind);
                     }
                     if let Some(error) = self.symbol_table.add_function(operator.clone(), parameters_kind, *result) {
                         self.error_handler.push_error(error);
                     }
                     define_function_count += 1;
-                }
+                },
                 Node::Condition { branches, final_branch } => {
                     for branch in branches {
-                        { self.push_signature_to_symbol_table(&branch.body); }
+                        { self.collect_declarations(&branch.body, ast); }
                     }
-                    { self.push_signature_to_symbol_table(final_branch); }
-                }
+                    self.collect_declarations(final_branch, ast);
+                },
+                Node::Struct { name, fields } => {
+                    let temp_variables_count = fields.len() as u8;
+                    let mut field_kind_indices = HashMap::with_capacity(fields.len());
+                    let mut field_kinds = Vec::with_capacity(fields.len());
+                    for field in fields {
+                        let Node::Assignment(name, kind) = field else { unreachable!() };
+                        match field_kind_indices.entry(name.clone()) {
+                            Entry::Vacant(entry) => {
+                                entry.insert(field_kinds.len() as u8);
+                                field_kinds.push(*kind);
+                            }
+                            Entry::Occupied(_) => self.error_handler.push_error(SemanticError { kind: SemanticErrorType::DuplicateParameter(name.clone())}),
+                        }
+                    }
+                    self.symbol_table.add_struct(name.clone(), field_kind_indices, field_kinds);
+                    ast.max_temp_variables = std::cmp::max(ast.max_temp_variables, temp_variables_count);
+                },
                 _ => {}
             }
         }
@@ -84,14 +103,14 @@ impl Resolver {
             Node::RelativeReference(x, y) => {
                 let station_index = match pipeline_context {
                     PipelineContext::NotInPipeline => {
-                        self.error_handler.push_error(SemanticError {kind: SemanticErrorType::RelativeReferenceNotInPipeline});
+                        self.error_handler.push_error(SemanticError { kind: SemanticErrorType::RelativeReferenceNotInPipeline});
                         return;
                     },
                     PipelineContext::InPipeline { station_index } => station_index,
                     PipelineContext::InStation { station_index } => station_index,
                 };
                 if station_index < x as usize {
-                    self.error_handler.push_error(SemanticError {kind: SemanticErrorType::MissingStation(station_index as u16)});
+                    self.error_handler.push_error(SemanticError { kind: SemanticErrorType::MissingStation(station_index as u16)});
                     return;
                 }
                 let index_in_stations = station_index as u16 - x;
@@ -109,7 +128,7 @@ impl Resolver {
                         let arguments = self.solve(arguments, ast, station_context);
                         resolved_stations.push(ResolvedNode::Call { arguments, function_index })
                     },
-                    Ok(SymbolType::VariableScope(_, _)) => self.error_handler.push_error(TypeError { kind: TypeErrorType::NotAFunction(operator) }),
+                    Ok(_) => self.error_handler.push_error(TypeError { kind: TypeErrorType::NotAFunction(operator) }),
                     Err(error) => self.error_handler.push_error(error)
                 }
             },
@@ -146,21 +165,17 @@ impl Resolver {
                 self.symbol_table.new_scope();
                 let mut parameters_kind = Vec::with_capacity(parameters.len());
                 for parameter in parameters {
-                    match parameter {
-                        Node::Assignment(name, kind) => {
-                            match self.symbol_table.add_variable(name.clone(), kind) {
-                                Ok(SymbolType::VariableScope(_, _)) => {
-                                    child_ast.arity += 1;
-                                    parameters_kind.push(kind);
-                                },
-                                Err(SymbolType::VariableScope(_, _)) => self.error_handler.push_error(SemanticError {kind: SemanticErrorType::DuplicateParameter(name)}),
-                                _ => unreachable!()
-                            }
-                        }
-                        _ => todo!()
+                    let Node::Assignment(name, kind) = parameter else { unreachable!() };
+                    match self.symbol_table.add_variable(name.clone(), kind) {
+                        Ok(SymbolType::VariableScope(_, _)) => {
+                            child_ast.arity += 1;
+                            parameters_kind.push(kind);
+                        },
+                        Err(SymbolType::VariableScope(_, _)) => self.error_handler.push_error(SemanticError { kind: SemanticErrorType::DuplicateParameter(name)}),
+                        _ => unreachable!()
                     }
                 }
-                self.push_signature_to_symbol_table(&body);
+                self.collect_declarations(&body, &mut child_ast);
                 let body = self.solve(body, &mut child_ast, PipelineContext::NotInPipeline);
                 child_ast.nodes = body;
                 self.symbol_table.pop_scope();
@@ -193,7 +208,36 @@ impl Resolver {
             Node::Array(elements) => {
                 let elements = self.solve(elements, ast, pipeline_context);
                 resolved_stations.push(ResolvedNode::Array(elements))
-            }
+            },
+            Node::Struct { .. } => {},
+            Node::StructInstantiation { name, field_names, field_values } => {
+                let station_context = match pipeline_context {
+                    PipelineContext::InPipeline { station_index } => PipelineContext::InStation { station_index },
+                    anything_else => anything_else
+                };
+                let index = match self.symbol_table.resolve(&name) {
+                    Ok(SymbolType::StructScope(index)) => index,
+                    Ok(_) => { self.error_handler.push_error(TypeError { kind: TypeErrorType::NotAStruct(name) }); return; },
+                    Err(error) => { self.error_handler.push_error(error); return; },
+                };
+                let mut unique_field_names = HashSet::with_capacity(field_names.len());
+                for field_name in &field_names {
+                    if !unique_field_names.insert(field_name) {
+                        self.error_handler.push_error(SemanticError { kind: SemanticErrorType::DuplicateParameter(field_name.clone()) });
+                    }
+                }
+                match self.symbol_table.resolve_struct(name, index, &field_names) {
+                    Ok(field_kind_indices) => resolved_stations.push(ResolvedNode::StructInstantiation { index, field_kind_indices, field_values: self.solve(field_values, ast, station_context) }),
+                    Err(errors) => self.error_handler.errors.extend(errors),
+                }
+            },
+            Node::FieldAccess { name, field_name } => {
+                match self.symbol_table.resolve(&name) {
+                    Ok(SymbolType::VariableScope(index, variable_index)) => resolved_stations.push(ResolvedNode::FieldAccess { index, variable_index, struct_name: name, field_name }),
+                    Ok(_) => { self.error_handler.push_error(TypeError { kind: TypeErrorType::NotAStruct(name) }); return; },
+                    Err(error) => { self.error_handler.push_error(error); return; },
+                };
+            },
         }
     }
 
