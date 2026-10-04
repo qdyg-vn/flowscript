@@ -1,13 +1,13 @@
 use crate::builtins::{get_builtin, BuiltinFunction};
 use crate::instructions::Bytecode;
-use crate::value::{get_kind, LightValue, Value, Kind, Tag, BOOLEAN_SIZE, FLOAT_SIZE, INTEGER_SIZE, INDEX_SIZE};
+use crate::value::{LightValue, Value, Tag, BOOLEAN_SIZE, FLOAT_SIZE, INTEGER_SIZE, INDEX_SIZE};
 use crate::error_handler::{ErrorHandler, Error, RuntimeError, RuntimeErrorType};
 use crate::memory::Memory;
 
 #[derive(Debug)]
 pub struct VMConfig {
     pub memory: Memory,
-    pub function_starts: Vec<usize>,
+    pub main_function_index: usize,
 }
 
 enum FrameInstruction {
@@ -27,23 +27,22 @@ struct CallFrame {
 #[derive(Default)]
 pub struct VirMac {
     memory: Memory,
-    function_starts: Vec<usize>,
     error_handler: ErrorHandler,
+    main_function_index: usize,
 }
 
 impl VirMac {
     pub fn new(config: VMConfig, error_handler: ErrorHandler) -> Self {
         Self {
             memory: config.memory,
-            function_starts: config.function_starts,
             error_handler,
+            main_function_index: config.main_function_index,
         }
     }
 
     pub fn execute(&mut self) -> Vec<LightValue> {
         let mut stack = vec![LightValue::Nil; 1024];
-        let start_index = self.function_starts.len() - 1;
-        let (function_index, length, variables_count, _arity, max_temp_variables, max_relative_reference) = self.get_function(start_index);
+        let (function_index, length, variables_count, _arity, max_temp_variables, max_relative_reference) = self.get_function(self.main_function_index);
         let mut frames = Vec::with_capacity(1024);
         frames.push(CallFrame {
             instruction_position: function_index,
@@ -71,7 +70,12 @@ impl VirMac {
                     };
                     frames.push(new_frame);
                 }
-                Some(FrameInstruction::Pop) => { frames.pop(); }
+                Some(FrameInstruction::Pop) => {
+                    frames.pop();
+                    if let Some(parent_frame) = frames.last_mut() {
+                        parent_frame.stack_position += 1;
+                    }
+                }
                 None => {}
             }
         }
@@ -187,11 +191,10 @@ impl VirMac {
             },
             Bytecode::ADD => {
                 let arity = u16::from_le_bytes([self.memory.functions[call_frame.instruction_position + 1], self.memory.functions[call_frame.instruction_position + 2]]) as usize;
-                let kind = get_kind(self.memory.functions[call_frame.instruction_position + 3]);
                 let start = call_frame.stack_position - arity;
                 let (first, rest) = stack[start..call_frame.stack_position].split_first().unwrap();
-                stack[start] = match kind {
-                    Kind::Integer => {
+                stack[start] = match self.memory.functions[call_frame.instruction_position + 3] {
+                    Tag::INTEGER => {
                         rest.iter().fold(*first, |accumulator, x| {
                             match (&accumulator, x) {
                                 (LightValue::Integer(a), LightValue::Integer(b)) => LightValue::Integer(a + b),
@@ -199,7 +202,7 @@ impl VirMac {
                             }
                         })
                     },
-                    Kind::Float => {
+                    Tag::FLOAT => {
                         rest.iter().fold(*first, |accumulator, x| {
                             match (&accumulator, x) {
                                 (LightValue::Float(a), LightValue::Float(b)) => LightValue::Float(a + b),
@@ -214,11 +217,10 @@ impl VirMac {
             },
             Bytecode::MINUS => {
                 let arity = u16::from_le_bytes([self.memory.functions[call_frame.instruction_position + 1], self.memory.functions[call_frame.instruction_position + 2]]) as usize;
-                let kind = get_kind(self.memory.functions[call_frame.instruction_position + 3]);
                 let start = call_frame.stack_position - arity;
                 let (first, rest) = stack[start..call_frame.stack_position].split_first().unwrap();
-                stack[start] = match kind {
-                    Kind::Integer => {
+                stack[start] = match self.memory.functions[call_frame.instruction_position + 3] {
+                    Tag::INTEGER => {
                         rest.iter().fold(*first, |accumulator, x| {
                             match (&accumulator, x) {
                                 (LightValue::Integer(a), LightValue::Integer(b)) => LightValue::Integer(a - b),
@@ -226,7 +228,7 @@ impl VirMac {
                             }
                         })
                     },
-                    Kind::Float => {
+                    Tag::FLOAT => {
                         rest.iter().fold(*first, |accumulator, x| {
                             match (&accumulator, x) {
                                 (LightValue::Float(a), LightValue::Float(b)) => LightValue::Float(a - b),
@@ -241,11 +243,10 @@ impl VirMac {
             },
             Bytecode::MULTIPLY => {
                 let arity = u16::from_le_bytes([self.memory.functions[call_frame.instruction_position + 1], self.memory.functions[call_frame.instruction_position + 2]]) as usize;
-                let kind = get_kind(self.memory.functions[call_frame.instruction_position + 3]);
                 let start = call_frame.stack_position - arity;
                 let (first, rest) = stack[start..call_frame.stack_position].split_first().unwrap();
-                stack[start] = match kind {
-                    Kind::Integer => {
+                stack[start] = match self.memory.functions[call_frame.instruction_position + 3] {
+                    Tag::INTEGER => {
                         rest.iter().fold(*first, |accumulator, x| {
                             match (&accumulator, x) {
                                 (LightValue::Integer(a), LightValue::Integer(b)) => LightValue::Integer(a * b),
@@ -253,7 +254,7 @@ impl VirMac {
                             }
                         })
                     },
-                    Kind::Float => {
+                    Tag::FLOAT => {
                         rest.iter().fold(*first, |accumulator, x| {
                             match (&accumulator, x) {
                                 (LightValue::Float(a), LightValue::Float(b)) => LightValue::Float(a * b),
@@ -268,11 +269,10 @@ impl VirMac {
             },
             Bytecode::EQUAL => {
                 let arity = u16::from_le_bytes([self.memory.functions[call_frame.instruction_position + 1], self.memory.functions[call_frame.instruction_position + 2]]) as usize;
-                let kind = get_kind(self.memory.functions[call_frame.instruction_position + 3]);
                 let start = call_frame.stack_position - arity;
                 let (first, rest) = stack[start..call_frame.stack_position].split_first().unwrap();
-                stack[start] = LightValue::Boolean(match (kind, first) {
-                    (Kind::Integer, LightValue::Integer(first_value)) => {
+                stack[start] = LightValue::Boolean(match (self.memory.functions[call_frame.instruction_position + 3], first) {
+                    (Tag::INTEGER, LightValue::Integer(first_value)) => {
                         rest.iter().all(|x| {
                             match x {
                                 LightValue::Integer(a) => a == first_value,
@@ -280,7 +280,7 @@ impl VirMac {
                             }
                         })
                     },
-                    (Kind::Float, LightValue::Float(first_value)) => {
+                    (Tag::FLOAT, LightValue::Float(first_value)) => {
                         rest.iter().all(|x| {
                             match x {
                                 LightValue::Float(a) => a == first_value,
@@ -295,11 +295,10 @@ impl VirMac {
             },
             Bytecode::LESS_THAN => {
                 let arity = u16::from_le_bytes([self.memory.functions[call_frame.instruction_position + 1], self.memory.functions[call_frame.instruction_position + 2]]) as usize;
-                let kind = get_kind(self.memory.functions[call_frame.instruction_position + 3]);
                 let start = call_frame.stack_position - arity;
                 let (first, rest) = stack[start..call_frame.stack_position].split_first().unwrap();
-                stack[start] = LightValue::Boolean(match (kind, first) {
-                    (Kind::Integer, LightValue::Integer(first_value)) => {
+                stack[start] = LightValue::Boolean(match (self.memory.functions[call_frame.instruction_position + 3], first) {
+                    (Tag::INTEGER, LightValue::Integer(first_value)) => {
                         rest.iter().all(|x| {
                             match x {
                                 LightValue::Integer(a) => first_value < a,
@@ -307,7 +306,7 @@ impl VirMac {
                             }
                         })
                     },
-                    (Kind::Float, LightValue::Float(first_value)) => {
+                    (Tag::FLOAT, LightValue::Float(first_value)) => {
                         rest.iter().all(|x| {
                             match x {
                                 LightValue::Float(a) => first_value < a,
@@ -385,8 +384,7 @@ impl VirMac {
         }
     }
 
-    fn get_function(&self, index_of_start: usize) -> (usize, usize, u16, u8, u8, u8) {
-        let start = self.function_starts[index_of_start];
+    fn get_function(&self, start: usize) -> (usize, usize, u16, u8, u8, u8) {
         let length = u64::from_le_bytes(self.memory.functions[start..start + 8].try_into().unwrap());
         let variables_count = u16::from_le_bytes([self.memory.functions[start + 8], self.memory.functions[start + 9]]);
         let arity = self.memory.functions[start + 10];

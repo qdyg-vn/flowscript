@@ -2,13 +2,13 @@ stations = function, { pipeline, function };
 
 pipeline = '-', '>';
 
-function = ( macro | identifier ), '(', [ argument, { ',', argument } ], ')';
+function = ( macro | identifier ), '(', { argument }, ')';
 
 macro = identifier, '!';
 
 identifier = ( letter | '_' | '+' | '-' | '*' | '/' | '>' | '<' | '=' | '?' | '!' ), { letter | '_' | '+' | '-' | '*' | '/' | '>' | '<' | '=' | '?' | '!' | digit }, ( letter | '_' | '+' | '-' | '*' | '/' | '>' | '<' | '=' | '?' | digit );
 
-define_function = 'fun', variable, '(', [ variable, { ',', variable } ], ')', 'do', stations, 'end';
+define_function = 'fun', identifier, '(', { parameter }, ')', 'do', stations, 'end';
 
 condition = 'if', '(', function, ')', '{', stations, '}';
 
@@ -16,9 +16,17 @@ argument = boolean | nil | float | integer | relative_reference | variable | str
 
 variable = identifier;
 
+parameter = identifier;
+
 relative_reference = { digit }, '_', { digit };
 
-array = '[', [argument], {',', argument}, ']';
+struct = 'struct', identifier, '{', { identifier, ':', identifier }, '}';
+
+struct_instantiation = identifier, '{', { identifier, '=', argument }, '}';
+
+field_access = variable, '.', identifier;
+
+array = '[', { argument }, ']';
 
 string = '"', { all_characters - '"' }, '"';
 

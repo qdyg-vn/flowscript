@@ -22,9 +22,10 @@ impl Assembler {
 
     pub fn assemble_map(mut self) -> VMConfig {
         self.assemble_heavy_constants();
+        let main_function_index = self.assemble_function() as usize;
         VMConfig {
-            function_starts: self.assemble_function(),
             memory: self.memory,
+            main_function_index
         }
     }
 
@@ -40,13 +41,13 @@ impl Assembler {
                 _ => unreachable!()
             }
         };
-
     }
 
-    fn assemble_function(&mut self) -> Vec<usize> {
-        let mut function_starts = Vec::new();
+    fn assemble_function(&mut self) -> u32 {
+        let mut function_offsets = Vec::new();
+        let mut call_instructions_position = Vec::new();
         for function in std::mem::take(&mut self.constants_pool.functions) {
-            function_starts.push(self.memory.functions.len());
+            function_offsets.push(self.memory.functions.len() as u32);
             let variables_count_length = 2;
             let arity_length = 1;
             let max_temp_variables_length = 1;
@@ -55,14 +56,19 @@ impl Assembler {
             let mut byte_position = self.memory.functions.len() + variables_count_length + arity_length + max_temp_variables_length + max_relative_reference_length + length_length;
             let mut byte_chunk = function.variables_count.to_le_bytes().to_vec();
             byte_chunk.extend_from_slice(&[function.arity, function.max_temp_variables, function.max_relative_reference]);
-            self.assemble_instruction(function.instructions, &mut byte_position, &mut byte_chunk);
+            self.assemble_instruction(function.instructions, &mut byte_position, &mut byte_chunk, &mut call_instructions_position);
             self.memory.functions.extend_from_slice(&(byte_chunk.len() - variables_count_length - arity_length - max_temp_variables_length - max_relative_reference_length).to_le_bytes());
             self.memory.functions.extend_from_slice(&byte_chunk)
         };
-        function_starts
+        for position in call_instructions_position {
+            let function_index = u32::from_le_bytes(self.memory.functions[position as usize + 1..=position as usize + 4].try_into().unwrap());
+            let function_offset = function_offsets[function_index as usize].to_le_bytes();
+            self.memory.functions[position as usize + 1..=position as usize + 4].copy_from_slice(&function_offset);
+        }
+        *function_offsets.last().unwrap()
     }
 
-    fn assemble_instruction(&mut self, instructions: Vec<Instruction>, byte_position: &mut usize, byte_chunk: &mut Vec<u8>) {
+    fn assemble_instruction(&mut self, instructions: Vec<Instruction>, byte_position: &mut usize, byte_chunk: &mut Vec<u8>, call_instructions_position: &mut Vec<u32>) {
         let chunk_size = instructions.len();
         let mut position = 0;
         while position < chunk_size {
@@ -101,6 +107,7 @@ impl Assembler {
                     *byte_position += Bytecode::BUILTIN_CALL_SIZE
                 },
                 Instruction::Call(index) => {
+                    call_instructions_position.push(*byte_position as u32);
                     byte_chunk.push(Bytecode::Call as u8);
                     byte_chunk.extend_from_slice(&index.to_le_bytes());
                     *byte_position += Bytecode::CALL_SIZE

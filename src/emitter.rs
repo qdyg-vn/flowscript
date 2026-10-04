@@ -42,7 +42,7 @@ impl Emitter {
             },
             TypedNode::Call { function_index, arguments, ..} => {
                 self.create_chunk(arguments, chunk);
-                chunk.instructions.push(Instruction::Call(function_index as u16))
+                chunk.instructions.push(Instruction::Call(function_index))
             },
             TypedNode::RelativeReference(x, y, _) => chunk.instructions.push(Instruction::RelativeReference(x, y)),
             TypedNode::StationCapture(index, _) => chunk.instructions.push(Instruction::StationCapture(index)),

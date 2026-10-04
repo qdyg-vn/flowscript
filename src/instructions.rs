@@ -3,9 +3,9 @@ use crate::value::{Kind, LightValue};
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Bytecode {
-    Call, // u16: scope, u16: offset from base pointer
+    Call, // u32: offset from base pointer
     BuiltinCall, // u16: index in builtin table, u16: arity
-    Load, // u32: index in constant pool
+    Load, // u8: kind, bool/f64/i64/u32: value
     LoadVariable, // u16: offset from base pointer
     Jump, // u16: instruction position
     JumpIfFalse, // u16: instruction position
@@ -28,7 +28,7 @@ pub enum Bytecode {
 
 impl Bytecode {
     pub const CALL: u8 = Self::Call as u8;
-    pub const CALL_SIZE: usize = 1 + 2;
+    pub const CALL_SIZE: usize = 1 + 4;
     pub const BUILTIN_CALL: u8 = Self::BuiltinCall as u8;
     pub const BUILTIN_CALL_SIZE: usize = 1 + 2 + 2;
     pub const LOAD: u8 = Self::Load as u8;
@@ -73,7 +73,7 @@ impl Bytecode {
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum Instruction {
-    Call(u16),
+    Call(u32),
     BuiltinCall(u16, u16),
     Load(LightValue),
     HeavyLoad(u32, Kind),

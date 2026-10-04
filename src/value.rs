@@ -78,18 +78,6 @@ impl Kind {
     }
 }
 
-
-pub fn get_kind(kind: u8) -> Kind {
-    match kind {
-        Tag::BOOLEAN => Kind::Boolean,
-        Tag::FLOAT => Kind::Float,
-        Tag::INTEGER => Kind::Integer,
-        Tag::STRING => Kind::String,
-        Tag::ARRAY => Kind::Array,
-        _ => unreachable!()
-    }
-}
-
 impl fmt::Display for Kind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
