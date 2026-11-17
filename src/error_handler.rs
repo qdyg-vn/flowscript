@@ -335,6 +335,7 @@ impl fmt::Display for TypeError {
             TypeErrorType::NotAFunction(_) => 7,
             TypeErrorType::NoFunctionFound(_) => 8,
             TypeErrorType::NotAStruct(_) => 9,
+            TypeErrorType::InvalidTypeError(_) => 10,
         };
         writeln!(formatter, "\x1b[31;1m[Error FSCC8{:0>3}]\x1b[0m {}", code, self.kind)
     }
@@ -351,6 +352,7 @@ pub enum TypeErrorType {
     NotAFunction(String),
     NoFunctionFound(Vec<Kind>),
     NotAStruct(String),
+    InvalidTypeError(String),
 }
 
 impl fmt::Display for TypeErrorType {
@@ -364,6 +366,7 @@ impl fmt::Display for TypeErrorType {
             Self::NotAFunction(name) => write!(formatter, "{} is not a function", name),
             Self::NoFunctionFound(arguments) => write!(formatter, "No function found that matches the given arguments kind: {:?}", arguments),
             Self::NotAStruct(name) => write!(formatter, "{} is not a struct", name),
+            Self::InvalidTypeError(identifier) => write!(formatter, "{} is not a valid type", identifier),
         }
     }
 }

@@ -14,7 +14,7 @@ impl Emitter {
     }
 
     pub fn emit(mut self, ast: TypedAST) -> ConstantsPool {
-        let mut chunk = Chunk { instructions: Vec::with_capacity(ast.nodes.len()), arity: ast.arity, variables_count: ast.variables_count, max_temp_variables: ast.max_temp_variables, max_relative_reference: ast.max_relative_reference };
+        let mut chunk = Chunk { instructions: Vec::with_capacity(ast.nodes.len()), arity: ast.arity, variables_count: ast.variables_count, max_relative_reference: ast.max_relative_reference };
         self.create_chunk(ast.nodes, &mut chunk);
         self.constants_pool.write_function_body(self.constants_pool.functions.len() - 1, chunk);
         self.constants_pool
@@ -49,7 +49,7 @@ impl Emitter {
             TypedNode::Assignment(index, _) => chunk.instructions.push(Instruction::Store(index)),
             TypedNode::Variable(index, _) => chunk.instructions.push(Instruction::LoadVariable(index)),
             TypedNode::DefineFunction { function_index, body } => {
-                let mut child_chunk = Chunk { instructions: Vec::with_capacity(body.nodes.len()), arity: body.arity, variables_count: body.variables_count, max_temp_variables: body.max_temp_variables, max_relative_reference: body.max_relative_reference };
+                let mut child_chunk = Chunk { instructions: Vec::with_capacity(body.nodes.len()), arity: body.arity, variables_count: body.variables_count, max_relative_reference: body.max_relative_reference };
                 self.create_chunk(body.nodes, &mut child_chunk);
                 self.constants_pool.write_function_body(function_index as usize, child_chunk);
             },
@@ -114,16 +114,16 @@ impl Emitter {
                 chunk.instructions.push(Instruction::Equal(arity, kind));
                 chunk.instructions.push(Instruction::Not);
             },
-            TypedNode::StructInstantiation { field_kind_indices, field_values, .. } => {
-                let fields_count = field_kind_indices.len() as u8;
-                for (temp_index, field_value) in field_kind_indices.into_iter().zip(field_values) {
+            TypedNode::StructInstantiation { field_values, .. } => {
+                let fields_count = field_values.len() as u8;
+                for field_value in field_values {
                     self.emit_single_node(field_value, chunk);
-                    chunk.instructions.push(Instruction::StoreTemp(temp_index));
                 }
                 chunk.instructions.push(Instruction::StructInstantiation(fields_count));
             },
-            TypedNode::FieldAccess { index, field_offset, .. } => {
-                chunk.instructions.push(Instruction::FieldAccess(index, field_offset));
+            TypedNode::FieldAccess { index, fields_offset, .. } => {
+                chunk.instructions.push(Instruction::LoadVariable(index));
+                fields_offset.into_iter().for_each(|field_offset| chunk.instructions.push(Instruction::FieldAccess(field_offset)));
             },
         }
     }

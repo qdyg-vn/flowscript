@@ -2,7 +2,7 @@ use crate::error_handler::{Error, SemanticError, SemanticErrorType, SyntaxError,
 use crate::node::{ConditionBranch, Node};
 use crate::lexer::Lexer;
 use crate::token::{Token, TokenType};
-use crate::value::{Kind, LightValue, Value};
+use crate::value::{LightValue, Value};
 
 pub struct Parser<'source_code> {
     lexer: Lexer<'source_code>,
@@ -97,14 +97,17 @@ impl<'source_code> Parser<'source_code> {
     }
 
     fn parse_field_access(&mut self, start: usize, name: String, errors: &mut Vec<Error>) -> Option<Node> {
-        self.advance(1);
-        let field_name = match self.peek() {
-            Some(Ok(Token { kind: TokenType::Identifier(name), ..})) => { self.advance(1); name },
-            Some(Ok(_)) => { self.error_pusher(start, SyntaxErrorType::MissingFieldName, errors); String::default() },
-            Some(Err(error)) => { errors.push(error); self.jump(errors); String::default() }
-            None => { self.error_pusher(start, SyntaxErrorType::RedundantFieldAccess, errors); return None }
-        };
-        Some(Node::FieldAccess { name, field_name })
+        let mut fields_name = Vec::new();
+        while let Some(Ok(token)) = self.peek() && token.kind == TokenType::Dot {
+            self.advance(1);
+            fields_name.push(match self.peek() {
+                Some(Ok(Token { kind: TokenType::Identifier(name), ..})) => { self.advance(1); name },
+                Some(Ok(_)) => { self.error_pusher(start, SyntaxErrorType::MissingFieldName, errors); String::default() },
+                Some(Err(error)) => { errors.push(error); self.jump(errors); String::default() }
+                None => { self.error_pusher(start, SyntaxErrorType::RedundantFieldAccess, errors); return None }
+            })
+        }
+        Some(Node::FieldAccess { name, fields_name })
     }
 
     fn parse_struct_instantiation(&mut self, name: String, errors: &mut Vec<Error>) -> Option<Node> {
@@ -212,15 +215,7 @@ impl<'source_code> Parser<'source_code> {
             None => { self.error_pusher(self.last_index(), SyntaxErrorType::MissingTypeIdentity, errors); return None },
         };
         if let TokenType::Identifier(kind) = token.kind {
-            let node_kind = match kind.as_str() {
-                "boolean" => Kind::Boolean,
-                "float" => Kind::Float,
-                "integer" => Kind::Integer,
-                "string" => Kind::String,
-                "array" => Kind::Array,
-                _ => { self.error_pusher(token.start, SyntaxErrorType::InvalidTypeError, errors); return None },
-            };
-            return Some(Node::Assignment(name, node_kind))
+            return Some(Node::Assignment(name, kind))
         }
         self.error_pusher(token.start, SyntaxErrorType::InvalidTypeError, errors);
         None
@@ -259,20 +254,12 @@ impl<'source_code> Parser<'source_code> {
                 None => { self.error_pusher(self.last_index(), SyntaxErrorType::MissingTypeIdentity, errors); return None }
             }
         };
-        let mut result = Kind::Nil;
-        if let Some(Ok(Token { start, kind, .. })) = self.peek() && kind == TokenType::Colon {
+        let mut result_kind_name = String::from("nil");
+        if let Some(Ok(Token { kind, .. })) = self.peek() && kind == TokenType::Colon {
             self.advance(1);
             match self.peek() {
                 Some(Ok(Token { kind: TokenType::Identifier(kind), .. })) => {
-                    let result_kind = match kind.as_str() {
-                        "boolean" => Kind::Boolean,
-                        "float" => Kind::Float,
-                        "integer" => Kind::Integer,
-                        "string" => Kind::String,
-                        "array" => Kind::Array,
-                        _ => { self.error_pusher(start, SyntaxErrorType::InvalidTypeError, errors); return None },
-                    };
-                    result = result_kind;
+                    result_kind_name = kind;
                     self.advance(1);
                 },
                 Some(Ok(_)) => { self.error_pusher(self.last_index(), SyntaxErrorType::InvalidTypeError, errors) },
@@ -300,7 +287,7 @@ impl<'source_code> Parser<'source_code> {
                 None => { self.error_pusher(start, SyntaxErrorType::MissingEndKeyword, errors); return None },
             };
         };
-        Some(Node::DefineFunction { operator, parameters, body, result })
+        Some(Node::DefineFunction { operator, parameters, body, result_kind_name })
     }
 
     fn parse_condition_expression(&mut self, start: usize, errors: &mut Vec<Error>) -> Vec<Node> {

@@ -20,7 +20,6 @@ struct CallFrame {
     end_instruction: usize,
     stack_position: usize,
     base_pointer: usize,
-    temp_pointer: usize,
     reference_pointer: usize,
 }
 
@@ -42,15 +41,14 @@ impl VirMac {
 
     pub fn execute(&mut self) -> Vec<LightValue> {
         let mut stack = vec![LightValue::Nil; 1024];
-        let (function_index, length, variables_count, _arity, max_temp_variables, max_relative_reference) = self.get_function(self.main_function_index);
+        let (function_index, length, variables_count, _arity, max_relative_reference) = self.get_function(self.main_function_index);
         let mut frames = Vec::with_capacity(1024);
         frames.push(CallFrame {
             instruction_position: function_index,
             end_instruction: function_index + length,
-            stack_position: variables_count as usize + max_temp_variables as usize + max_relative_reference as usize,
+            stack_position: variables_count as usize + max_relative_reference as usize,
             base_pointer: 0,
-            temp_pointer: variables_count as usize,
-            reference_pointer: variables_count as usize + max_temp_variables as usize,
+            reference_pointer: variables_count as usize,
         });
         while let Some(frame) = frames.last_mut() {
             if frame.instruction_position == frame.end_instruction {
@@ -59,14 +57,13 @@ impl VirMac {
             }
             match self.dispatch_instruction(frame, &mut stack) {
                 Some(FrameInstruction::New(start_index)) => {
-                    let (function_index, length, variables_count, arity, max_temp_variables, max_relative_reference) = self.get_function(start_index as usize);
+                    let (function_index, length, variables_count, arity, max_relative_reference) = self.get_function(start_index as usize);
                     let new_frame = CallFrame {
                         instruction_position: function_index,
                         end_instruction: function_index + length,
-                        stack_position: frame.stack_position + variables_count as usize + max_temp_variables as usize + max_relative_reference as usize,
+                        stack_position: frame.stack_position + variables_count as usize + max_relative_reference as usize,
                         base_pointer: frame.stack_position - arity as usize,
-                        temp_pointer: frame.stack_position + variables_count as usize,
-                        reference_pointer: frame.stack_position + variables_count as usize + max_temp_variables as usize,
+                        reference_pointer: frame.stack_position + variables_count as usize,
                     };
                     frames.push(new_frame);
                 }
@@ -137,11 +134,6 @@ impl VirMac {
                 let index = u16::from_le_bytes([self.memory.functions[call_frame.instruction_position + 1], self.memory.functions[call_frame.instruction_position + 2]]);
                 stack[call_frame.base_pointer + index as usize] = stack[call_frame.stack_position - 1];
                 call_frame.instruction_position += Bytecode::STORE_SIZE;
-            },
-            Bytecode::STORE_TEMP => {
-                let temp_index = self.memory.functions[call_frame.instruction_position + 1];
-                stack[call_frame.temp_pointer + temp_index as usize] = stack[call_frame.stack_position - 1];
-                call_frame.instruction_position += Bytecode::STORE_TEMP_SIZE;
             },
             Bytecode::BUILTIN_CALL => {
                 let index = u16::from_le_bytes([self.memory.functions[call_frame.instruction_position + 1], self.memory.functions[call_frame.instruction_position + 2]]);
@@ -333,22 +325,20 @@ impl VirMac {
                 let fields_count = self.memory.functions[call_frame.instruction_position + 1];
                 let index = self.memory.from_space.len();
                 let mut structure = Vec::new();
-                self.push_light_value_into_array(&stack[call_frame.temp_pointer..call_frame.temp_pointer + fields_count as usize], &mut structure);
+                self.push_light_value_into_array(&stack[call_frame.stack_position - fields_count as usize..call_frame.stack_position], &mut structure);
                 let struct_length_bytes = structure.len().to_le_bytes();
                 self.memory.allocate(struct_length_bytes.len() + structure.len(), stack);
                 self.memory.push_to_heap(&struct_length_bytes);
                 self.memory.push_to_heap(&structure);
-                stack[call_frame.stack_position] = LightValue::StructPointer(index as u32);
-                call_frame.stack_position += 1;
+                stack[call_frame.stack_position - fields_count as usize] = LightValue::StructPointer(index as u32);
+                call_frame.stack_position -= fields_count as usize - 1;
                 call_frame.instruction_position += Bytecode::STRUCT_INSTANTIATION_SIZE;
             },
             Bytecode::FIELD_ACCESS => {
-                let index = u16::from_le_bytes([self.memory.functions[call_frame.instruction_position + 1], self.memory.functions[call_frame.instruction_position + 2]]);
-                let field_index = u16::from_le_bytes([self.memory.functions[call_frame.instruction_position + 3], self.memory.functions[call_frame.instruction_position + 4]]);
-                let LightValue::StructPointer(struct_index) = stack[call_frame.base_pointer + index as usize] else { unreachable!() };
+                let field_index = u16::from_le_bytes([self.memory.functions[call_frame.instruction_position + 1], self.memory.functions[call_frame.instruction_position + 2]]);
+                let LightValue::StructPointer(struct_index) = stack[call_frame.stack_position - 1] else { unreachable!() };
                 let light_value = self.get_field_value(&mut (struct_index as usize), field_index as usize);
-                stack[call_frame.stack_position] = light_value;
-                call_frame.stack_position += 1;
+                stack[call_frame.stack_position - 1] = light_value;
                 call_frame.instruction_position += Bytecode::FIELD_ACCESS_SIZE;
             },
             _ => unreachable!()
@@ -384,13 +374,12 @@ impl VirMac {
         }
     }
 
-    fn get_function(&self, start: usize) -> (usize, usize, u16, u8, u8, u8) {
+    fn get_function(&self, start: usize) -> (usize, usize, u16, u8, u8) {
         let length = u64::from_le_bytes(self.memory.functions[start..start + 8].try_into().unwrap());
         let variables_count = u16::from_le_bytes([self.memory.functions[start + 8], self.memory.functions[start + 9]]);
         let arity = self.memory.functions[start + 10];
-        let max_temp_variables = self.memory.functions[start + 11];
-        let max_relative_reference = self.memory.functions[start + 12];
-        (start + 13, length as usize, variables_count, arity, max_temp_variables, max_relative_reference)
+        let max_relative_reference = self.memory.functions[start + 11];
+        (start + 12, length as usize, variables_count, arity, max_relative_reference)
     }
 
     fn get_string_in_permanent_space(&self, start: usize) -> String {

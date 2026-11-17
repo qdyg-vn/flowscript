@@ -28,18 +28,27 @@ pub struct RelativeReference {
     pub variable_index: u32,
 }
 
+#[derive(Debug, Default)]
+struct Scope {
+    symbols: HashMap<String, SymbolType>,
+    start_variable_index: u32,
+}
+
 #[derive(Copy, Clone, Debug)]
 pub enum SymbolType {
-    VariableScope(u16, u32),
-    FunctionScope(u32),
-    StructScope(u16),
+    Variable {
+        index: u16,
+        variable_index: u32,
+    },
+    Function(u32),
+    Structure(u16),
     Builtin(u16),
 }
 
 #[derive(Debug, Default)]
 pub struct SymbolTable {
     builtins: HashMap<String, u16>,
-    scopes: Vec<HashMap<String, SymbolType>>,
+    scopes: Vec<Scope>,
     pub all_variable: Vec<Kind>,
     functions: HashMap<FunctionSignature, Function>,
     structures: Vec<Structure>,
@@ -49,7 +58,7 @@ pub struct SymbolTable {
 impl SymbolTable {
     pub fn with_builtins() -> Self {
         let mut table = Self {
-            scopes: vec![HashMap::new()],
+            scopes: vec![Scope::default()],
             ..Self::default()
         };
         for (index, &function) in BUILTIN_TABLE.iter().enumerate() {
@@ -59,7 +68,7 @@ impl SymbolTable {
     }
 
     pub fn new_scope(&mut self) {
-        self.scopes.push(HashMap::new());
+        self.scopes.push(Scope { symbols: HashMap::new(), start_variable_index: self.all_variable.len() as u32 });
     }
 
     pub fn pop_scope(&mut self) {
@@ -69,12 +78,12 @@ impl SymbolTable {
     pub fn add_variable(&mut self, variable: String, kind: Kind) -> Result<SymbolType, SymbolType> {
         let scope = self.scopes.len() as u16 - 1;
         let last_scope = self.scopes.last_mut().unwrap();
-        let index = last_scope.len() as u16;
-        match last_scope.entry(variable) {
+        match last_scope.symbols.entry(variable) {
             Entry::Vacant(entry) => {
                 let variable_index = self.all_variable.len() as u32;
+                let index = (variable_index - last_scope.start_variable_index) as u16;
                 self.all_variable.push(kind);
-                let new_symbol = SymbolType::VariableScope(index, variable_index);
+                let new_symbol = SymbolType::Variable { index, variable_index };
                 entry.insert(new_symbol);
                 Ok(new_symbol)
             }
@@ -82,14 +91,14 @@ impl SymbolTable {
         }
     }
 
-    pub fn add_struct(&mut self, name: String, field_kind_indices: HashMap<String, u8>, field_kinds: Vec<Kind>) -> Option<SemanticError> {
+    pub fn add_struct(&mut self, name: &str, field_kind_indices: HashMap<String, u8>, field_kinds: Vec<Kind>) -> Option<SemanticError> {
         let fields_offset = self.compute_field_offsets(&field_kinds);
         let last_scope = self.scopes.last_mut().unwrap();
-        match last_scope.entry(name) {
+        match last_scope.symbols.entry(name.to_string()) {
             Entry::Vacant(entry) => {
                 let index = self.structures.len() as u16;
                 self.structures.push(Structure { field_kind_indices, field_kinds, fields_offset });
-                let new_symbol = SymbolType::StructScope(index);
+                let new_symbol = SymbolType::Structure(index);
                 entry.insert(new_symbol);
                 None
             }
@@ -125,16 +134,16 @@ impl SymbolTable {
         if errors.is_empty() { Ok(field_kind_indices) } else { Err(errors) }
     }
 
-    pub fn find_struct_index(&self, variable_name: String, variable_index: u32) -> Result<u16, Error> {
-        let Kind::Struct(struct_index) = self.all_variable[variable_index as usize] else { return Err(TypeError { kind: TypeErrorType::NotAStruct(variable_name) }.into()) };
+    pub fn find_struct_index(&self, variable_name: &str, variable_index: u32) -> Result<u16, Error> {
+        let Kind::Struct(struct_index) = self.all_variable[variable_index as usize] else { return Err(TypeError { kind: TypeErrorType::NotAStruct(variable_name.to_string()) }.into()) };
         Ok(struct_index)
     }
 
-    pub fn find_field_index(&self, struct_name: String, struct_index: u16, field_name: &str) -> Result<u8, Error> {
+    pub fn find_field_index(&self, struct_name: &str, struct_index: u16, field_name: &str) -> Result<u8, Error> {
         let structure = &self.structures[struct_index as usize];
         match structure.field_kind_indices.get(field_name) {
             Some(index) => Ok(*index),
-            None => Err(SemanticError { kind: SemanticErrorType::NoFieldFound(struct_name, field_name.to_string()) }.into()),
+            None => Err(SemanticError { kind: SemanticErrorType::NoFieldFound(struct_name.to_string(), field_name.to_string()) }.into()),
         }
     }
     
@@ -163,30 +172,30 @@ impl SymbolTable {
     pub fn add_relative_reference(&mut self, index_in_stations: u16, kind: Kind) -> SymbolType {
         for (index, relative_reference) in self.pipeline.iter().enumerate() {
             if relative_reference.index_in_stations == index_in_stations {
-                return SymbolType::VariableScope(index as u16, relative_reference.variable_index)
+                return SymbolType::Variable { index: index as u16, variable_index: relative_reference.variable_index }
             }
         };
         let index = self.pipeline.len() as u16;
         let variable_index = self.all_variable.len() as u32;
         self.pipeline.push(RelativeReference { index_in_stations, variable_index });
         self.all_variable.push(kind);
-        SymbolType::VariableScope(index, variable_index)
+        SymbolType::Variable { index, variable_index }
     }
 
-    pub fn add_function(&mut self, function_name: String, parameters_kind: Vec<Kind>, result: Kind) -> Option<SemanticError> {
+    pub fn add_function(&mut self, function_name: &str, parameters_kind: Vec<Kind>, result: Kind) -> Option<SemanticError> {
         let function_index = self.functions.len() as u32;
         let last_scope = self.scopes.last_mut().unwrap();
-        match last_scope.entry(function_name) {
+        match last_scope.symbols.entry(function_name.to_string()) {
             Entry::Vacant(entry) => {
                 let function_signature = FunctionSignature { id: function_index, parameters_kind };
                 let function = Function { index: function_index, result };
                 self.functions.insert(function_signature, function);
-                let new_symbol = SymbolType::FunctionScope(function_index);
+                let new_symbol = SymbolType::Function(function_index);
                 entry.insert(new_symbol);
                 None
             }
             Entry::Occupied(entry) => {
-                let SymbolType::FunctionScope(id) = entry.get() else { todo!() };
+                let SymbolType::Function(id) = entry.get() else { todo!() };
                 let function_signature = FunctionSignature { id: *id, parameters_kind };
                 match self.functions.entry(function_signature) {
                     Entry::Vacant(entry) => { entry.insert(Function { index: function_index, result }); None },
@@ -206,7 +215,7 @@ impl SymbolTable {
     
     pub fn resolve(&self, name: &str) -> Result<SymbolType, SemanticError> {
         for scope in self.scopes.iter().rev() {
-            if let Some(symbol) = scope.get(name) {
+            if let Some(symbol) = scope.symbols.get(name) {
                 return Ok(*symbol)
             }
         }

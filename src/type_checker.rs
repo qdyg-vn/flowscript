@@ -24,7 +24,7 @@ impl TypeChecker {
             }
         }
         if !self.error_handler.errors.is_empty() { self.error_handler.report_exit() }
-        (self.error_handler, TypedAST { nodes: typed_nodes, arity: ast.arity, variables_count: ast.variables_count, max_temp_variables: ast.max_temp_variables, max_relative_reference: ast.max_relative_reference })
+        (self.error_handler, TypedAST { nodes: typed_nodes, arity: ast.arity, variables_count: ast.variables_count, max_relative_reference: ast.max_relative_reference })
     }
 
     pub fn check(&mut self, station: &ResolvedNode, typed_stations: &[TypedNode]) -> Result<TypedNode, Vec<Error>> {
@@ -33,9 +33,11 @@ impl TypeChecker {
             ResolvedNode::HeavyLiteral(value) => Ok(TypedNode::HeavyLiteral(value.clone())),
             ResolvedNode::BuiltinCall { index, arguments } => {
                 let types = get_types(*index);
-                match self.find_result_kind(arguments, types, typed_stations) {
+                let typed_arguments: Vec<TypedNode> = arguments.iter().map(|argument| self.check(argument, typed_stations)).collect::<Result<_, _>>()?;
+                let arguments_kind: Vec<Kind> = typed_arguments.iter().map(|argument| self.find_node_kind(argument)).collect();
+                match self.find_result_kind(&arguments_kind, types) {
                     Ok(result_kind) => {
-                        let mut node = TypedNode::BuiltinCall { index: *index, arguments: arguments.iter().map(|argument| self.check(argument, typed_stations)).collect::<Result<Vec<TypedNode>, Vec<Error>>>()?, result: result_kind };
+                        let mut node = TypedNode::BuiltinCall { index: *index, arguments: typed_arguments, result: result_kind };
                         self.rewrite_builtin_function(&mut node);
                         Ok(node)
                     },
@@ -43,7 +45,7 @@ impl TypeChecker {
                 }
             },
             ResolvedNode::Call { arguments, function_index } => {
-                let typed_arguments = arguments.iter().map(|argument| self.check(argument, typed_stations)).collect::<Result<Vec<TypedNode>, Vec<Error>>>()?;
+                let typed_arguments: Vec<TypedNode> = arguments.iter().map(|argument| self.check(argument, typed_stations)).collect::<Result<_, _>>()?;
                 let arguments_kind = typed_arguments.iter().map(|argument| self.find_node_kind(argument)).collect();
                 match self.symbol_table.find_function(*function_index, arguments_kind) {
                     Ok(function) => Ok(TypedNode::Call { function_index: function.index, arguments: typed_arguments, result: function.result }),
@@ -91,7 +93,6 @@ impl TypeChecker {
                         nodes: body.nodes.iter().map(|node| self.check(node, &child_typed_stations)).collect::<Result<Vec<TypedNode>, Vec<Error>>>()?,
                         arity: body.arity,
                         variables_count: body.variables_count,
-                        max_temp_variables: body.max_temp_variables,
                         max_relative_reference: body.max_relative_reference
                     }
                 })
@@ -106,55 +107,54 @@ impl TypeChecker {
             ResolvedNode::Return(value) => Ok(TypedNode::Return(Box::new(self.check(value, typed_stations)?))),
             ResolvedNode::Array(elements) => Ok(TypedNode::Array(elements.iter().map(|element| self.check(element, typed_stations)).collect::<Result<Vec<TypedNode>, Vec<Error>>>()?)),
             ResolvedNode::StructInstantiation { index, field_kind_indices, field_values } => {
-                let typed_field_values = field_values.iter().map(|field_value| self.check(field_value, typed_stations)).collect::<Result<Vec<TypedNode>, Vec<Error>>>()?;
+                let typed_field_values: Vec<TypedNode> = field_values.iter().map(|field_value| self.check(field_value, typed_stations)).collect::<Result<_, _>>()?;
                 let field_kinds: Vec<Kind> = typed_field_values.iter().map(|argument| self.find_node_kind(argument)).collect();
                 self.error_handler.errors.extend(self.symbol_table.check_struct_fields(*index, field_kind_indices, &field_kinds));
                 Ok(TypedNode::StructInstantiation { field_kind_indices: field_kind_indices.clone(), field_values: typed_field_values, structure: Kind::Struct(*index) })
             }
-            ResolvedNode::FieldAccess { struct_name, index, variable_index, field_name } => {
-                let struct_index = match self.symbol_table.find_struct_index(struct_name.clone(), *variable_index) {
+            ResolvedNode::FieldAccess { struct_name, index, variable_index, fields_name } => {
+                let mut struct_index = match self.symbol_table.find_struct_index(struct_name, *variable_index) {
                     Ok(index) => index,
                     Err(error) => { 
                         self.error_handler.push_error(error);
-                        return Ok(TypedNode::FieldAccess { index: 0, field_offset: 0, field_kind: Kind::Undefined })
+                        return Ok(TypedNode::FieldAccess { index: 0, fields_offset: vec![], field_kind: Kind::Undefined })
                     },
                 };
-                let field_index = match self.symbol_table.find_field_index(struct_name.clone(), struct_index, field_name) {
-                    Ok(index) => index,
-                    Err(error) => { 
-                        self.error_handler.push_error(error);
-                        return Ok(TypedNode::FieldAccess { index: struct_index, field_offset: 0, field_kind: Kind::Undefined })
-                    },
-                };
-                let field_offset = self.symbol_table.get_field_offset(struct_index, field_index);
-                let field_kind = self.symbol_table.get_field_kind(struct_index, field_index);
-                Ok(TypedNode::FieldAccess { index: *index, field_offset, field_kind })
+                let mut fields_offset = Vec::new();
+                let mut field_kind = Kind::Undefined;
+                for field_name in fields_name {
+                    let field_index = match self.symbol_table.find_field_index(struct_name, struct_index, field_name) {
+                        Ok(index) => index,
+                        Err(error) => {
+                            self.error_handler.push_error(error);
+                            return Ok(TypedNode::FieldAccess { index: struct_index, fields_offset: vec![], field_kind: Kind::Undefined })
+                        },
+                    };
+                    let field_offset = self.symbol_table.get_field_offset(struct_index, field_index);
+                    fields_offset.push(field_offset);
+                    field_kind = self.symbol_table.get_field_kind(struct_index, field_index);
+                    if let Kind::Struct(index) = field_kind {
+                        struct_index = index;
+                    }
+                }
+                Ok(TypedNode::FieldAccess { index: *index, fields_offset, field_kind })
             },
         }
     }
 
-    fn find_result_kind(&mut self, arguments: &[ResolvedNode], kinds: &[Signature], typed_station: &[TypedNode]) -> Result<Kind, Vec<Error>> {
-        let mut arguments_kind = Vec::with_capacity(arguments.len());
-        let mut typed_arguments = Vec::new();
-        let mut errors = Vec::with_capacity(arguments.len());
-        for argument in arguments {
-            typed_arguments.push(self.check(argument, typed_station)?);
-        }
-        for argument in typed_arguments {
-            arguments_kind.push(self.find_node_kind(&argument))
-        }
-        if arguments_kind.len() != arguments.len() { return Err(errors) }
+    fn find_result_kind(&mut self, arguments_kind: &[Kind], kinds: &[Signature]) -> Result<Kind, Vec<Error>> {
+        let mut errors = Vec::with_capacity(arguments_kind.len());
         let mut mismatch_count = i32::MAX;
         for signature in kinds {
             let mut signature_mismatch_count = 0;
-            let mut signature_errors = Vec::with_capacity(arguments.len());
+            let mut signature_errors = Vec::with_capacity(arguments_kind.len());
             if signature.infinite_arity {
                 if arguments_kind.len() < signature.min_arity as usize {
                     signature_mismatch_count += 1;
                     signature_errors.push(TypeError{ kind: TypeErrorType::ArityMismatch(arguments_kind.len(), signature.min_arity as usize) }.into());
                 } else {
-                    for argument_kind in &arguments_kind {
-                        if *argument_kind != signature.arguments[0] {
+                    for argument_kind in arguments_kind {
+                        if *argument_kind != Kind::Undefined && *argument_kind != signature.arguments[0] {
                             signature_mismatch_count += 1;
                             signature_errors.push(TypeError { kind: TypeErrorType::TypeMismatch(signature.arguments[0], *argument_kind) }.into());
                         }
@@ -166,7 +166,7 @@ impl TypeChecker {
                     signature_errors.push(TypeError{ kind: TypeErrorType::ArityMismatch(arguments_kind.len(), signature.min_arity as usize) }.into());
                 } else {
                     for (&argument_kind, &required_kind) in arguments_kind.iter().zip(signature.arguments) {
-                        if argument_kind != required_kind {
+                        if argument_kind != Kind::Undefined && argument_kind != required_kind {
                             signature_mismatch_count += 1;
                             signature_errors.push(TypeError { kind: TypeErrorType::TypeMismatch(required_kind, argument_kind) }.into());
                         }

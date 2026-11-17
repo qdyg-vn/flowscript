@@ -18,12 +18,12 @@ pub enum Node {
     RelativeReference(u16, u16),
     Variable(String),
     SoftAssignment(String),
-    Assignment(String, Kind),
+    Assignment(String, String),
     DefineFunction {
         operator: String,
         parameters: Vec<Node>,
         body: Vec<Node>,
-        result: Kind,
+        result_kind_name: String,
     },
     Condition {
         branches: Vec<ConditionBranch<Node>>,
@@ -40,7 +40,7 @@ pub enum Node {
     },
     FieldAccess {
         name: String,
-        field_name: String,
+        fields_name: Vec<String>,
     },
     Return(Box<Node>),
     Array(Vec<Node>),
@@ -83,7 +83,7 @@ pub enum ResolvedNode {
         index: u16,
         variable_index: u32,
         struct_name: String,
-        field_name: String,
+        fields_name: Vec<String>,
     },
 }
 
@@ -132,7 +132,7 @@ pub enum TypedNode {
     },
     FieldAccess {
         index: u16,
-        field_offset: u16,
+        fields_offset: Vec<u16>,
         field_kind: Kind,
     },
 }
@@ -142,7 +142,6 @@ pub struct AST {
     pub nodes: Vec<ResolvedNode>,
     pub variables_count: u16,
     pub arity: u8,
-    pub max_temp_variables: u8,
     pub max_relative_reference: u8,
 }
 
@@ -151,6 +150,5 @@ pub struct TypedAST {
     pub nodes: Vec<TypedNode>,
     pub variables_count: u16,
     pub arity: u8,
-    pub max_temp_variables: u8,
     pub max_relative_reference: u8,
 }

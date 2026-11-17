@@ -48,13 +48,24 @@ impl Resolver {
         for station in stations {
             match station {
                 Node::Pipeline(stations) => { self.collect_declarations(stations, ast); },
-                Node::DefineFunction { operator, parameters, result, .. } => {
+                Node::DefineFunction { operator, parameters, result_kind_name, .. } => {
                     let mut parameters_kind = Vec::with_capacity(parameters.len());
+                    let errors_length = self.error_handler.errors.len();
                     for parameter in parameters {
-                        let Node::Assignment(_, kind) = parameter else { unreachable!() };
-                        parameters_kind.push(*kind);
+                        let Node::Assignment(_, kind_name) = parameter else { unreachable!() };
+                        match self.get_kind(kind_name) {
+                            Ok(kind) => parameters_kind.push(kind),
+                            Err(error) => self.error_handler.push_error(error),
+                        }
                     }
-                    if let Some(error) = self.symbol_table.add_function(operator.clone(), parameters_kind, *result) {
+                    if self.error_handler.errors.len() > errors_length {
+                        continue
+                    }
+                    let result = match self.get_kind(result_kind_name) {
+                        Ok(kind) => kind,
+                        Err(error) => { self.error_handler.push_error(error); continue },
+                    };
+                    if let Some(error) = self.symbol_table.add_function(operator, parameters_kind, result) {
                         self.error_handler.push_error(error);
                     }
                     define_function_count += 1;
@@ -66,21 +77,22 @@ impl Resolver {
                     self.collect_declarations(final_branch, ast);
                 },
                 Node::Struct { name, fields } => {
-                    let temp_variables_count = fields.len() as u8;
                     let mut field_kind_indices = HashMap::with_capacity(fields.len());
                     let mut field_kinds = Vec::with_capacity(fields.len());
                     for field in fields {
-                        let Node::Assignment(name, kind) = field else { unreachable!() };
+                        let Node::Assignment(name, kind_name) = field else { unreachable!() };
                         match field_kind_indices.entry(name.clone()) {
                             Entry::Vacant(entry) => {
                                 entry.insert(field_kinds.len() as u8);
-                                field_kinds.push(*kind);
+                                match self.get_kind(kind_name) {
+                                    Ok(kind) => field_kinds.push(kind),
+                                    Err(error) => self.error_handler.push_error(error),
+                                }
                             }
                             Entry::Occupied(_) => self.error_handler.push_error(SemanticError { kind: SemanticErrorType::DuplicateParameter(name.clone())}),
                         }
                     }
-                    self.symbol_table.add_struct(name.clone(), field_kind_indices, field_kinds);
-                    ast.max_temp_variables = std::cmp::max(ast.max_temp_variables, temp_variables_count);
+                    self.symbol_table.add_struct(name, field_kind_indices, field_kinds);
                 },
                 _ => {}
             }
@@ -114,7 +126,7 @@ impl Resolver {
                     return;
                 }
                 let index_in_stations = station_index as u16 - x;
-                let SymbolType::VariableScope(index, variable_index) = self.symbol_table.add_relative_reference(index_in_stations, Kind::Undefined) else { unreachable!() };
+                let SymbolType::Variable { index, variable_index } = self.symbol_table.add_relative_reference(index_in_stations, Kind::Undefined) else { unreachable!() };
                 resolved_stations.push(ResolvedNode::RelativeReference(index, y, variable_index))
             },
             Node::Apply {operator, arguments} => {
@@ -124,7 +136,7 @@ impl Resolver {
                 };
                 match self.symbol_table.resolve(&operator) {
                     Ok(SymbolType::Builtin(index)) => resolved_stations.push(ResolvedNode::BuiltinCall { index, arguments: self.solve(arguments, ast, station_context) }),
-                    Ok(SymbolType::FunctionScope(function_index)) => {
+                    Ok(SymbolType::Function(function_index)) => {
                         let arguments = self.solve(arguments, ast, station_context);
                         resolved_stations.push(ResolvedNode::Call { arguments, function_index })
                     },
@@ -134,27 +146,31 @@ impl Resolver {
             },
             Node::SoftAssignment(name) => {
                 match self.symbol_table.add_variable(name, Kind::Undefined) {
-                    Ok(SymbolType::VariableScope(index, variable_index)) => {
+                    Ok(SymbolType::Variable { index, variable_index }) => {
                         resolved_stations.push(ResolvedNode::SoftAssignment(index, variable_index));
                         ast.variables_count += 1
                     }
-                    Err(SymbolType::VariableScope(index, variable_index)) => resolved_stations.push(ResolvedNode::SoftAssignment(index, variable_index)),
+                    Err(SymbolType::Variable { index, variable_index }) => resolved_stations.push(ResolvedNode::SoftAssignment(index, variable_index)),
                     _ => unreachable!()
                 }
             },
-            Node::Assignment(name, kind) => {
+            Node::Assignment(name, kind_name) => {
+                let kind = match self.get_kind(&kind_name) {
+                    Ok(kind) => kind,
+                    Err(error) => { self.error_handler.push_error(error); return; }
+                };
                 match self.symbol_table.add_variable(name, kind) {
-                    Ok(SymbolType::VariableScope(index, variable_index)) => {
+                    Ok(SymbolType::Variable { index, variable_index }) => {
                         resolved_stations.push(ResolvedNode::Assignment(index, variable_index, kind));
                         ast.variables_count += 1
                     }
-                    Err(SymbolType::VariableScope(index, variable_index)) => resolved_stations.push(ResolvedNode::Assignment(index, variable_index, kind)),
+                    Err(SymbolType::Variable { index, variable_index }) => resolved_stations.push(ResolvedNode::Assignment(index, variable_index, kind)),
                     _ => unreachable!()
                 }
             }
             Node::Variable(name) => {
                 match self.symbol_table.resolve(&name) {
-                    Ok(SymbolType::VariableScope(index, variable_index)) => resolved_stations.push(ResolvedNode::Variable(index, variable_index)),
+                    Ok(SymbolType::Variable { index, variable_index }) => resolved_stations.push(ResolvedNode::Variable(index, variable_index)),
                     Err(error) => self.error_handler.push_error(error),
                     _ => unreachable!()
                 }
@@ -165,13 +181,17 @@ impl Resolver {
                 self.symbol_table.new_scope();
                 let mut parameters_kind = Vec::with_capacity(parameters.len());
                 for parameter in parameters {
-                    let Node::Assignment(name, kind) = parameter else { unreachable!() };
+                    let Node::Assignment(name, kind_name) = parameter else { unreachable!() };
+                    let kind = match self.get_kind(&kind_name) {
+                        Ok(kind) => kind,
+                        Err(error) => { self.error_handler.push_error(error); return; }
+                    };
                     match self.symbol_table.add_variable(name.clone(), kind) {
-                        Ok(SymbolType::VariableScope(_, _)) => {
+                        Ok(SymbolType::Variable { .. }) => {
                             child_ast.arity += 1;
                             parameters_kind.push(kind);
                         },
-                        Err(SymbolType::VariableScope(_, _)) => self.error_handler.push_error(SemanticError { kind: SemanticErrorType::DuplicateParameter(name)}),
+                        Err(SymbolType::Variable { .. }) => self.error_handler.push_error(SemanticError { kind: SemanticErrorType::DuplicateParameter(name)}),
                         _ => unreachable!()
                     }
                 }
@@ -179,7 +199,7 @@ impl Resolver {
                 let body = self.solve(body, &mut child_ast, PipelineContext::NotInPipeline);
                 child_ast.nodes = body;
                 self.symbol_table.pop_scope();
-                let Ok(SymbolType::FunctionScope(function_id)) = self.symbol_table.resolve(&operator) else { unreachable!() };
+                let Ok(SymbolType::Function(function_id)) = self.symbol_table.resolve(&operator) else { unreachable!() };
                 let function = self.symbol_table.find_function(function_id, parameters_kind).unwrap();
                 resolved_stations.push(ResolvedNode::DefineFunction { function_index: function.index, body: child_ast })
             },
@@ -216,7 +236,7 @@ impl Resolver {
                     anything_else => anything_else
                 };
                 let index = match self.symbol_table.resolve(&name) {
-                    Ok(SymbolType::StructScope(index)) => index,
+                    Ok(SymbolType::Structure(index)) => index,
                     Ok(_) => { self.error_handler.push_error(TypeError { kind: TypeErrorType::NotAStruct(name) }); return; },
                     Err(error) => { self.error_handler.push_error(error); return; },
                 };
@@ -231,11 +251,11 @@ impl Resolver {
                     Err(errors) => self.error_handler.errors.extend(errors),
                 }
             },
-            Node::FieldAccess { name, field_name } => {
+            Node::FieldAccess { name, fields_name } => {
                 match self.symbol_table.resolve(&name) {
-                    Ok(SymbolType::VariableScope(index, variable_index)) => resolved_stations.push(ResolvedNode::FieldAccess { index, variable_index, struct_name: name, field_name }),
-                    Ok(_) => { self.error_handler.push_error(TypeError { kind: TypeErrorType::NotAStruct(name) }); return; },
-                    Err(error) => { self.error_handler.push_error(error); return; },
+                    Ok(SymbolType::Variable { index, variable_index }) => resolved_stations.push(ResolvedNode::FieldAccess { index, variable_index, struct_name: name, fields_name }),
+                    Ok(_) => { self.error_handler.push_error(TypeError { kind: TypeErrorType::NotAStruct(name) }) },
+                    Err(error) => { self.error_handler.push_error(error) },
                 };
             },
         }
@@ -244,6 +264,21 @@ impl Resolver {
     fn solve_relative_reference(&self, stations: &mut Vec<ResolvedNode>) {
         for (index, relative_reference) in self.symbol_table.pipeline.iter().enumerate().rev() {
             stations.insert(relative_reference.index_in_stations as usize + 1, ResolvedNode::StationCapture(index as u16, relative_reference.variable_index));
+        }
+    }
+
+    fn get_kind(&self, kind: &str) -> Result<Kind, TypeError> {
+        match kind {
+            "nil" => Ok(Kind::Nil),
+            "boolean" => Ok(Kind::Boolean),
+            "integer" => Ok(Kind::Integer),
+            "float" => Ok(Kind::Float),
+            "string" => Ok(Kind::String),
+            "array" => Ok(Kind::Array),
+            struct_name => match self.symbol_table.resolve(struct_name) {
+                Ok(SymbolType::Structure(index)) => Ok(Kind::Struct(index)),
+                _ => Err(TypeError { kind: TypeErrorType::InvalidTypeError(kind.to_string()) })
+            }
         }
     }
 }
