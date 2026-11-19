@@ -92,7 +92,9 @@ impl Resolver {
                             Entry::Occupied(_) => self.error_handler.push_error(SemanticError { kind: SemanticErrorType::DuplicateParameter(name.clone())}),
                         }
                     }
-                    self.symbol_table.add_struct(name, field_kind_indices, field_kinds);
+                    if let Some(error) = self.symbol_table.add_struct(name, field_kind_indices, field_kinds) {
+                        self.error_handler.push_error(error);
+                    }
                 },
                 _ => {}
             }
@@ -175,7 +177,7 @@ impl Resolver {
                     _ => unreachable!()
                 }
             },
-            Node::DefineFunction { operator, parameters, body, .. } => {
+            Node::DefineFunction { operator, parameters, body, result_kind_name } => {
                 let mut child_ast = AST { nodes: Vec::with_capacity(body.len()), .. AST::default() };
                 self.total_define_function_count += 1;
                 self.symbol_table.new_scope();
@@ -199,9 +201,13 @@ impl Resolver {
                 let body = self.solve(body, &mut child_ast, PipelineContext::NotInPipeline);
                 child_ast.nodes = body;
                 self.symbol_table.pop_scope();
-                let Ok(SymbolType::Function(function_id)) = self.symbol_table.resolve(&operator) else { unreachable!() };
+                let Ok(SymbolType::Function(function_id)) = self.symbol_table.resolve(&operator) else { return; };
                 let function = self.symbol_table.find_function(function_id, parameters_kind).unwrap();
-                resolved_stations.push(ResolvedNode::DefineFunction { function_index: function.index, body: child_ast })
+                let result = match self.get_kind(&result_kind_name) {
+                    Ok(kind) => kind,
+                    Err(error) => { self.error_handler.push_error(error); return; },
+                };
+                resolved_stations.push(ResolvedNode::DefineFunction { function_index: function.index, body: child_ast, result })
             },
             Node::Pipeline(stations) => {
                 self.symbol_table.pipeline.clear();
@@ -222,7 +228,10 @@ impl Resolver {
                 resolved_stations.push(ResolvedNode::Condition {branches: resolved_branches, final_branch})
             },
             Node::Return(value) => {
-                let value = self.solve(vec![*value], ast, pipeline_context).pop().unwrap();
+                let value = match self.solve(vec![*value], ast, pipeline_context).pop() {
+                    Some(value) => value,
+                    None => return
+                };
                 resolved_stations.push(ResolvedNode::Return(Box::new(value)))
             },
             Node::Array(elements) => {
@@ -235,7 +244,7 @@ impl Resolver {
                     PipelineContext::InPipeline { station_index } => PipelineContext::InStation { station_index },
                     anything_else => anything_else
                 };
-                let index = match self.symbol_table.resolve(&name) {
+                let index = match self.symbol_table.resolve_type(&name) {
                     Ok(SymbolType::Structure(index)) => index,
                     Ok(_) => { self.error_handler.push_error(TypeError { kind: TypeErrorType::NotAStruct(name) }); return; },
                     Err(error) => { self.error_handler.push_error(error); return; },
@@ -275,7 +284,7 @@ impl Resolver {
             "float" => Ok(Kind::Float),
             "string" => Ok(Kind::String),
             "array" => Ok(Kind::Array),
-            struct_name => match self.symbol_table.resolve(struct_name) {
+            struct_name => match self.symbol_table.resolve_type(struct_name) {
                 Ok(SymbolType::Structure(index)) => Ok(Kind::Struct(index)),
                 _ => Err(TypeError { kind: TypeErrorType::InvalidTypeError(kind.to_string()) })
             }

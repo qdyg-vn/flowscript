@@ -48,7 +48,7 @@ impl Emitter {
             TypedNode::StationCapture(index, _) => chunk.instructions.push(Instruction::StationCapture(index)),
             TypedNode::Assignment(index, _) => chunk.instructions.push(Instruction::Store(index)),
             TypedNode::Variable(index, _) => chunk.instructions.push(Instruction::LoadVariable(index)),
-            TypedNode::DefineFunction { function_index, body } => {
+            TypedNode::DefineFunction { function_index, body, .. } => {
                 let mut child_chunk = Chunk { instructions: Vec::with_capacity(body.nodes.len()), arity: body.arity, variables_count: body.variables_count, max_relative_reference: body.max_relative_reference };
                 self.create_chunk(body.nodes, &mut child_chunk);
                 self.constants_pool.write_function_body(function_index as usize, child_chunk);

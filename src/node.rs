@@ -67,6 +67,7 @@ pub enum ResolvedNode {
     DefineFunction {
         function_index: u32,
         body: AST,
+        result: Kind,
     },
     Condition {
         branches: Vec<ConditionBranch<ResolvedNode>>,
@@ -109,6 +110,7 @@ pub enum TypedNode {
     DefineFunction {
         function_index: u32,
         body: TypedAST,
+        result: Kind,
     },
     Condition {
         branches: Vec<ConditionBranch<TypedNode>>,

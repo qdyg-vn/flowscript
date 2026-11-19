@@ -18,7 +18,7 @@ impl TypeChecker {
     pub fn checker(mut self, ast: AST) -> (ErrorHandler, TypedAST) {
         let mut typed_nodes = Vec::with_capacity(ast.nodes.len());
         for station in ast.nodes {
-            match self.check(&station, &typed_nodes) {
+            match self.check(&station, &typed_nodes, Kind::Undefined) {
                 Ok(station) => typed_nodes.push(station),
                 Err(errors) => self.error_handler.errors.extend(errors),
             }
@@ -27,13 +27,13 @@ impl TypeChecker {
         (self.error_handler, TypedAST { nodes: typed_nodes, arity: ast.arity, variables_count: ast.variables_count, max_relative_reference: ast.max_relative_reference })
     }
 
-    pub fn check(&mut self, station: &ResolvedNode, typed_stations: &[TypedNode]) -> Result<TypedNode, Vec<Error>> {
+    pub fn check(&mut self, station: &ResolvedNode, typed_stations: &[TypedNode], result: Kind) -> Result<TypedNode, Vec<Error>> {
         match station {
             ResolvedNode::Literal(value) => Ok(TypedNode::Literal(*value)),
             ResolvedNode::HeavyLiteral(value) => Ok(TypedNode::HeavyLiteral(value.clone())),
             ResolvedNode::BuiltinCall { index, arguments } => {
                 let types = get_types(*index);
-                let typed_arguments: Vec<TypedNode> = arguments.iter().map(|argument| self.check(argument, typed_stations)).collect::<Result<_, _>>()?;
+                let typed_arguments: Vec<TypedNode> = arguments.iter().map(|argument| self.check(argument, typed_stations, result)).collect::<Result<_, _>>()?;
                 let arguments_kind: Vec<Kind> = typed_arguments.iter().map(|argument| self.find_node_kind(argument)).collect();
                 match self.find_result_kind(&arguments_kind, types) {
                     Ok(result_kind) => {
@@ -45,7 +45,7 @@ impl TypeChecker {
                 }
             },
             ResolvedNode::Call { arguments, function_index } => {
-                let typed_arguments: Vec<TypedNode> = arguments.iter().map(|argument| self.check(argument, typed_stations)).collect::<Result<_, _>>()?;
+                let typed_arguments: Vec<TypedNode> = arguments.iter().map(|argument| self.check(argument, typed_stations, result)).collect::<Result<_, _>>()?;
                 let arguments_kind = typed_arguments.iter().map(|argument| self.find_node_kind(argument)).collect();
                 match self.symbol_table.find_function(*function_index, arguments_kind) {
                     Ok(function) => Ok(TypedNode::Call { function_index: function.index, arguments: typed_arguments, result: function.result }),
@@ -56,7 +56,7 @@ impl TypeChecker {
                 let mut typed_stations = Vec::with_capacity(stations.len());
                 self.symbol_table.pipeline.clear();
                 for station in stations {
-                    let station = self.check(station, &typed_stations)?;
+                    let station = self.check(station, &typed_stations, result)?;
                     typed_stations.push(station)
                 }
                 Ok(TypedNode::Pipeline(typed_stations))
@@ -85,29 +85,37 @@ impl TypeChecker {
                 self.symbol_table.all_variable[*variable_index as usize] = *kind;
                 Ok(TypedNode::Assignment(*index, *kind))
             }
-            ResolvedNode::DefineFunction { function_index, body } => {
+            ResolvedNode::DefineFunction { function_index, body, result } => {
                 let child_typed_stations = Vec::with_capacity(body.nodes.len());
                 Ok(TypedNode::DefineFunction {
                     function_index: *function_index,
                     body: TypedAST {
-                        nodes: body.nodes.iter().map(|node| self.check(node, &child_typed_stations)).collect::<Result<Vec<TypedNode>, Vec<Error>>>()?,
+                        nodes: body.nodes.iter().map(|node| self.check(node, &child_typed_stations, *result)).collect::<Result<Vec<TypedNode>, Vec<Error>>>()?,
                         arity: body.arity,
                         variables_count: body.variables_count,
                         max_relative_reference: body.max_relative_reference
-                    }
+                    },
+                    result: *result
                 })
             },
             ResolvedNode::Condition { branches, final_branch } => {
                 let mut typed_branches = Vec::with_capacity(branches.len());
                 for branch in branches {
-                    typed_branches.push(ConditionBranch { condition: branch.condition.iter().map(|condition| self.check(condition, typed_stations)).collect::<Result<Vec<TypedNode>, Vec<Error>>>()?, body: branch.body.iter().map(|body| self.check(body, typed_stations)).collect::<Result<Vec<TypedNode>, Vec<Error>>>()? })
+                    typed_branches.push(ConditionBranch { condition: branch.condition.iter().map(|condition| self.check(condition, typed_stations, result)).collect::<Result<Vec<TypedNode>, Vec<Error>>>()?, body: branch.body.iter().map(|body| self.check(body, typed_stations, result)).collect::<Result<Vec<TypedNode>, Vec<Error>>>()? })
                 };
-                Ok(TypedNode::Condition { branches: typed_branches, final_branch: final_branch.iter().map(|body| self.check(body, typed_stations)).collect::<Result<Vec<TypedNode>, Vec<Error>>>()? } )
+                Ok(TypedNode::Condition { branches: typed_branches, final_branch: final_branch.iter().map(|body| self.check(body, typed_stations, result)).collect::<Result<Vec<TypedNode>, Vec<Error>>>()? } )
             },
-            ResolvedNode::Return(value) => Ok(TypedNode::Return(Box::new(self.check(value, typed_stations)?))),
-            ResolvedNode::Array(elements) => Ok(TypedNode::Array(elements.iter().map(|element| self.check(element, typed_stations)).collect::<Result<Vec<TypedNode>, Vec<Error>>>()?)),
+            ResolvedNode::Return(value) => {
+                let value = self.check(value, typed_stations, result)?;
+                let kind = self.find_node_kind(&value);
+                if kind != result {
+                    return Err(vec![TypeError { kind: TypeErrorType::TypeMismatch(result, kind) }.into()])
+                }
+                Ok(TypedNode::Return(Box::new(value)))
+            },
+            ResolvedNode::Array(elements) => Ok(TypedNode::Array(elements.iter().map(|element| self.check(element, typed_stations, result)).collect::<Result<Vec<TypedNode>, Vec<Error>>>()?)),
             ResolvedNode::StructInstantiation { index, field_kind_indices, field_values } => {
-                let typed_field_values: Vec<TypedNode> = field_values.iter().map(|field_value| self.check(field_value, typed_stations)).collect::<Result<_, _>>()?;
+                let typed_field_values: Vec<TypedNode> = field_values.iter().map(|field_value| self.check(field_value, typed_stations, result)).collect::<Result<_, _>>()?;
                 let field_kinds: Vec<Kind> = typed_field_values.iter().map(|argument| self.find_node_kind(argument)).collect();
                 self.error_handler.errors.extend(self.symbol_table.check_struct_fields(*index, field_kind_indices, &field_kinds));
                 Ok(TypedNode::StructInstantiation { field_kind_indices: field_kind_indices.clone(), field_values: typed_field_values, structure: Kind::Struct(*index) })

@@ -68,9 +68,9 @@ impl VirMac {
                     frames.push(new_frame);
                 }
                 Some(FrameInstruction::Pop) => {
-                    frames.pop();
+                    let current_frame = frames.pop().unwrap();
                     if let Some(parent_frame) = frames.last_mut() {
-                        parent_frame.stack_position += 1;
+                        parent_frame.stack_position = current_frame.base_pointer + 1;
                     }
                 }
                 None => {}

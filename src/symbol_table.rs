@@ -30,8 +30,9 @@ pub struct RelativeReference {
 
 #[derive(Debug, Default)]
 struct Scope {
-    symbols: HashMap<String, SymbolType>,
-    start_variable_index: u32,
+    values: HashMap<String, SymbolType>,
+    types: HashMap<String, SymbolType>,
+    scope_variable_index: u16,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -68,7 +69,7 @@ impl SymbolTable {
     }
 
     pub fn new_scope(&mut self) {
-        self.scopes.push(Scope { symbols: HashMap::new(), start_variable_index: self.all_variable.len() as u32 });
+        self.scopes.push(Scope::default());
     }
 
     pub fn pop_scope(&mut self) {
@@ -78,23 +79,38 @@ impl SymbolTable {
     pub fn add_variable(&mut self, variable: String, kind: Kind) -> Result<SymbolType, SymbolType> {
         let scope = self.scopes.len() as u16 - 1;
         let last_scope = self.scopes.last_mut().unwrap();
-        match last_scope.symbols.entry(variable) {
+        match last_scope.values.entry(variable) {
             Entry::Vacant(entry) => {
                 let variable_index = self.all_variable.len() as u32;
-                let index = (variable_index - last_scope.start_variable_index) as u16;
+                let index = last_scope.scope_variable_index;
                 self.all_variable.push(kind);
+                last_scope.scope_variable_index += 1;
                 let new_symbol = SymbolType::Variable { index, variable_index };
                 entry.insert(new_symbol);
                 Ok(new_symbol)
             }
-            Entry::Occupied(entry) => Err(*entry.get())
+            Entry::Occupied(mut entry) => {
+                match entry.get() {
+                    SymbolType::Variable { .. } => Err(*entry.get()),
+                    SymbolType::Function(_) | SymbolType::Builtin(_) => {
+                        let variable_index = self.all_variable.len() as u32;
+                        let index = last_scope.scope_variable_index;
+                        self.all_variable.push(kind);
+                        last_scope.scope_variable_index += 1;
+                        let new_symbol = SymbolType::Variable { index, variable_index };
+                        entry.insert(new_symbol);
+                        Ok(new_symbol)
+                    }
+                    _ => unreachable!()
+                }
+            }
         }
     }
 
     pub fn add_struct(&mut self, name: &str, field_kind_indices: HashMap<String, u8>, field_kinds: Vec<Kind>) -> Option<SemanticError> {
         let fields_offset = self.compute_field_offsets(&field_kinds);
         let last_scope = self.scopes.last_mut().unwrap();
-        match last_scope.symbols.entry(name.to_string()) {
+        match last_scope.types.entry(name.to_string()) {
             Entry::Vacant(entry) => {
                 let index = self.structures.len() as u16;
                 self.structures.push(Structure { field_kind_indices, field_kinds, fields_offset });
@@ -185,7 +201,7 @@ impl SymbolTable {
     pub fn add_function(&mut self, function_name: &str, parameters_kind: Vec<Kind>, result: Kind) -> Option<SemanticError> {
         let function_index = self.functions.len() as u32;
         let last_scope = self.scopes.last_mut().unwrap();
-        match last_scope.symbols.entry(function_name.to_string()) {
+        match last_scope.values.entry(function_name.to_string()) {
             Entry::Vacant(entry) => {
                 let function_signature = FunctionSignature { id: function_index, parameters_kind };
                 let function = Function { index: function_index, result };
@@ -215,12 +231,21 @@ impl SymbolTable {
     
     pub fn resolve(&self, name: &str) -> Result<SymbolType, SemanticError> {
         for scope in self.scopes.iter().rev() {
-            if let Some(symbol) = scope.symbols.get(name) {
+            if let Some(symbol) = scope.values.get(name) {
                 return Ok(*symbol)
             }
         }
         if let Some(&index) = self.builtins.get(name) {
             return Ok(SymbolType::Builtin(index))
+        }
+        Err(SemanticError { kind: SemanticErrorType::UndefinedIdentifier(name.into())})
+    }
+
+    pub fn resolve_type(&self, name: &str) -> Result<SymbolType, SemanticError> {
+        for scope in self.scopes.iter().rev() {
+            if let Some(symbol) = scope.types.get(name) {
+                return Ok(*symbol)
+            }
         }
         Err(SemanticError { kind: SemanticErrorType::UndefinedIdentifier(name.into())})
     }
