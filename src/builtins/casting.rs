@@ -1,11 +1,9 @@
-use crate::error_handler::{Error, RuntimeError, RuntimeErrorType};
-use crate::value::Value;
+use crate::error_handler::{Error, RuntimeError, RuntimeErrorType, TypeError, TypeErrorType};
+use crate::value::{Kind, Value};
 
 pub fn to_string(mut arguments: Vec<Value>) -> Result<Value, Error> {
-    if arguments.is_empty() {
-        return Err(RuntimeError { kind: RuntimeErrorType::InsufficientOperands("String".to_string())}.into())
-    } else if arguments.len() > 1 {
-        todo!()
+    if arguments.len() != 1 {
+        return Err(TypeError { kind: TypeErrorType::ArityMismatch { function: "to_string".to_string(), expected_arity: 1, found_arity: arguments.len() } }.into())
     }
     let value = arguments.pop().unwrap();
     let result = match &value {
@@ -20,10 +18,8 @@ pub fn to_string(mut arguments: Vec<Value>) -> Result<Value, Error> {
 }
 
 pub fn to_integer(mut arguments: Vec<Value>) -> Result<Value, Error> {
-    if arguments.is_empty() {
-        return Err(RuntimeError { kind: RuntimeErrorType::InsufficientOperands("Integer".to_string())}.into())
-    } else if arguments.len() > 1 {
-        todo!()
+    if arguments.len() != 1 {
+        return Err(TypeError { kind: TypeErrorType::ArityMismatch { function: "to_integer".to_string(), expected_arity: 1, found_arity: arguments.len() } }.into())
     }
     let value = arguments.pop().unwrap();
     let result = match value {
@@ -33,7 +29,7 @@ pub fn to_integer(mut arguments: Vec<Value>) -> Result<Value, Error> {
         Value::Nil => 0,
         Value::String(string) => match string.parse() {
             Ok(integer) => integer,
-            Err(_) => return Err(RuntimeError { kind: RuntimeErrorType::ParseError(string, "Integer".to_string())}.into())
+            Err(_) => return Err(RuntimeError { kind: RuntimeErrorType::ParseError { value: string, kind: Kind::Integer } }.into())
         },
         _ => todo!(),
     };
@@ -41,20 +37,18 @@ pub fn to_integer(mut arguments: Vec<Value>) -> Result<Value, Error> {
 }
 
 pub fn to_float(mut arguments: Vec<Value>) -> Result<Value, Error> {
-    if arguments.is_empty() {
-        return Err(RuntimeError { kind: RuntimeErrorType::InsufficientOperands("Float".to_string())}.into())
-    } else if arguments.len() > 1 {
-        todo!()
+    if arguments.len() != 1 {
+        return Err(TypeError { kind: TypeErrorType::ArityMismatch { function: "to_float".to_string(), expected_arity: 1, found_arity: arguments.len() } }.into())
     }
     let value = arguments.pop().unwrap();
     let result = match value {
         Value::Float(float) => float,
         Value::Integer(integer) => integer as f64,
-        Value::Boolean(_) => return Err(RuntimeError { kind: RuntimeErrorType::ParseError("Boolean".to_string(), "Float".to_string())}.into()),
-        Value::Nil => return Err(RuntimeError { kind: RuntimeErrorType::ParseError("Nil".to_string(), "Float".to_string())}.into()),
+        Value::Boolean(_) => return Err(RuntimeError { kind: RuntimeErrorType::ParseError { value: "boolean".to_string(), kind: Kind::Float } }.into()),
+        Value::Nil => return Err(RuntimeError { kind: RuntimeErrorType::ParseError { value: "nil".to_string(), kind: Kind::Float } }.into()),
         Value::String(string) => match string.parse() {
             Ok(float) => float,
-            Err(_) => return Err(RuntimeError { kind: RuntimeErrorType::ParseError(string, "Float".to_string())}.into())
+            Err(_) => return Err(RuntimeError { kind: RuntimeErrorType::ParseError { value: string, kind: Kind::Float } }.into())
         },
         _ => todo!(),
     };
@@ -62,10 +56,8 @@ pub fn to_float(mut arguments: Vec<Value>) -> Result<Value, Error> {
 }
 
 pub fn to_boolean(arguments: Vec<Value>) -> Result<Value, Error> {
-    if arguments.is_empty() {
-        return Err(RuntimeError { kind: RuntimeErrorType::InsufficientOperands("Boolean".to_string())}.into())
-    } else if arguments.len() > 1 {
-        todo!()
+    if arguments.len() != 1 {
+        return Err(TypeError { kind: TypeErrorType::ArityMismatch { function: "to_boolean".to_string(), expected_arity: 1, found_arity: arguments.len() } }.into())
     }
     let result = match &arguments[0] {
         Value::Float(float) => *float != 0.0,

@@ -2,7 +2,7 @@ use crate::builtins::{get_builtin, Signature};
 use crate::error_handler::{Error, ErrorHandler, TypeError, TypeErrorType};
 use crate::node::{ResolvedNode, TypedAST, TypedNode, AST, ConditionBranch};
 use crate::value::Kind;
-use crate::builtins::get_types;
+use crate::builtins::get_signatures;
 use crate::symbol_table::SymbolTable;
 
 pub struct TypeChecker {
@@ -27,15 +27,15 @@ impl TypeChecker {
         (self.error_handler, TypedAST { nodes: typed_nodes, arity: ast.arity, variables_count: ast.variables_count, max_relative_reference: ast.max_relative_reference })
     }
 
-    pub fn check(&mut self, station: &ResolvedNode, typed_stations: &[TypedNode], result: Kind) -> Result<TypedNode, Vec<Error>> {
+    pub fn check(&mut self, station: &ResolvedNode, typed_stations: &[TypedNode], expected_return_kind: Kind) -> Result<TypedNode, Vec<Error>> {
         match station {
             ResolvedNode::Literal(value) => Ok(TypedNode::Literal(*value)),
             ResolvedNode::HeavyLiteral(value) => Ok(TypedNode::HeavyLiteral(value.clone())),
             ResolvedNode::BuiltinCall { index, arguments } => {
-                let types = get_types(*index);
-                let typed_arguments: Vec<TypedNode> = arguments.iter().map(|argument| self.check(argument, typed_stations, result)).collect::<Result<_, _>>()?;
+                let signatures = get_signatures(*index);
+                let typed_arguments: Vec<TypedNode> = arguments.iter().map(|argument| self.check(argument, typed_stations, expected_return_kind)).collect::<Result<_, _>>()?;
                 let arguments_kind: Vec<Kind> = typed_arguments.iter().map(|argument| self.find_node_kind(argument)).collect();
-                match self.find_result_kind(&arguments_kind, types) {
+                match self.find_result_kind(*index, &arguments_kind, signatures) {
                     Ok(result_kind) => {
                         let mut node = TypedNode::BuiltinCall { index: *index, arguments: typed_arguments, result: result_kind };
                         self.rewrite_builtin_function(&mut node);
@@ -45,7 +45,7 @@ impl TypeChecker {
                 }
             },
             ResolvedNode::Call { arguments, function_index } => {
-                let typed_arguments: Vec<TypedNode> = arguments.iter().map(|argument| self.check(argument, typed_stations, result)).collect::<Result<_, _>>()?;
+                let typed_arguments: Vec<TypedNode> = arguments.iter().map(|argument| self.check(argument, typed_stations, expected_return_kind)).collect::<Result<_, _>>()?;
                 let arguments_kind = typed_arguments.iter().map(|argument| self.find_node_kind(argument)).collect();
                 match self.symbol_table.find_function(*function_index, arguments_kind) {
                     Ok(function) => Ok(TypedNode::Call { function_index: function.index, arguments: typed_arguments, result: function.result }),
@@ -56,7 +56,7 @@ impl TypeChecker {
                 let mut typed_stations = Vec::with_capacity(stations.len());
                 self.symbol_table.pipeline.clear();
                 for station in stations {
-                    let station = self.check(station, &typed_stations, result)?;
+                    let station = self.check(station, &typed_stations, expected_return_kind)?;
                     typed_stations.push(station)
                 }
                 Ok(TypedNode::Pipeline(typed_stations))
@@ -79,11 +79,11 @@ impl TypeChecker {
                 self.symbol_table.all_variable[*variable_index as usize] = received_kind;
                 Ok(TypedNode::Assignment(*index, received_kind))
             },
-            ResolvedNode::Assignment(index, variable_index, kind) => {
-                let received_kind = self.find_node_kind(typed_stations.last().unwrap());
-                if received_kind != *kind { self.error_handler.push_error(TypeError { kind: TypeErrorType::AssignTypeMismatch(received_kind, *kind) }) }
-                self.symbol_table.all_variable[*variable_index as usize] = *kind;
-                Ok(TypedNode::Assignment(*index, *kind))
+            ResolvedNode::Assignment(index, variable_index, expected_kind) => {
+                let found_kind = self.find_node_kind(typed_stations.last().unwrap());
+                if found_kind != *expected_kind { self.error_handler.push_error(TypeError { kind: TypeErrorType::AssignTypeMismatch { found_kind, expected_kind: *expected_kind } }) }
+                self.symbol_table.all_variable[*variable_index as usize] = *expected_kind;
+                Ok(TypedNode::Assignment(*index, *expected_kind))
             }
             ResolvedNode::DefineFunction { function_index, body, result } => {
                 let child_typed_stations = Vec::with_capacity(body.nodes.len());
@@ -101,21 +101,21 @@ impl TypeChecker {
             ResolvedNode::Condition { branches, final_branch } => {
                 let mut typed_branches = Vec::with_capacity(branches.len());
                 for branch in branches {
-                    typed_branches.push(ConditionBranch { condition: branch.condition.iter().map(|condition| self.check(condition, typed_stations, result)).collect::<Result<Vec<TypedNode>, Vec<Error>>>()?, body: branch.body.iter().map(|body| self.check(body, typed_stations, result)).collect::<Result<Vec<TypedNode>, Vec<Error>>>()? })
+                    typed_branches.push(ConditionBranch { condition: branch.condition.iter().map(|condition| self.check(condition, typed_stations, expected_return_kind)).collect::<Result<Vec<TypedNode>, Vec<Error>>>()?, body: branch.body.iter().map(|body| self.check(body, typed_stations, expected_return_kind)).collect::<Result<Vec<TypedNode>, Vec<Error>>>()? })
                 };
-                Ok(TypedNode::Condition { branches: typed_branches, final_branch: final_branch.iter().map(|body| self.check(body, typed_stations, result)).collect::<Result<Vec<TypedNode>, Vec<Error>>>()? } )
+                Ok(TypedNode::Condition { branches: typed_branches, final_branch: final_branch.iter().map(|body| self.check(body, typed_stations, expected_return_kind)).collect::<Result<Vec<TypedNode>, Vec<Error>>>()? } )
             },
             ResolvedNode::Return(value) => {
-                let value = self.check(value, typed_stations, result)?;
-                let kind = self.find_node_kind(&value);
-                if kind != result {
-                    return Err(vec![TypeError { kind: TypeErrorType::TypeMismatch(result, kind) }.into()])
+                let value = self.check(value, typed_stations, expected_return_kind)?;
+                let actual_return_kind = self.find_node_kind(&value);
+                if actual_return_kind != expected_return_kind {
+                    return Err(vec![TypeError { kind: TypeErrorType::TypeMismatch { expected_kind: expected_return_kind, found_kind: actual_return_kind } }.into()])
                 }
                 Ok(TypedNode::Return(Box::new(value)))
             },
-            ResolvedNode::Array(elements) => Ok(TypedNode::Array(elements.iter().map(|element| self.check(element, typed_stations, result)).collect::<Result<Vec<TypedNode>, Vec<Error>>>()?)),
+            ResolvedNode::Array(elements) => Ok(TypedNode::Array(elements.iter().map(|element| self.check(element, typed_stations, expected_return_kind)).collect::<Result<Vec<TypedNode>, Vec<Error>>>()?)),
             ResolvedNode::StructInstantiation { index, field_kind_indices, field_values } => {
-                let typed_field_values: Vec<TypedNode> = field_values.iter().map(|field_value| self.check(field_value, typed_stations, result)).collect::<Result<_, _>>()?;
+                let typed_field_values: Vec<TypedNode> = field_values.iter().map(|field_value| self.check(field_value, typed_stations, expected_return_kind)).collect::<Result<_, _>>()?;
                 let field_kinds: Vec<Kind> = typed_field_values.iter().map(|argument| self.find_node_kind(argument)).collect();
                 self.error_handler.errors.extend(self.symbol_table.check_struct_fields(*index, field_kind_indices, &field_kinds));
                 Ok(TypedNode::StructInstantiation { field_kind_indices: field_kind_indices.clone(), field_values: typed_field_values, structure: Kind::Struct(*index) })
@@ -150,46 +150,49 @@ impl TypeChecker {
         }
     }
 
-    fn find_result_kind(&mut self, arguments_kind: &[Kind], kinds: &[Signature]) -> Result<Kind, Vec<Error>> {
+    fn find_result_kind(&mut self, function_index: u16, arguments_kind: &[Kind], signatures: &[Signature]) -> Result<Kind, Vec<Error>> {
         let mut errors = Vec::with_capacity(arguments_kind.len());
-        let mut mismatch_count = i32::MAX;
-        for signature in kinds {
-            let mut signature_mismatch_count = 0;
+        let mut mismatch_count = usize::MAX;
+        for signature in signatures {
             let mut signature_errors = Vec::with_capacity(arguments_kind.len());
-            if signature.infinite_arity {
-                if arguments_kind.len() < signature.min_arity as usize {
-                    signature_mismatch_count += 1;
-                    signature_errors.push(TypeError{ kind: TypeErrorType::ArityMismatch(arguments_kind.len(), signature.min_arity as usize) }.into());
-                } else {
-                    for argument_kind in arguments_kind {
-                        if *argument_kind != Kind::Undefined && *argument_kind != signature.arguments[0] {
-                            signature_mismatch_count += 1;
-                            signature_errors.push(TypeError { kind: TypeErrorType::TypeMismatch(signature.arguments[0], *argument_kind) }.into());
-                        }
-                    }
-                }
+            if arguments_kind.len() < signature.fixed.len() {
+                let function = get_builtin(function_index);
+                signature_errors.push(TypeError{ kind: TypeErrorType::ArityMismatch { function: function.name.to_string(), expected_arity: signature.fixed.len(), found_arity: arguments_kind.len() } }.into());
             } else {
-                if arguments_kind.len() != signature.min_arity as usize {
-                    signature_mismatch_count += 1;
-                    signature_errors.push(TypeError{ kind: TypeErrorType::ArityMismatch(arguments_kind.len(), signature.min_arity as usize) }.into());
-                } else {
-                    for (&argument_kind, &required_kind) in arguments_kind.iter().zip(signature.arguments) {
-                        if argument_kind != Kind::Undefined && argument_kind != required_kind {
-                            signature_mismatch_count += 1;
-                            signature_errors.push(TypeError { kind: TypeErrorType::TypeMismatch(required_kind, argument_kind) }.into());
-                        }
-                    }
+                let (fixed, variadic) = arguments_kind.split_at(signature.fixed.len());
+                self.match_fixed_arity_signature(signature.fixed, fixed, &mut signature_errors);
+                if let Some(&parameter_kind) = signature.variadic.first() {
+                    self.match_variadic_signature(parameter_kind, variadic, &mut signature_errors);
+                } else if !variadic.is_empty() {
+                    let function = get_builtin(function_index);
+                    signature_errors.push(TypeError{ kind: TypeErrorType::ArityMismatch { function: function.name.to_string(), expected_arity: signature.fixed.len(), found_arity: arguments_kind.len() } }.into());
                 }
             }
-            if signature_mismatch_count == 0 {
+            if signature_errors.is_empty() {
                 return Ok(signature.result)
             }
-            if signature_mismatch_count <= mismatch_count {
-                mismatch_count = signature_mismatch_count;
+            if signature_errors.len() <= mismatch_count {
+                mismatch_count = signature_errors.len();
                 errors = signature_errors;
             }
         }
         Err(errors)
+    }
+
+    fn match_fixed_arity_signature(&self, parameter_kinds: &[Kind], argument_kinds: &[Kind], signature_errors: &mut Vec<Error>) {
+        for (&parameter_kind, &argument_kind) in parameter_kinds.iter().zip(argument_kinds) {
+            if parameter_kind != argument_kind {
+                signature_errors.push(TypeError { kind: TypeErrorType::TypeMismatch { expected_kind: parameter_kind, found_kind: argument_kind } }.into());
+            }
+        }
+    }
+
+    fn match_variadic_signature(&self, parameter_kind: Kind, argument_kinds: &[Kind], signature_errors: &mut Vec<Error>) {
+        for &argument_kind in argument_kinds {
+            if parameter_kind != argument_kind {
+                signature_errors.push(TypeError { kind: TypeErrorType::TypeMismatch { expected_kind: parameter_kind, found_kind: argument_kind } }.into());
+            }
+        }
     }
 
     fn find_node_kind(&self, node: &TypedNode) -> Kind {
@@ -213,6 +216,7 @@ impl TypeChecker {
 
     fn rewrite_builtin_function(&self, builtin_function: &mut TypedNode) {
         let TypedNode::BuiltinCall { index, arguments, result } = builtin_function else { unreachable!() };
+        if arguments.is_empty() { return; }
         let kind = self.find_node_kind(&arguments[0]);
         let function = get_builtin(*index);
         if !function.have_instruction || matches!(kind, Kind::String | Kind::Array) { return; }

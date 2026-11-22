@@ -31,142 +31,143 @@ pub struct Builtin {
 
 #[derive(Debug)]
 pub struct Signature {
-    pub arguments: &'static [Kind],
+    pub fixed: &'static [Kind],
+    pub variadic: &'static [Kind],
     pub result: Kind,
-    pub min_arity: u8,
-    pub infinite_arity: bool,
 }
 
 pub const BUILTIN_TABLE: &[Builtin] = &[
     Builtin { name: "+", function: BuiltinFunction::Math(add), have_instruction: true,
         types: &[
-            Signature { arguments: &[Kind::Integer], result: Kind::Integer, min_arity: 1, infinite_arity: true },
-            Signature { arguments: &[Kind::Float], result: Kind::Float, min_arity: 1, infinite_arity: true },
-            Signature { arguments: &[Kind::String], result: Kind::String, min_arity: 2, infinite_arity: true },
+            Signature { fixed: &[Kind::Integer], variadic: &[Kind::Integer], result: Kind::Integer },
+            Signature { fixed: &[Kind::Float], variadic: &[Kind::Float], result: Kind::Float },
+            Signature { fixed: &[Kind::String, Kind::String], variadic: &[Kind::String], result: Kind::String },
         ]
     },
     Builtin { name: "-", function: BuiltinFunction::Math(minus), have_instruction: true,
         types: &[
-            Signature { arguments: &[Kind::Integer], result: Kind::Integer, min_arity: 1, infinite_arity: true },
-            Signature { arguments: &[Kind::Float], result: Kind::Float, min_arity: 1, infinite_arity: true },
+            Signature { fixed: &[Kind::Integer], variadic: &[Kind::Integer], result: Kind::Integer },
+            Signature { fixed: &[Kind::Float], variadic: &[Kind::Float], result: Kind::Float },
         ]
     },
     Builtin { name: "*", function: BuiltinFunction::Math(multiply), have_instruction: true,
         types: &[
-            Signature { arguments: &[Kind::Integer], result: Kind::Integer, min_arity: 1, infinite_arity: true },
-            Signature { arguments: &[Kind::Float], result: Kind::Float, min_arity: 1, infinite_arity: true },
+            Signature { fixed: &[Kind::Integer, Kind::Integer], variadic: &[Kind::Integer], result: Kind::Integer },
+            Signature { fixed: &[Kind::Float, Kind::Float], variadic: &[Kind::Float], result: Kind::Float },
         ]
     },
     Builtin { name: "print", function: BuiltinFunction::IO(print), have_instruction: false,
         types: &[
-            Signature { arguments: &[Kind::Integer], result: Kind::Nil, min_arity: 0, infinite_arity: true },
-            Signature { arguments: &[Kind::Float], result: Kind::Nil, min_arity: 0, infinite_arity: true },
-            Signature { arguments: &[Kind::String], result: Kind::Nil, min_arity: 0, infinite_arity: true },
-            Signature { arguments: &[Kind::Boolean], result: Kind::Nil, min_arity: 0, infinite_arity: true },
-            Signature { arguments: &[Kind::Nil], result: Kind::Nil, min_arity: 0, infinite_arity: true },
-            Signature { arguments: &[Kind::Array], result: Kind::Nil, min_arity: 0, infinite_arity: true },
+            Signature { fixed: &[], variadic: &[], result: Kind::Nil },
+            Signature { fixed: &[Kind::Integer], variadic: &[], result: Kind::Nil },
+            Signature { fixed: &[Kind::Float], variadic: &[], result: Kind::Nil },
+            Signature { fixed: &[Kind::String], variadic: &[], result: Kind::Nil },
+            Signature { fixed: &[Kind::Boolean], variadic: &[], result: Kind::Nil },
+            Signature { fixed: &[Kind::Nil], variadic: &[], result: Kind::Nil },
+            Signature { fixed: &[Kind::Array], variadic: &[], result: Kind::Nil },
         ]
     },
     Builtin { name: "to_string", function: BuiltinFunction::Casting(to_string), have_instruction: false,
         types: &[
-            Signature { arguments: &[Kind::Integer], result: Kind::String, min_arity: 1, infinite_arity: false },
-            Signature { arguments: &[Kind::Float], result: Kind::String, min_arity: 1, infinite_arity: false },
-            Signature { arguments: &[Kind::String], result: Kind::String, min_arity: 1, infinite_arity: false },
-            Signature { arguments: &[Kind::Boolean], result: Kind::String, min_arity: 1, infinite_arity: false },
-            Signature { arguments: &[Kind::Nil], result: Kind::String, min_arity: 1, infinite_arity: false },
+            Signature { fixed: &[Kind::Integer], variadic: &[], result: Kind::String },
+            Signature { fixed: &[Kind::Float], variadic: &[], result: Kind::String },
+            Signature { fixed: &[Kind::String], variadic: &[], result: Kind::String },
+            Signature { fixed: &[Kind::Boolean], variadic: &[], result: Kind::String },
+            Signature { fixed: &[Kind::Nil], variadic: &[], result: Kind::String },
         ]
     },
     Builtin { name: "to_integer", function: BuiltinFunction::Casting(to_integer), have_instruction: false,
         types: &[
-            Signature { arguments: &[Kind::Integer], result: Kind::Integer, min_arity: 1, infinite_arity: false },
-            Signature { arguments: &[Kind::Float], result: Kind::Integer, min_arity: 1, infinite_arity: false },
-            Signature { arguments: &[Kind::String], result: Kind::Integer, min_arity: 1, infinite_arity: false },
-            Signature { arguments: &[Kind::Boolean], result: Kind::Integer, min_arity: 1, infinite_arity: false },
+            Signature { fixed: &[Kind::Integer], variadic: &[], result: Kind::Integer },
+            Signature { fixed: &[Kind::Float], variadic: &[], result: Kind::Integer },
+            Signature { fixed: &[Kind::String], variadic: &[], result: Kind::Integer },
+            Signature { fixed: &[Kind::Boolean], variadic: &[], result: Kind::Integer },
         ]
     },
     Builtin { name: "to_float", function: BuiltinFunction::Casting(to_float), have_instruction: false,
         types: &[
-            Signature { arguments: &[Kind::Integer], result: Kind::Float, min_arity: 1, infinite_arity: false },
-            Signature { arguments: &[Kind::Float], result: Kind::Float, min_arity: 1, infinite_arity: false },
-            Signature { arguments: &[Kind::String], result: Kind::Float, min_arity: 1, infinite_arity: false },
-            Signature { arguments: &[Kind::Boolean], result: Kind::Float, min_arity: 1, infinite_arity: false },
+            Signature { fixed: &[Kind::Integer], variadic: &[], result: Kind::Float },
+            Signature { fixed: &[Kind::Float], variadic: &[], result: Kind::Float },
+            Signature { fixed: &[Kind::String], variadic: &[], result: Kind::Float },
+            Signature { fixed: &[Kind::Boolean], variadic: &[], result: Kind::Float },
         ]
     },
     Builtin { name: "to_boolean", function: BuiltinFunction::Casting(to_boolean), have_instruction: false,
         types: &[
-            Signature { arguments: &[Kind::Integer], result: Kind::Boolean, min_arity: 1, infinite_arity: false },
-            Signature { arguments: &[Kind::Float], result: Kind::Boolean, min_arity: 1, infinite_arity: false },
-            Signature { arguments: &[Kind::String], result: Kind::Boolean, min_arity: 1, infinite_arity: false },
-            Signature { arguments: &[Kind::Boolean], result: Kind::Boolean, min_arity: 1, infinite_arity: false },
-            Signature { arguments: &[Kind::Nil], result: Kind::Boolean, min_arity: 1, infinite_arity: false },
+            Signature { fixed: &[Kind::Integer], variadic: &[], result: Kind::Boolean },
+            Signature { fixed: &[Kind::Float], variadic: &[], result: Kind::Boolean },
+            Signature { fixed: &[Kind::String], variadic: &[], result: Kind::Boolean },
+            Signature { fixed: &[Kind::Boolean], variadic: &[], result: Kind::Boolean },
+            Signature { fixed: &[Kind::Nil], variadic: &[], result: Kind::Boolean },
         ]
     },
     Builtin { name: "==", function: BuiltinFunction::Compare(equal), have_instruction: true,
         types: &[
-            Signature { arguments: &[Kind::Integer], result: Kind::Boolean, min_arity: 2, infinite_arity: true },
-            Signature { arguments: &[Kind::Float], result: Kind::Boolean, min_arity: 2, infinite_arity: true },
-            Signature { arguments: &[Kind::String], result: Kind::Boolean, min_arity: 2, infinite_arity: true },
-            Signature { arguments: &[Kind::Boolean], result: Kind::Boolean, min_arity: 2, infinite_arity: true },
+            Signature { fixed: &[Kind::Integer, Kind::Integer], variadic: &[Kind::Integer], result: Kind::Boolean },
+            Signature { fixed: &[Kind::Float, Kind::Float], variadic: &[Kind::Float], result: Kind::Boolean },
+            Signature { fixed: &[Kind::String, Kind::String], variadic: &[Kind::String], result: Kind::Boolean },
+            Signature { fixed: &[Kind::Boolean, Kind::Boolean], variadic: &[Kind::Boolean], result: Kind::Boolean },
         ]
     },
     Builtin { name: "<", function: BuiltinFunction::Compare(lower_than), have_instruction: true,
         types: &[
-            Signature { arguments: &[Kind::Integer], result: Kind::Boolean, min_arity: 2, infinite_arity: true },
-            Signature { arguments: &[Kind::Float], result: Kind::Boolean, min_arity: 2, infinite_arity: true },
-            Signature { arguments: &[Kind::String], result: Kind::Boolean, min_arity: 2, infinite_arity: true },
+            Signature { fixed: &[Kind::Integer, Kind::Integer], variadic: &[Kind::Integer], result: Kind::Boolean },
+            Signature { fixed: &[Kind::Float, Kind::Float], variadic: &[Kind::Float], result: Kind::Boolean },
+            Signature { fixed: &[Kind::String, Kind::String], variadic: &[Kind::String], result: Kind::Boolean },
         ]
     },
     Builtin { name: ">", function: BuiltinFunction::Compare(greater_than), have_instruction: true,
         types: &[
-            Signature { arguments: &[Kind::Integer], result: Kind::Boolean, min_arity: 2, infinite_arity: true },
-            Signature { arguments: &[Kind::Float], result: Kind::Boolean, min_arity: 2, infinite_arity: true },
-            Signature { arguments: &[Kind::String], result: Kind::Boolean, min_arity: 2, infinite_arity: true },
+            Signature { fixed: &[Kind::Integer, Kind::Integer], variadic: &[Kind::Integer], result: Kind::Boolean },
+            Signature { fixed: &[Kind::Float, Kind::Float], variadic: &[Kind::Float], result: Kind::Boolean },
+            Signature { fixed: &[Kind::String, Kind::String], variadic: &[Kind::String], result: Kind::Boolean },
         ]
     },
     Builtin { name: "<=", function: BuiltinFunction::Compare(lower_than_or_equal), have_instruction: true,
         types: &[
-            Signature { arguments: &[Kind::Integer], result: Kind::Boolean, min_arity: 2, infinite_arity: true },
-            Signature { arguments: &[Kind::Float], result: Kind::Boolean, min_arity: 2, infinite_arity: true },
-            Signature { arguments: &[Kind::String], result: Kind::Boolean, min_arity: 2, infinite_arity: true },
+            Signature { fixed: &[Kind::Integer, Kind::Integer], variadic: &[Kind::Integer], result: Kind::Boolean },
+            Signature { fixed: &[Kind::Float, Kind::Float], variadic: &[Kind::Float], result: Kind::Boolean },
+            Signature { fixed: &[Kind::String, Kind::String], variadic: &[Kind::String], result: Kind::Boolean },
         ]
     },
     Builtin { name: ">=", function: BuiltinFunction::Compare(greater_than_or_equal), have_instruction: true,
         types: &[
-            Signature { arguments: &[Kind::Integer], result: Kind::Boolean, min_arity: 2, infinite_arity: true },
-            Signature { arguments: &[Kind::Float], result: Kind::Boolean, min_arity: 2, infinite_arity: true },
-            Signature { arguments: &[Kind::String], result: Kind::Boolean, min_arity: 2, infinite_arity: true },
+            Signature { fixed: &[Kind::Integer, Kind::Integer], variadic: &[Kind::Integer], result: Kind::Boolean },
+            Signature { fixed: &[Kind::Float, Kind::Float], variadic: &[Kind::Float], result: Kind::Boolean },
+            Signature { fixed: &[Kind::String, Kind::String], variadic: &[Kind::String], result: Kind::Boolean },
         ]
     },
     Builtin { name: "!=", function: BuiltinFunction::Compare(not_equal), have_instruction: true,
         types: &[
-            Signature { arguments: &[Kind::Integer], result: Kind::Boolean, min_arity: 2, infinite_arity: true },
-            Signature { arguments: &[Kind::Float], result: Kind::Boolean, min_arity: 2, infinite_arity: true },
-            Signature { arguments: &[Kind::String], result: Kind::Boolean, min_arity: 2, infinite_arity: true },
-            Signature { arguments: &[Kind::Boolean], result: Kind::Boolean, min_arity: 2, infinite_arity: true },
+            Signature { fixed: &[Kind::Integer, Kind::Integer], variadic: &[Kind::Integer], result: Kind::Boolean },
+            Signature { fixed: &[Kind::Float, Kind::Float], variadic: &[Kind::Float], result: Kind::Boolean },
+            Signature { fixed: &[Kind::String, Kind::String], variadic: &[Kind::String], result: Kind::Boolean },
+            Signature { fixed: &[Kind::Boolean, Kind::Boolean], variadic: &[Kind::Boolean], result: Kind::Boolean },
         ]
     },
     Builtin { name: "length", function: BuiltinFunction::Collection(length), have_instruction: false,
         types: &[
-            Signature { arguments: &[Kind::String], result: Kind::Integer, min_arity: 1, infinite_arity: false },
+            Signature { fixed: &[Kind::String], variadic: &[], result: Kind::Integer },
+            Signature { fixed: &[Kind::Array], variadic: &[], result: Kind::Integer },
         ]
     },
     Builtin { name: "push", function: BuiltinFunction::Collection(push), have_instruction: false,
         types: &[
-            Signature { arguments: &[Kind::Integer, Kind::Array], result: Kind::Array, min_arity: 2, infinite_arity: false },
-            Signature { arguments: &[Kind::Float, Kind::Array], result: Kind::Array, min_arity: 2, infinite_arity: false },
-            Signature { arguments: &[Kind::String, Kind::Array], result: Kind::Array, min_arity: 2, infinite_arity: false },
-            Signature { arguments: &[Kind::Boolean, Kind::Array], result: Kind::Array, min_arity: 2, infinite_arity: false },
-            Signature { arguments: &[Kind::Nil, Kind::Array], result: Kind::Array, min_arity: 2, infinite_arity: false },
-            Signature { arguments: &[Kind::Array, Kind::Array], result: Kind::Array, min_arity: 2, infinite_arity: false },
+            Signature { fixed: &[Kind::Array, Kind::Integer], variadic: &[Kind::Integer], result: Kind::Array },
+            Signature { fixed: &[Kind::Array, Kind::Float], variadic: &[Kind::Float], result: Kind::Array },
+            Signature { fixed: &[Kind::Array, Kind::String], variadic: &[Kind::String], result: Kind::Array },
+            Signature { fixed: &[Kind::Array, Kind::Boolean], variadic: &[Kind::Boolean], result: Kind::Array },
+            Signature { fixed: &[Kind::Array, Kind::Nil], variadic: &[Kind::Nil], result: Kind::Array },
+            Signature { fixed: &[Kind::Array, Kind::Array], variadic: &[Kind::Array], result: Kind::Array },
         ]
     },
     Builtin { name: "pop", function: BuiltinFunction::Collection(pop), have_instruction: false,
         types: &[
-            Signature { arguments: &[Kind::Array], result: Kind::Array, min_arity: 1, infinite_arity: false },
+            Signature { fixed: &[Kind::Array], variadic: &[], result: Kind::Array },
         ]
     },
 ];
 
 pub fn get_builtin(index: u16) -> Builtin { BUILTIN_TABLE[index as usize] }
 
-pub fn get_types(index: u16) -> &'static [Signature] { BUILTIN_TABLE[index as usize].types }
+pub fn get_signatures(index: u16) -> &'static [Signature] { BUILTIN_TABLE[index as usize].types }

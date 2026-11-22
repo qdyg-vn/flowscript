@@ -14,6 +14,7 @@ impl Optimizer {
 
     pub fn optimizer(mut self, mut ast: AST) -> (AST, ErrorHandler) {
         self.optimize(&mut ast.nodes);
+        if !self.error_handler.errors.is_empty() { self.error_handler.report_exit() }
         (ast, self.error_handler)
     }
 

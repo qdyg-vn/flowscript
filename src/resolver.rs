@@ -37,17 +37,17 @@ impl Resolver {
 
     pub fn resolve(mut self, nodes: Vec<Node>) -> ResolverOutput {
         let mut ast = AST { nodes: Vec::with_capacity(nodes.len()), .. AST::default() };
-        let main_define_function_count = self.collect_declarations(&nodes, &mut ast);
+        let main_define_function_count = self.collect_declarations(&nodes);
         ast.nodes = self.solve(nodes, &mut ast, PipelineContext::NotInPipeline);
         if !self.error_handler.errors.is_empty() { self.error_handler.report_exit() }
         ResolverOutput { error_handler: self.error_handler, symbol_table: self.symbol_table, main_variables_count: ast.variables_count, ast, total_define_function_count: self.total_define_function_count, main_define_function_count }
     }
 
-    fn collect_declarations(&mut self, stations: &Vec<Node>, ast: &mut AST) -> u32 {
+    fn collect_declarations(&mut self, stations: &Vec<Node>) -> u32 {
         let mut define_function_count = 0;
         for station in stations {
             match station {
-                Node::Pipeline(stations) => { self.collect_declarations(stations, ast); },
+                Node::Pipeline(stations) => { self.collect_declarations(stations); },
                 Node::DefineFunction { operator, parameters, result_kind_name, .. } => {
                     let mut parameters_kind = Vec::with_capacity(parameters.len());
                     let errors_length = self.error_handler.errors.len();
@@ -72,9 +72,9 @@ impl Resolver {
                 },
                 Node::Condition { branches, final_branch } => {
                     for branch in branches {
-                        { self.collect_declarations(&branch.body, ast); }
+                        { self.collect_declarations(&branch.body); }
                     }
-                    self.collect_declarations(final_branch, ast);
+                    self.collect_declarations(final_branch);
                 },
                 Node::Struct { name, fields } => {
                     let mut field_kind_indices = HashMap::with_capacity(fields.len());
@@ -174,7 +174,7 @@ impl Resolver {
                 match self.symbol_table.resolve(&name) {
                     Ok(SymbolType::Variable { index, variable_index }) => resolved_stations.push(ResolvedNode::Variable(index, variable_index)),
                     Err(error) => self.error_handler.push_error(error),
-                    _ => unreachable!()
+                    _ => self.error_handler.push_error(SemanticError { kind: SemanticErrorType::UndefinedIdentifier(name)}),
                 }
             },
             Node::DefineFunction { operator, parameters, body, result_kind_name } => {
@@ -197,7 +197,7 @@ impl Resolver {
                         _ => unreachable!()
                     }
                 }
-                self.collect_declarations(&body, &mut child_ast);
+                self.collect_declarations(&body);
                 let body = self.solve(body, &mut child_ast, PipelineContext::NotInPipeline);
                 child_ast.nodes = body;
                 self.symbol_table.pop_scope();

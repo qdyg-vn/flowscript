@@ -2,7 +2,7 @@ use crate::value::Value;
 use crate::error_handler::{Error, RuntimeError, RuntimeErrorType, TypeError, TypeErrorType};
 
 pub fn add(arguments: Vec<Value>) -> Result<Value, Error> {
-    if arguments.is_empty() { return Err(RuntimeError { kind: RuntimeErrorType::InsufficientOperands("Addition".to_string()) }.into()) }
+    if arguments.is_empty() { return Err(RuntimeError { kind: RuntimeErrorType::InsufficientOperands { function: "+".to_string(), min_arity: 1 } }.into()) }
     let (first, rest) = arguments.split_first().unwrap();
     if rest.is_empty() { return match first {
         Value::Integer(_) | Value::Float(_) => Ok(first.to_owned()),
@@ -13,13 +13,13 @@ pub fn add(arguments: Vec<Value>) -> Result<Value, Error> {
             (Value::String(a), Value::String(b)) => Ok(Value::String(a.to_string() + b)),
             (Value::Integer(a), Value::Integer(b)) => Ok(Value::Integer(a + b)),
             (Value::Float(a), Value::Float(b)) => Ok(Value::Float(a + b)),
-            _ => Err(TypeError { kind: TypeErrorType::TypeMismatch(accumulator.get_kind(), x.get_kind()) }.into())
+            _ => Err(TypeError { kind: TypeErrorType::TypeMismatch { expected_kind: accumulator.get_kind(), found_kind: x.get_kind() } }.into())
         }
     })
 }
 
 pub fn minus(arguments: Vec<Value>) -> Result<Value, Error> {
-    if arguments.is_empty() { return Err(RuntimeError { kind: RuntimeErrorType::InsufficientOperands("Minus".to_string()) }.into()) }
+    if arguments.is_empty() { return Err(RuntimeError { kind: RuntimeErrorType::InsufficientOperands { function: "-".to_string(), min_arity: 1 } }.into()) }
     let (first, rest) = arguments.split_first().unwrap();
     if rest.is_empty() {
         return match first {
@@ -32,22 +32,19 @@ pub fn minus(arguments: Vec<Value>) -> Result<Value, Error> {
         match (&accumulator, x) {
             (Value::Integer(a), Value::Integer(b)) => Ok(Value::Integer(a - b)),
             (Value::Float(a), Value::Float(b)) => Ok(Value::Float(a - b)),
-            _ => Err(TypeError { kind: TypeErrorType::TypeMismatch(accumulator.get_kind(), x.get_kind()) }.into())
+            _ => Err(TypeError { kind: TypeErrorType::TypeMismatch { expected_kind: accumulator.get_kind(), found_kind: x.get_kind() } }.into())
         }
     })
 }
 
 pub fn multiply(arguments: Vec<Value>) -> Result<Value, Error> {
-    if arguments.is_empty() { return Err(RuntimeError { kind: RuntimeErrorType::InsufficientOperands("Multiply".to_string()) }.into()) }
+    if arguments.len() < 2 { return Err(RuntimeError { kind: RuntimeErrorType::InsufficientOperands { function: "*".to_string(), min_arity: 2 } }.into()) }
     let (first, rest) = arguments.split_first().unwrap();
-    if rest.is_empty() {
-        return Err(TypeError { kind: TypeErrorType::InvalidOperand("Multiplication is a binary operator".to_string()) }.into())
-    };
     rest.iter().try_fold(first.clone(), |accumulator, x| {
         match (&accumulator, x) {
             (Value::Integer(a), Value::Integer(b)) => Ok(Value::Integer(a * b)),
             (Value::Float(a), Value::Float(b)) => Ok(Value::Float(a * b)),
-            _ => Err(TypeError { kind: TypeErrorType::TypeMismatch(accumulator.get_kind(), x.get_kind()) }.into())
+            _ => Err(TypeError { kind: TypeErrorType::TypeMismatch { expected_kind: accumulator.get_kind(), found_kind: x.get_kind() } }.into())
         }
     })
 }

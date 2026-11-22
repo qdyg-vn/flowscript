@@ -139,12 +139,12 @@ impl SymbolTable {
             if let Some(index) = structure.field_kind_indices.get(field_name) {
                 field_kind_indices.push(*index);
             } else {
-                errors.push(SemanticError { kind: SemanticErrorType::NoFieldFound(struct_name.clone(), field_name.clone()) }.into());
+                errors.push(SemanticError { kind: SemanticErrorType::NoFieldFound { struct_name: struct_name.clone(), field_name: field_name.clone() } }.into());
             }
         }
         for field_name in structure.field_kind_indices.keys() {
             if !field_names.contains(field_name) {
-                errors.push(SemanticError { kind: SemanticErrorType::MissingField(struct_name.clone(), field_name.clone()) }.into());
+                errors.push(SemanticError { kind: SemanticErrorType::MissingField { struct_name: struct_name.clone(), field_name: field_name.clone() } }.into());
             }
         }
         if errors.is_empty() { Ok(field_kind_indices) } else { Err(errors) }
@@ -159,7 +159,7 @@ impl SymbolTable {
         let structure = &self.structures[struct_index as usize];
         match structure.field_kind_indices.get(field_name) {
             Some(index) => Ok(*index),
-            None => Err(SemanticError { kind: SemanticErrorType::NoFieldFound(struct_name.to_string(), field_name.to_string()) }.into()),
+            None => Err(SemanticError { kind: SemanticErrorType::NoFieldFound { struct_name: struct_name.to_string(), field_name: field_name.to_string() } }.into()),
         }
     }
     
@@ -179,7 +179,7 @@ impl SymbolTable {
         for (index, field_kind) in field_kind_indices.iter().zip(field_kinds) {
             let expected_kind = structure.field_kinds[*index as usize];
             if expected_kind != *field_kind {
-                errors.push(TypeError { kind: TypeErrorType::TypeMismatch(expected_kind, *field_kind) }.into())
+                errors.push(TypeError { kind: TypeErrorType::TypeMismatch { expected_kind, found_kind: *field_kind } }.into())
             }
         }
         errors

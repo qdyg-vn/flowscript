@@ -249,8 +249,8 @@ impl fmt::Display for SemanticError {
             SemanticErrorType::RelativeReferenceNotInPipeline => 5,
             SemanticErrorType::DuplicateFunctionDefinition => 6,
             SemanticErrorType::DuplicateStructDefinition => 7,
-            SemanticErrorType::NoFieldFound(_, _) => 8,
-            SemanticErrorType::MissingField(_, _) => 9,
+            SemanticErrorType::NoFieldFound { .. } => 8,
+            SemanticErrorType::MissingField { .. } => 9,
         };
         writeln!(formatter, "\x1b[31;1m[Error FSCC5{:0>3}]\x1b[0m {}", code, self.kind)
     }
@@ -265,8 +265,14 @@ pub enum SemanticErrorType {
     RelativeReferenceNotInPipeline,
     DuplicateFunctionDefinition,
     DuplicateStructDefinition,
-    NoFieldFound(String, String),
-    MissingField(String, String),
+    NoFieldFound {
+        struct_name: String,
+        field_name: String,
+    },
+    MissingField {
+        struct_name: String,
+        field_name: String,
+    },
 }
 
 impl fmt::Display for SemanticErrorType {
@@ -279,8 +285,8 @@ impl fmt::Display for SemanticErrorType {
             Self::RelativeReferenceNotInPipeline => write!(formatter, "Cannot use relative reference outside a pipeline"),
             Self::DuplicateFunctionDefinition => write!(formatter, "Duplicate definition of function"),
             Self::DuplicateStructDefinition => write!(formatter, "Duplicate definition of struct"),
-            Self::NoFieldFound(structure, field) => write!(formatter, "Struct {} has no field named: {}", structure, field),
-            Self::MissingField(structure, field) => write!(formatter, "Struct {} missing field {}", structure, field),
+            Self::NoFieldFound { struct_name: structure, field_name: field } => write!(formatter, "Struct {} has no field named: {}", structure, field),
+            Self::MissingField { struct_name: structure, field_name: field } => write!(formatter, "Struct {} missing field {}", structure, field),
         }
     }
 }
@@ -294,8 +300,8 @@ impl fmt::Display for RuntimeError {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         let code = match &self.kind {
             RuntimeErrorType::OutOfBounds(_, _) => 1,
-            RuntimeErrorType::InsufficientOperands(_) => 2,
-            RuntimeErrorType::ParseError(_, _) => 3,
+            RuntimeErrorType::InsufficientOperands { .. } => 2,
+            RuntimeErrorType::ParseError { .. } => 3,
         };
         writeln!(formatter, "\x1b[31;1m[Error FSCC7{:0>3}]\x1b[0m {}", code, self.kind)
     }
@@ -304,16 +310,22 @@ impl fmt::Display for RuntimeError {
 #[derive(Debug)]
 pub enum RuntimeErrorType {
     OutOfBounds(usize, usize),
-    InsufficientOperands(String),
-    ParseError(String, String)
+    InsufficientOperands {
+        function: String,
+        min_arity: usize,
+    },
+    ParseError {
+        value: String,
+        kind: Kind,
+    },
 }
 
 impl fmt::Display for RuntimeErrorType {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::OutOfBounds(start, end) => write!(formatter, "Stack out of bounds: start {} end {}", start, end),
-            Self::InsufficientOperands(function) => write!(formatter, "{} requires at least one operand", function),
-            Self::ParseError(value, kind) => write!(formatter, "Cannot convert {} to {}", value, kind),
+            Self::InsufficientOperands { function, min_arity } => write!(formatter, "{} requires at least {} operand", function, min_arity),
+            Self::ParseError { value, kind } => write!(formatter, "Cannot convert {} to {}", value, kind),
         }
     }
 }
@@ -327,11 +339,11 @@ impl fmt::Display for TypeError {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         let code = match &self.kind {
             TypeErrorType::NotSequence(_) => 1,
-            TypeErrorType::TypeMismatch(_, _) => 2,
+            TypeErrorType::TypeMismatch { .. } => 2,
             TypeErrorType::InvalidOperand(_) => 3,
             TypeErrorType::InvalidUnaryOperand(_) => 4,
-            TypeErrorType::AssignTypeMismatch(_, _) => 5,
-            TypeErrorType::ArityMismatch(_, _) => 6,
+            TypeErrorType::AssignTypeMismatch { .. } => 5,
+            TypeErrorType::ArityMismatch { .. } => 6,
             TypeErrorType::NotAFunction(_) => 7,
             TypeErrorType::NoFunctionFound(_) => 8,
             TypeErrorType::NotAStruct(_) => 9,
@@ -344,11 +356,21 @@ impl fmt::Display for TypeError {
 #[derive(Debug)]
 pub enum TypeErrorType {
     NotSequence(Value),
-    TypeMismatch(Kind, Kind),
+    TypeMismatch {
+        expected_kind: Kind,
+        found_kind: Kind,
+    },
     InvalidOperand(String),
     InvalidUnaryOperand(String),
-    AssignTypeMismatch(Kind, Kind),
-    ArityMismatch(usize, usize),
+    AssignTypeMismatch {
+        found_kind: Kind,
+        expected_kind: Kind,
+    },
+    ArityMismatch {
+        function: String,
+        expected_arity: usize,
+        found_arity: usize,
+    },
     NotAFunction(String),
     NoFunctionFound(Vec<Kind>),
     NotAStruct(String),
@@ -359,10 +381,10 @@ impl fmt::Display for TypeErrorType {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::NotSequence(station) => write!(formatter, "{} is not a sequence", station),
-            Self::TypeMismatch(accumulator, x) => write!(formatter, "Expected {} found {}", accumulator, x),
+            Self::TypeMismatch { expected_kind, found_kind } => write!(formatter, "Expected {} found {}", expected_kind, found_kind),
             Self::InvalidOperand(message) | TypeErrorType::InvalidUnaryOperand(message) => write!(formatter, "{}", message),
-            Self::AssignTypeMismatch(received_kind, required_kind) => write!(formatter, "Kind '{}' is not assignable to kind '{}'", received_kind, required_kind),
-            Self::ArityMismatch(received_arity, required_arity) => write!(formatter, "Function expects {} arguments, but got {}", required_arity, received_arity),
+            Self::AssignTypeMismatch { found_kind, expected_kind } => write!(formatter, "Type {} is not assignable to type {}", found_kind, expected_kind),
+            Self::ArityMismatch { function, expected_arity, found_arity } => write!(formatter, "{} expects {} arguments, but got {}", function, expected_arity, found_arity),
             Self::NotAFunction(name) => write!(formatter, "{} is not a function", name),
             Self::NoFunctionFound(arguments) => write!(formatter, "No function found that matches the given arguments kind: {:?}", arguments),
             Self::NotAStruct(name) => write!(formatter, "{} is not a struct", name),
